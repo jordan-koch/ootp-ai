@@ -3,7 +3,7 @@
 One file per significant decision. Named `YYYY-MM-DD-<slug>.md` using the **sim date**, not
 the wall-clock date — the GM's history is in league time.
 
-> **Status: none yet.** No league exists.
+> **Club:** Boston Red Sox, league `OOTP-AI`, first sim date 2024-03-07.
 
 ## What gets a record
 
