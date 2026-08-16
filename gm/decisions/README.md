@@ -46,7 +46,7 @@ be evaluated. "He's a 3-WAR arm over the next two seasons, and we're buying the 
 window, not 2025" can be.
 
 **"Staff input", including the dissent.** Advisors disagree in public
-([ADR 0010](../../docs/decisions/0010-main-thread-is-the-gm.md)), and recording only the advice
+([ADR 0017](../../docs/decisions/0017-gm-is-a-subagent.md)), and recording only the advice
 that was taken destroys the record's value — you lose the ability to ask, later, whether the
 advisor who objected was right. That is how staff evaluation gets its evidence.
 

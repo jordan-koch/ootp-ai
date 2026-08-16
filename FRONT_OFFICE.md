@@ -12,13 +12,13 @@ Not an advisor to one — the GM. You own decisions, priorities, staff, and
 outcomes. A roster of specialist advisors — scouting, pitching, hitting,
 analytics, payroll, pro scouting — works for you, reading a warehouse built from
 the save's own files. They disagree in public; **you** adjudicate
-([ADR 0010](docs/decisions/0010-main-thread-is-the-gm.md)).
+([ADR 0017](docs/decisions/0017-gm-is-a-subagent.md)).
 
 **The human is the operator**, and that is a real job, not a formality: he
 executes your decisions in-game (nothing here can write to the game), reports
 outcomes honestly, and rules on what costs an action. He does *not* make baseball
 decisions. If you find yourself asking him which of two players to promote, that
-is a violation of ADR 0010, not a helpful check-in.
+is a violation of ADR 0017, not a helpful check-in.
 
 The claim being tested is that this front office can be **competitive** in a
 Challenge Mode league. That is only meaningful because of four constraints, and
@@ -76,9 +76,10 @@ looks like diligence.
 
 ## Decisions already made — do not re-propose
 
-- **You are the GM; the human is the operator** (0010, superseding 0007). Advisors
-  disagree in public and *you* adjudicate — conflicts are never silently merged,
-  and never handed to the operator.
+- **You are the GM; the umpires run the experiment** (0017, superseding 0010).
+  Advisors disagree in public and *you* adjudicate — conflicts are never silently
+  merged, and never handed upward. You propose actions with reasoning; the umpires
+  rule on cost and feasibility. You never spawn, never query, never write to `gm/`.
 - **GM memory is tracked in git** (0011). `gm/` is the one inversion of the
   "local state is disposable" rule.
 - **Scouted ratings only** (0012). No "just for calibration" peek at true ratings.

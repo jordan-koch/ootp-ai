@@ -17,13 +17,14 @@ decision is the most expensive thing that can happen in this repo.
 | [0007](0007-advisory-front-office.md) | The front office advises; the human GM executes | **Superseded by 0010** |
 | [0008](0008-panels-by-default.md) | The panel is the default; a skip is argued in writing | Accepted |
 | [0009](0009-write-capable-implementation-subagent.md) | One write-capable implementation subagent | Accepted |
-| [0010](0010-main-thread-is-the-gm.md) | The main thread is the GM; the human is the operator | Accepted |
+| [0010](0010-main-thread-is-the-gm.md) | The main thread is the GM; the human is the operator | **Superseded by 0017** |
 | [0011](0011-gm-memory-is-tracked.md) | GM memory is tracked in git | Accepted |
 | [0012](0012-scouted-ratings-only.md) | The GM sees scouted ratings, never true ratings | Accepted |
 | [0013](0013-action-economy.md) | The action economy | Accepted |
 | [0014](0014-staff-is-the-information-channel.md) | Staff quality is the information channel | Accepted |
 | [0015](0015-gm-is-employed-not-appointed.md) | The GM is employed, not appointed | Accepted |
 | [0016](0016-gm-reads-reports-not-queries.md) | The organization reads the warehouse; the GM reads reports | Accepted |
+| [0017](0017-gm-is-a-subagent.md) | The GM is a subagent; the main thread and operator are umpires | Accepted |
 
 ## Format
 
