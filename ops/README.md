@@ -65,6 +65,23 @@ with a `bin/` folder and no server.
 mysql -u root -p < ops/mysql-bootstrap.sql
 ```
 
+> **Store the root password in a password manager, not in `.env`.** It is not a
+> one-time credential — grants, user management and recovery all need it. If
+> `.env` is its only copy, deleting that line loses it, and the way back in is a
+> service stop plus an `--init-file` reset.
+
+### Repairing a locked-out application user
+
+`REVOKE ALL PRIVILEGES ON *.* FROM 'ootp_ai'@'localhost'` **also removes the
+database-scoped grants**, not just the global ones — observed, and it leaves the
+account at bare `USAGE` with `Access denied` on every database. No data is lost;
+`REVOKE` never touches a schema.
+
+[`mysql-bootstrap.sql`](mysql-bootstrap.sql) is the repair: its
+`CREATE DATABASE IF NOT EXISTS` and `CREATE USER IF NOT EXISTS` are no-ops
+against an existing install, and its three `GRANT`s restore access. Run it as
+root.
+
 ### Bind to loopback
 
 The configurator leaves `bind_address` **unset**, which means `*` — every
