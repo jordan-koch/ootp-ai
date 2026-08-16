@@ -23,6 +23,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0013](0013-action-economy.md) | The action economy | Accepted |
 | [0014](0014-staff-is-the-information-channel.md) | Staff quality is the information channel | Accepted |
 | [0015](0015-gm-is-employed-not-appointed.md) | The GM is employed, not appointed | Accepted |
+| [0016](0016-gm-reads-reports-not-queries.md) | The organization reads the warehouse; the GM reads reports | Accepted |
 
 ## Format
 

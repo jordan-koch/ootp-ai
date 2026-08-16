@@ -70,7 +70,7 @@ simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 
 ## Design decisions
 
-Fifteen are recorded in [`docs/decisions/`](docs/decisions/) — fourteen live, one
+Sixteen are recorded in [`docs/decisions/`](docs/decisions/) — fifteen live, one
 superseded. The ones that shape everything else:
 
 | ADR | Decision | Why |
@@ -83,6 +83,7 @@ superseded. The ones that shape everything else:
 | [0013](docs/decisions/0013-action-economy.md) | The action economy | Pausing time is an advantage no real GM has |
 | [0014](docs/decisions/0014-staff-is-the-information-channel.md) | Staff quality is the information channel | A clearer picture is bought by hiring, never by code |
 | [0015](docs/decisions/0015-gm-is-employed-not-appointed.md) | The GM is employed, not appointed | Someone other than the GM has to decide whether it succeeded |
+| [0016](docs/decisions/0016-gm-reads-reports-not-queries.md) | The GM reads reports, never the warehouse | A GM with a tireless analyst on infinite call isn't a GM |
 
 ## Setup
 
