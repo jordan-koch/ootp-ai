@@ -8,6 +8,14 @@
 > nothing stops the GM opening a database."* That stopped being true when the GM
 > became a subagent holding no shell. The belief is left as written because it is
 > the record of what was believed; this note is the correction.
+>
+> **Clarified by [ADR 0018](0018-retention-is-infrastructure.md).** The Notes below
+> draw the line as *"building a printing press is not the same as commissioning an
+> article,"* which does not obviously resolve **retention** — keeping a scouted read
+> so a question can be asked of it in three seasons. 0018 places retention on the
+> press side, and gives the reason this decision's cost model does not supply:
+> retention is *irreversible*, so charging for it would penalise foresight rather
+> than judgement.
 
 ## Context
 

@@ -25,6 +25,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0015](0015-gm-is-employed-not-appointed.md) | The GM is employed, not appointed | Accepted |
 | [0016](0016-gm-reads-reports-not-queries.md) | The organization reads the warehouse; the GM reads reports | Accepted |
 | [0017](0017-gm-is-a-subagent.md) | The GM is a subagent; the main thread and operator are umpires | Accepted |
+| [0018](0018-retention-is-infrastructure.md) | Retention is infrastructure; analysis over history is commissioned | Accepted |
 
 ## Format
 
