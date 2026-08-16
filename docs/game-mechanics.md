@@ -125,6 +125,57 @@ wrong.** Which to trust on a given player is a judgement, not a calculation — 
 
 ---
 
+## Mail, and the volume dial nobody has turned
+
+The game delivers mail to the general manager. `measured` — observed in-game by the
+operator, 2026-08-16, and cross-checked against the save on disk.
+
+**It is a subscription, not a feed.** There are **12 subscription categories** covering
+different subjects — general league news, contract news and injury news among them; the
+remaining nine have not been enumerated here and should be, before anyone reasons about
+coverage.
+
+**Volume is a setting with a wide range.** It runs from **"No news, only personal
+messages"** — which is the **default**, and is what this league is on — up to **"News
+from the entire world."** Between those sit granular restrictions: your league, your
+team, and similar scopings.
+
+### Why that default matters more than it looks
+
+What sits in the save today is therefore the **floor, not the ceiling**. `measured` —
+at the default setting `OOTP-AI.lg/messages/` holds **8 plain-text files totalling
+8,056 bytes**, plus a 1,129-byte `messages.dat` index carrying the standard save header.
+Even at the floor, one of those eight is a ranked league-wide prospect list.
+
+`unconfirmed` — whether raising the setting backfills history or only changes what
+arrives from that point on. The difference decides whether the dial is reversible.
+
+### The mechanic this exposes, stated but not settled here
+
+Every other information lever in this project is bought. Staff quality is bought by
+hiring ([ADR 0014](decisions/0014-staff-is-the-information-channel.md)); depth on one
+player is bought with an action and two weeks
+([ADR 0013](decisions/0013-action-economy.md)). **This one is bought with a settings
+toggle, once, for free** — and it scales from near-silence to the whole world.
+
+That is a genuine asymmetry and it is a *decision*, not a mechanic, so it is not
+settled here. It belongs to whoever files the mail request. Three things it has to
+answer, none of which this document may answer for it:
+
+- **Who owns the dial** — the GM, or the umpires?
+- **Does reading mail cost an action?** Mail arrives unbidden and a real general
+  manager reads his own inbox, which argues free. A ranked prospect list arriving
+  weekly for nothing argues otherwise.
+- **Is the setting itself a one-time choice or a standing one?** A dial that can be
+  turned up the week it becomes useful is a different instrument from one set at hire.
+
+`inferred` — reading cost is likely to bind on **volume** rather than on access. At the
+floor it is eight short letters; at "the entire world" it is a firehose that no context
+window reads in full, which turns "read the mail" into a summarisation problem and a
+selection problem at the same time.
+
+---
+
 ## Actions that resolve later
 
 `inferred` — from the manual scouting request, and expected to generalise.
