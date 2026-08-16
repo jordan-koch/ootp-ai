@@ -23,13 +23,23 @@
 CREATE DATABASE IF NOT EXISTS ootp
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
--- Ground truth, exported by the game from a DISPOSABLE STANDARD-MODE save — the
--- export does not exist in Challenge Mode (docs/data-access.md §6). Two
--- databases rather than one because the export drops tables on the way in, so a
--- second export into a shared database destroys the first.
-CREATE DATABASE IF NOT EXISTS ootp_truth_real
+-- The development warehouse. Every primary key already carries save_id, so the
+-- universes cannot collide on a key — but save_id is a COLUMN, and a SELECT that
+-- forgets it mixes two universes with nothing erroring. Developing against a
+-- separate schema is defence in depth and costs one .env value.
+CREATE DATABASE IF NOT EXISTS ootp_dev
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
-CREATE DATABASE IF NOT EXISTS ootp_truth_osa
+
+-- Ground truth, exported by the game from the RETAINED STANDARD-MODE save — the
+-- export does not exist in Challenge Mode (docs/data-access.md §6).
+--
+-- ootp_truth_osa is deliberately ABSENT. It was created on the belief that the
+-- OSA and own-scout perspectives needed separate exports, because the export
+-- drops tables on the way in. Measured: ootp_truth_real.players_scouted_ratings
+-- already carries BOTH perspectives from ONE export (36,144 rows,
+-- scouting_coach_id in {-1, 2759}, 18,072 each), so the second database bought
+-- nothing and its existence implied a setup step nobody needs to run.
+CREATE DATABASE IF NOT EXISTS ootp_truth_real
   CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci;
 
 -- utf8mb4 is load-bearing, not decorative. The export is configured with
@@ -45,7 +55,11 @@ CREATE USER IF NOT EXISTS 'ootp_ai'@'localhost' IDENTIFIED BY 'CHANGE_ME';
 
 -- Database-scoped. No global privileges, no GRANT OPTION.
 GRANT ALL PRIVILEGES ON ootp.*            TO 'ootp_ai'@'localhost';
+GRANT ALL PRIVILEGES ON ootp_dev.*        TO 'ootp_ai'@'localhost';
+
+-- Ground truth is read-only BY POLICY, and src/ootp_ai/db.py opens it with a
+-- read-only session. The grant stays broad only because the export itself needs
+-- to write here when you re-run it as root; the pipeline never does.
 GRANT ALL PRIVILEGES ON ootp_truth_real.* TO 'ootp_ai'@'localhost';
-GRANT ALL PRIVILEGES ON ootp_truth_osa.*  TO 'ootp_ai'@'localhost';
 
 FLUSH PRIVILEGES;
