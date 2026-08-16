@@ -57,8 +57,8 @@ Append-only, one JSON object per line, newest last. It records **every adjudicat
 whether the ruling was *cost* or *free* — a free ruling is precedent too, and dropping those
 would leave the doctrine half-blind.
 
-The file does not exist yet; it appears with the first declared action. `.gitattributes`
-already marks it `merge=union` so two branches appending different entries both keep them.
+The file was opened by seq 1 (2024-03-07). `.gitattributes` marks it `merge=union` so two
+branches appending different entries both keep them.
 
 ```json
 {"seq":1,"sim_date":"2024-03-18","period":"2024-W12","what":"Build draft board, rounds 1-3","staff":"scouting-director","proposed":"cost","reasoning":"New scouting work on players outside existing coverage.","precedent":null,"ruling":"cost","overridden":false,"overturns":null}

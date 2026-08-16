@@ -18,8 +18,10 @@ gh api -X PUT repos/:owner/:repo/branches/main/protection \
 > without updating this file and every PR waits forever for a check that never
 > reports, with no error explaining why. Change both in the same commit.
 
-`enforce_admins: true` is deliberate: it means **nobody** merges past a red
-check, which is what makes it safe for an agent to open and merge a PR.
+`enforce_admins: true` is deliberate: it means **nobody** merges past a red check,
+which is what makes it safe for an agent to open and merge a PR. **Protection is
+the guard, not the permission** — the agent still asks first, then merges and
+cleans up on approval. See [CLAUDE.md](../CLAUDE.md) §Project conventions.
 
 ## Local toolchain
 

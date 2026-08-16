@@ -53,8 +53,19 @@ Each `.lg` directory holds (`measured`):
 | `import_export/` | — | Destination for in-game exports (see §6) |
 | `news/html/` | — | Generated HTML reports (see §7) |
 
-A full `.lg` directory is **~600 MB**. `inferred` — snapshotting it per sim date
-onto cloud-synced storage would be a mistake; snapshots belong on local disk.
+A full `.lg` directory is **~600 MB** (the managed league is ~727 MB). `inferred` —
+snapshotting it per sim date onto cloud-synced storage would be a mistake;
+snapshots belong on local disk.
+
+`measured` — **a `*.lg` glob is not a list of saves.** The saved-games directory
+contains a stray, empty directory literally named `.lg`, which matches the pattern
+and is not a save. A save enumerator must confirm contents — `players.dat` and
+`teams.dat` at minimum — rather than trusting the name.
+
+`measured` — `challenge.dat` is present at exactly **241 bytes** in a Challenge
+Mode save and absent otherwise, and such a save's `import_export/` directory
+exists but stays empty. Either is a cheap filesystem-level check for the mode,
+without opening the menu.
 
 ---
 

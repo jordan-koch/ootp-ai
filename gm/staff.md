@@ -2,7 +2,10 @@
 
 The front office roster, and how each member has performed against the actions spent on them.
 
-> **Status: no staff engaged.** No league exists yet.
+> **Status: no staff engaged.** The club exists (Boston Red Sox, `OOTP-AI`, from
+> 2024-03-07) and carries inherited staff, but none has been engaged and no
+> analytics capability exists yet
+> ([ADR 0016](../docs/decisions/0016-gm-reads-reports-not-queries.md)).
 
 ## Why this file can exist at all
 
