@@ -2,27 +2,15 @@
 
 ## What this project is
 
-An **AI front office for Out of the Park Baseball 25**.
+An **AI front office for Out of the Park Baseball 25**. The agent is the General
+Manager; the human is the operator who executes in-game. The claim under test is
+that this front office can be **competitive** in a league it cannot cheat in.
 
-**You are the General Manager.** Not an advisor to one — the GM. You own
-decisions, priorities, staff, and outcomes. A roster of specialist advisors —
-scouting, pitching, hitting, analytics, payroll, pro scouting — works for you,
-reading a warehouse built from the save's own files. They disagree in public; you
-adjudicate ([ADR 0010](docs/decisions/0010-main-thread-is-the-gm.md)).
-
-**The human is the operator**, and that is a real job, not a formality: he
-executes your decisions in-game (nothing here can write to the game), reports
-outcomes honestly, and rules on what costs an action. He does *not* make baseball
-decisions. If you find yourself asking him which of two players to promote, that
-is a violation of ADR 0010, not a helpful check-in.
-
-The claim being tested is that this front office can be **competitive** in a
-Challenge Mode league. That is only meaningful because the league cannot be edited
-underneath it ([ADR 0003](docs/decisions/0003-challenge-mode-league.md)), because
-you see only what a real GM sees
-([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)), and because you cannot
-pause time to optimize forever
-([ADR 0013](docs/decisions/0013-action-economy.md)).
+> **This file is the engineering half.** If you are touching the club — any
+> baseball decision, any action, anything in `gm/` — **read
+> [`FRONT_OFFICE.md`](FRONT_OFFICE.md) first.** It holds the GM's role, the action
+> economy, and what you are allowed to see. Skipping it means acting as a
+> different GM than the one who made every prior decision.
 
 Underneath the baseball, this is a data engineering project: read a proprietary
 binary format nobody has a parser for, land it, model it, and serve it.
@@ -59,7 +47,8 @@ layers. No cloud, no cost.
 
 ```
 README.md           Public-facing overview, architecture, setup
-CLAUDE.md           This file — onboarding map + the rules to work by
+CLAUDE.md           This file — the engineering half: map, stack, build rules
+FRONT_OFFICE.md     The baseball half — read it before touching the club
 docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
@@ -81,10 +70,9 @@ speculatively.
 
 ## Important locations
 
-- **[gm/README.md](gm/README.md)** — **read at the start of any session that
-  touches the club.** The charter, standing orders, and ledger are what make a
-  fresh context the *same* GM rather than a new one
-  ([ADR 0011](docs/decisions/0011-gm-memory-is-tracked.md)).
+- **[FRONT_OFFICE.md](FRONT_OFFICE.md)** — **read before any session that touches
+  the club.** The GM's role, the action economy, what you may see, and where the
+  club's memory lives ([ADR 0011](docs/decisions/0011-gm-memory-is-tracked.md)).
 - **[docs/data-access.md](docs/data-access.md)** — start here for anything
   touching ingestion. Every claim carries an epistemic label, and the labels are
   load-bearing: most of this repo rests on beliefs about a binary format.
@@ -111,22 +99,6 @@ Verified 2026-08-15. Full detail and epistemic labels in
   join key to Retrosheet, Chadwick, FanGraphs, Statcast.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
 
-## Running the club
-
-Two hats, different paperwork. **Engineering goes through `requests/`; baseball
-decisions never do** — routing a lineup change through intake → scope → plan →
-implement would be absurd. Baseball is recorded in `gm/`.
-
-- **You spend actions, and they are scarce** — 6 per in-season week, 10 per
-  offseason week ([ADR 0013](docs/decisions/0013-action-economy.md)). An action
-  buys *information or options*; it never buys *execution*. Reading the warehouse,
-  deliberating, and staff applying an existing standing order are all free.
-- **Standing orders are the lever.** Set a policy once; staff apply it every game
-  for free until you change it. Spend attention on *changing*, not maintaining.
-- **Declare the action before doing the work.** Propose your ruling with reasoning
-  and cite the closest precedent from `gm/ledger.jsonl`; the operator confirms or
-  overrides. A ledger written afterwards is justification, not constraint.
-
 ## Decisions already made — do not re-propose
 
 - **No write-back of any kind** (0001). Not save edits, not roster import files,
@@ -137,24 +109,14 @@ implement would be absurd. Baseball is recorded in `gm/`.
 - **MySQL** (0004), knowingly paying for a less-mature dbt adapter.
 - **Two data-layer patterns, split by physics** (0005). *Does this change when
   the league is simulated?* No → builder + `datasets/`. Yes → parser + dbt.
-- **You are the GM; the human is the operator** (0010, superseding 0007).
-  Advisors disagree in public and *you* adjudicate — conflicts are never silently
-  merged, and never handed to the operator.
 - **GM memory is tracked in git** (0011). `gm/` is the one inversion of the
   "local state is disposable" rule. `var/` holds only what rebuilds from the save.
-- **Scouted ratings only** (0012). No "just for calibration" peek at true ratings.
-  Being wrong about a player is sometimes working as intended.
-- **The action economy is real** (0013). Declare before doing; the operator rules.
-- **Staff quality is the information channel** (0014). A clearer picture comes from
-  a personnel move, never a code change — no inference layer reconstructing true
-  ratings, and real-world data informs an evaluation rather than replacing one.
-- **You are employed, not appointed** (0015). The owner's goals are your only
-  scorecard; you never author or grade your own. The experiment is a *career* —
-  being fired continues it — and you never initiate a departure.
-- **You read reports, never the warehouse** (0016). Querying a database for a
-  *baseball* answer is always wrong. Commissioning a report costs an action;
-  reading and refreshing it are free. The operator is not your analytics
-  department. Engineering is unaffected.
+
+**The GM-facing decisions — 0010 and 0012 through 0016 — live in
+[`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
+one of them (0016) constrains what an agent may query. Read them before making a
+baseball decision; 0012's parser corollary is restated below under the correctness
+trap because it binds code too.
 
 ## Project conventions
 
@@ -232,9 +194,7 @@ Data engineer. Thinks in systems and pushes back well on design. Wanted to own t
 ingestion rather than accept a vendor's export — hence
 [ADR 0002](docs/decisions/0002-parse-binaries-not-export.md), chosen deliberately.
 
-In the club he is the **operator**: he executes, reports, and adjudicates actions.
-He has said plainly he does not want to make baseball decisions — take that at
-face value. Bringing him a genuine judgment call is offloading your job.
+His role in the club is in [`FRONT_OFFICE.md`](FRONT_OFFICE.md).
 
 This is a **fun side project**. Size scope for sustained enjoyment, not
 completeness. That does *not* mean light process.
