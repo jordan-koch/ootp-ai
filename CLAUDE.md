@@ -87,6 +87,9 @@ speculatively.
 - **[docs/data-access.md](docs/data-access.md)** — start here for anything
   touching ingestion. Every claim carries an epistemic label, and the labels are
   load-bearing: most of this repo rests on beliefs about a binary format.
+- **[docs/league-rules.md](docs/league-rules.md)** — the rule environment every
+  baseball decision sits inside. **The rules evolve**; the document says which
+  parts the warehouse supersedes and which parts exist nowhere else.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
   structural. Fifteen ADRs, one superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the
