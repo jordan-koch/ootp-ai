@@ -116,4 +116,4 @@ A skipped stage skips its status: an argued direct build goes `intake` →
 
 | Feature | Stage | Notes |
 |---|---|---|
-| [first-sight](first-sight/) | scoped | The `.dat` parser, warehouse landing, a data catalog, and two starting reports — the first time the GM can see its own club. Scoped as **reshape**: ratings decoupled behind the scouted-view spike, standings ship structural-only, dbt deferred |
+| [first-sight](first-sight/) | planned | The `.dat` parser, warehouse landing, a data catalog, and two starting reports — the first time the GM can see its own club. Scoped as **reshape**: ratings decoupled behind the scouted-view spike, standings ship structural-only, dbt deferred. Planned in 14 phases; `tests/` is main-thread-authored because it is in the builder's deny set |
