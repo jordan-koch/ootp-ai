@@ -73,6 +73,48 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   thread commits it — a green suite says nothing about new files. Import `PATTERNS` from the
   guard and run it over the new paths yourself before handing off. · evidence:
   `tests/test_no_leaks.py` `tracked_text_files()` · tag: harness
+- **2026-08-16** · `measured` · Ruff `N818` demands an `Error` suffix on every exception
+  class, but the offline suite imports `MalformedHeader`, `UnsupportedSaveVersion`,
+  `SaveFilenameMismatch`, `UnexpectedEndOfData` and `NotChallengeMode` by those exact
+  names. Pin the name and add a bare `# noqa: N818`; put the reason in the docstring,
+  because ruff mis-parses prose appended to the noqa. · evidence:
+  `src/ootp_ai/parser/errors.py` · tag: tooling
+- **2026-08-16** · `measured` · mypy aborts the *entire* run with "Source file found twice
+  under different module names" when a test-helper directory has no `__init__.py`
+  (`synthetic` vs `fixtures.synthetic`). `--explicit-package-bases` + `MYPYPATH` makes it
+  worse — `src` then resolves to the *installed* package and 18 `import-untyped` errors
+  appear. The fix is an empty `tests/fixtures/__init__.py`; `uv run mypy src` is the
+  partial check meanwhile. · evidence: `pyproject.toml` `files = ["src", "tests"]` ·
+  tag: tooling
+- **2026-08-16** · `verified` · A fix that lands in a deny-set path can still be *proved*
+  without writing there: copy `pyproject.toml`, `src/` and `tests/` into the scratchpad,
+  apply it in the copy, and run the repo venv's `mypy.exe` / `pytest.exe` from that
+  directory. `tests/test_repo_structure.py` and `test_agent_contract.py` fail in the copy
+  (they read `.gitignore`, `docs/`, `.claude/`) — expected, not signal. · evidence: this
+  session's Phase 3 mypy blocker · tag: harness
+- **2026-08-16** · `measured` · Ruff `RUF022` sorts `__all__` isort-style — SCREAMING_CASE,
+  then CamelCase, then lowercase — not plain alphabetical, so a hand-alphabetised list
+  fails. · evidence: `src/ootp_ai/saves.py` · tag: tooling
+- **2026-08-16** · `verified` · The no-seek ban is enforceable *structurally*: `__slots__`
+  plus a getter-only `position` property makes `hasattr(cursor, "seek")` false and
+  `cursor.position = 0` an `AttributeError`. Keep `unpack_from`'s offset argument a
+  **name** (`self._position`) and the AST guard needs no exemption for the primitives
+  themselves. · evidence: `src/ootp_ai/parser/primitives.py` · tag: harness
+- **2026-08-16** · `verified` · **A constant confirmed against a single save is not a
+  constant.** Five files sampled from one save all read `7` at header offset 75 and it was
+  written down as a format constant; it is the sim-date *day*, and that save sits at March
+  7. Vary the **save**, not just the file, before believing any header value — and treat a
+  value that is identical across files of one save as the *least* tested kind of claim. ·
+  evidence: the correction note in `tests/fixtures/synthetic.py` · tag: harness
+- **2026-08-16** · `verified` · When the end of a region is unmeasured, hand on the
+  **cursor**, never a length. `read_header_from(cursor, name)` lets the next stage keep
+  walking with no offset arithmetic, and a header object carrying no `length` /
+  `body_offset` cannot tempt a later phase into a body start nobody measured. · evidence:
+  `src/ootp_ai/parser/header.py` · tag: harness
+- **2026-08-16** · `measured` · `addopts` already carries `-q`, so passing `-q` again
+  double-quiets pytest and suppresses the `N passed` summary line entirely. Run without
+  the extra flag when the handoff needs a number to cite. · evidence: `pyproject.toml`
+  `addopts` · tag: tooling
 - **2026-08-15** · `measured` · The ported panel guard
   `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` fails on arrival, and fails
   **identically** in the `nba2k-rpg` repo it came from — a pre-existing upstream defect, not
