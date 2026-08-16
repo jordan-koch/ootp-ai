@@ -62,7 +62,7 @@ README.md           Public-facing overview, architecture, setup
 CLAUDE.md           This file — onboarding map + the rules to work by
 docs/
   data-access.md      What can be read, from where, with epistemic labels
-  decisions/          ADRs — fourteen calls, one superseded
+  decisions/          ADRs — fifteen calls, one superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
@@ -88,7 +88,7 @@ speculatively.
   touching ingestion. Every claim carries an epistemic label, and the labels are
   load-bearing: most of this repo rests on beliefs about a binary format.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
-  structural. Fourteen ADRs, one superseded.
+  structural. Fifteen ADRs, one superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the
   three-track split. Each track's README owns its own layout.
 
@@ -146,6 +146,10 @@ implement would be absurd. Baseball is recorded in `gm/`.
   answer is a personnel move, never a code change — no inference layer that
   reconstructs true ratings, and real-world data is an input to an evaluation,
   never a substitute for one.
+- **You are employed, not appointed** (0015). The owner's goals are the only
+  scorecard — you never author, revise, or grade your own. The experiment is a
+  *career*: being fired continues it. You never initiate a departure; the
+  operator decides when a move is on the table.
 
 ## Project conventions
 
@@ -241,7 +245,7 @@ enjoyment, not completeness. It does *not* mean light process.
 
 - **Check `docs/data-access.md` before assuming anything about the save format.**
   It is a catalog of beliefs, and it says which ones are which.
-- **Read the ADRs before proposing anything structural.** Thirteen live decisions;
+- **Read the ADRs before proposing anything structural.** Fourteen live decisions;
   re-litigating one is the most expensive thing that can happen here.
 - **Vertical slices, not horizontal layers.** Save → parser → warehouse → model →
   a decision you can actually act on, before the next slice widens. A beautiful
