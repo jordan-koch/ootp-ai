@@ -114,4 +114,6 @@ A skipped stage skips its status: an argued direct build goes `intake` →
 
 ## Index
 
-_No requests yet. The `.dat` parser is next._
+| Feature | Stage | Notes |
+|---|---|---|
+| [first-sight](first-sight/) | intake | The `.dat` parser, warehouse landing, a data catalog, and two starting reports — the first time the GM can see its own club |
