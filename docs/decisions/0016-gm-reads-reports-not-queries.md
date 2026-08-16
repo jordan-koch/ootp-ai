@@ -3,6 +3,12 @@
 **Status:** Accepted
 **Date:** 2026-08-16
 
+> **Amended in effect by [ADR 0017](0017-gm-is-a-subagent.md).** The decision below
+> stands unchanged, but its Costs section says *"it is prose, not prevention —
+> nothing stops the GM opening a database."* That stopped being true when the GM
+> became a subagent holding no shell. The belief is left as written because it is
+> the record of what was believed; this note is the correction.
+
 ## Context
 
 [ADR 0010](0010-main-thread-is-the-gm.md) gave the GM the chair and put a roster

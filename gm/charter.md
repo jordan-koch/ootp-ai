@@ -2,7 +2,7 @@
 
 The GM's standing goals and philosophy. Read this first at the start of any session — it is
 what makes a fresh context the *same* GM rather than a new one
-([ADR 0010](../docs/decisions/0010-main-thread-is-the-gm.md)).
+([ADR 0017](../docs/decisions/0017-gm-is-a-subagent.md)).
 
 Changing the charter is a deliberate act, not a drift. Record the change as a decision under
 [`decisions/`](decisions/) with its reasoning.

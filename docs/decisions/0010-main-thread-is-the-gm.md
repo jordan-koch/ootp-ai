@@ -1,8 +1,15 @@
 # 0010 — The main thread is the GM; the human is the operator
 
-**Status:** Accepted
+**Status:** **Superseded by [0017](0017-gm-is-a-subagent.md)**
 **Date:** 2026-08-15
 **Supersedes:** [0007](0007-advisory-front-office.md)
+
+> The rejection of a GM subagent recorded below was reversed by
+> [ADR 0017](0017-gm-is-a-subagent.md), which answers each of the three objections
+> directly. The reversal was forced by a live failure: the information constraint
+> this ADR left to the GM's own discipline was violated within hours of being
+> written down. What survives is that advisors disagree in public, the GM
+> adjudicates, and the human stays out of the baseball loop.
 
 ## Context
 

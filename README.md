@@ -71,14 +71,14 @@ simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 
 ## Design decisions
 
-Sixteen are recorded in [`docs/decisions/`](docs/decisions/) — fifteen live, one
+Seventeen are recorded in [`docs/decisions/`](docs/decisions/) — fifteen live, two
 superseded. The ones that shape everything else:
 
 | ADR | Decision | Why |
 |---|---|---|
 | [0001](docs/decisions/0001-read-only-no-write-back.md) | Never write to the game | Kills the hardest problem; keeps Challenge Mode safe |
 | [0002](docs/decisions/0002-parse-binaries-not-export.md) | Parse binaries, not the export | The export is gated in Challenge Mode and caps out at monthly |
-| [0010](docs/decisions/0010-main-thread-is-the-gm.md) | The agent is the GM | Someone has to own the decision, and it can't be the operator |
+| [0017](docs/decisions/0017-gm-is-a-subagent.md) | The GM is a subagent; we are umpires | Constraints enforced by discipline are not constraints |
 | [0011](docs/decisions/0011-gm-memory-is-tracked.md) | GM memory is tracked in git | The save records what happened, never why |
 | [0012](docs/decisions/0012-scouted-ratings-only.md) | Scouted ratings only | True ratings are the answer key; reading it proves nothing |
 | [0013](docs/decisions/0013-action-economy.md) | The action economy | Pausing time is an advantage no real GM has |

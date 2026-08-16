@@ -52,11 +52,11 @@ FRONT_OFFICE.md     The baseball half — read it before touching the club
 docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
-  decisions/          ADRs — sixteen calls, one superseded
+  decisions/          ADRs — seventeen calls, two superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
-.claude/agents/     The write-capable build subagent — and the rulebook it owns
+.claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
@@ -80,7 +80,7 @@ speculatively.
   baseball decision sits inside. **The rules evolve**; the document says which
   parts the warehouse supersedes and which parts exist nowhere else.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
-  structural. Sixteen ADRs, one superseded.
+  structural. Seventeen ADRs, two superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the
   three-track split. Each track's README owns its own layout.
 
@@ -112,7 +112,7 @@ Verified 2026-08-15. Full detail and epistemic labels in
 - **GM memory is tracked in git** (0011). `gm/` is the one inversion of the
   "local state is disposable" rule. `var/` holds only what rebuilds from the save.
 
-**The GM-facing decisions — 0010 and 0012 through 0016 — live in
+**The GM-facing decisions — 0012 through 0017 — live in
 [`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
 one of them (0016) constrains what an agent may query. Read them before making a
 baseball decision; 0012's parser corollary is restated below under the correctness

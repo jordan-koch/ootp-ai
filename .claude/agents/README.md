@@ -1,34 +1,49 @@
 # Agents
 
-Write-capable implementation subagents. One Markdown file defines one agent; the harness
-registers each frontmatter-bearing `.md` here as a spawnable agent type.
+Subagent definitions. One Markdown file defines one agent; the harness registers each
+frontmatter-bearing `.md` here as a spawnable agent type.
 
-This directory is the *developer* half of the manager/developer split. The main thread holds
-strategy — scoping rationale, whether this is still the right shape. An agent here holds a
-rulebook and builds to a spec.
+There are **two kinds**, and the difference decides which spawn protocol applies:
+
+| Kind | Example | Writes? | Protocol |
+|---|---|---|---|
+| **Write-capable builder** | `data-engineer` | yes, prose-bounded | Full spawn protocol below — snapshot, compare, commit evidence |
+| **Read-only decider** | `gm` | no | No snapshot needed. It cannot alter the tree, so there is nothing to compare |
 
 ## What is in here
 
 | File | What it is |
 |---|---|
-| `data-engineer.md` | The definition. Human-maintained. **The agent may not edit it.** |
-| `data-engineer-memory.md` | The agent's memory. It appends; humans curate. |
+| `data-engineer.md` | Builder definition. Human-maintained. **The agent may not edit it.** |
+| `data-engineer-memory.md` | The builder's memory. It appends; humans curate. |
+| `gm.md` | The General Manager ([ADR 0017](../../docs/decisions/0017-gm-is-a-subagent.md)). Human-maintained. **The agent may not edit it.** |
 | `README.md` | This file. |
 
-**One definition per agent, and the definition owns its rules.** The build rulebook lives in
-`data-engineer.md`, not in [`CLAUDE.md`](../../CLAUDE.md) — deliberately, so the rules have a
-single owner instead of two copies that drift. `CLAUDE.md` keeps a pointer for the main
-thread, which still builds directly for the carve-outs.
+**A definition owns its rules — except the GM's.** The build rulebook lives in
+`data-engineer.md` rather than [`CLAUDE.md`](../../CLAUDE.md), so it has one owner instead of
+two copies that drift. The GM is the deliberate exception: its rules live in
+[`FRONT_OFFICE.md`](../../FRONT_OFFICE.md) because the **umpires read the same copy to
+adjudicate it**, and a referee should not be reading the player's rulebook over his shoulder.
+`gm.md` therefore holds only what is about *being an agent* — tools, forced reads, the return
+contract, escalation.
 
-**Frontmatter is the discriminator.** Exactly one file here carries YAML frontmatter with a
-non-empty `name` and `description`; that is the definition. The memory file and this README
-carry none and are ignored by the loader.
+**Frontmatter is the discriminator.** Every definition carries YAML frontmatter with a
+non-empty `name`, `description` and `tools`. Memory files and this README carry none and are
+ignored by the loader.
 
-**The memory file is the single `.claude/` carve-out** in the agent's write allowlist, stated
-there as an exact path — `.claude/agents/data-engineer-memory.md` — rather than as a prefix
-rule. Everything else under `.claude/` is denied.
+**The GM has no memory file, deliberately.** Its memory is [`gm/`](../../gm/README.md), which
+the umpires write. A `gm-memory.md` would become a second copy of doctrine, which
+`gm/README.md` forbids outright: *doctrine is a query over the ledger, never a document.*
+
+**The memory file is the single `.claude/` carve-out** in the builder's write allowlist,
+stated there as an exact path — `.claude/agents/data-engineer-memory.md` — rather than as a
+prefix rule. Everything else under `.claude/` is denied.
 
 ## Spawn protocol
+
+**Applies to write-capable builders only.** A read-only agent like `gm` cannot alter the
+working tree, so the snapshot-and-compare machinery below has nothing to protect. Spawn it,
+read its handoff, and land what belongs in the record yourself.
 
 The main thread runs this. It reuses stage 4's procedure
 ([`implement-plan/SKILL.md`](../skills/implement-plan/SKILL.md)) rather than inventing a
