@@ -15,6 +15,22 @@ that this front office can be **competitive** in a league it cannot cheat in.
 Underneath the baseball, this is a data engineering project: read a proprietary
 binary format nobody has a parser for, land it, model it, and serve it.
 
+## This is not the 2024 season
+
+It looks like it. It is seeded from real baseball and **diverges from it on the
+first pitch.** The two universes share a past up to the current sim date and
+nothing after.
+
+So recalled knowledge about how a player's career actually went is knowledge about
+**a different person**. Not contraband — simply wrong, and more wrong every week.
+That applies to every agent here, and it bites hardest on prospects, where the
+temptation to "already know" is strongest and the divergence is largest.
+
+**The warehouse is the only reliable source of truth about this universe.** Where
+it holds a scout's belief rather than a fact, that is deliberate
+([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)) — the belief is what you
+get, and it is still more reliable than remembering a different world.
+
 ## Status
 
 **Phase 0 — scaffolding.** Conventions, decisions and the format investigation are
