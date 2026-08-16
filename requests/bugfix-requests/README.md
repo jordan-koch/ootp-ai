@@ -49,3 +49,4 @@ Every artifact opens with a status blockquote:
 | Bug | Stage | Notes |
 |---|---|---|
 | [doc-link-guard-mismatch](doc-link-guard-mismatch/) | intake | Six skills name `tests/test_request_links.py`, which does not exist; the guard that does exist rejects fenced links, `file.py:123` citations and `var/` targets that those skills promise are exempt |
+| [leak-guard-blind-to-untracked-files](leak-guard-blind-to-untracked-files/) | intake | `test_no_leaks.py` enumerates via `git ls-files`, so a banned pattern in a new file passes until it is staged — the guard fires only once a leak can enter history, and it is the repo's only leak protection |
