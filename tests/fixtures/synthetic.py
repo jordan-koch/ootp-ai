@@ -31,13 +31,39 @@ MAGIC_OFFSET = 1
 VERSION_OFFSET = 5
 FILENAME_OFFSET = 25
 FILENAME_FIELD_LEN = 50
-TRAILING_U32_OFFSET = 75
-HEADER_LEN = 79
+SIM_DATE_OFFSET = 75
+WRITTEN_DATE_OFFSET = 87
 
 # The four constants between the version and the filename. Identical in every .dat
 # file measured; their meaning is unknown and this project does not depend on it.
 HEADER_CONSTANTS = (11, 104, 84, 1)
-TRAILING_U32 = 7
+
+# Bytes that are IDENTICAL across every save — everything up to the sim date. This
+# is the correct span for a cross-save header comparison; anything beyond it is
+# save-specific and will differ legitimately.
+STABLE_PREFIX_LEN = 75
+
+# How much this builder emits: the stable prefix plus the two dates.
+BUILT_LEN = 99
+
+# ── A CORRECTION, and the reason it is written down ──────────────────────────
+# An earlier version of this file declared `TRAILING_U32 = 7` at offset 75, as a
+# header constant. It is not a constant. It is the **day of the league's sim date**,
+# and it read 7 in every file sampled only because all five files came from ONE save
+# — OOTP-AI, whose sim date is 2024-03-07.
+#
+# Measured across three saves, offsets 75-98 are two dates as six u32-LE values:
+#     75  sim date      day, month, year
+#     87  written date  day, month, year
+#   OOTP-AI  -> (7, 3, 2024) then (16, 8, 2026)
+#   both probes -> (18, 3, 2024), matching their 2024-03-18 sim date
+#   saved_games.dat, which has no league, carries (0, 0, 0) first
+#
+# Two lessons worth keeping. A constant confirmed against a single save is not a
+# constant — vary the save before believing it. And the header does NOT end here:
+# bytes 99-110 vary per save (a write time, apparently), byte 111 is constant per
+# FILE TYPE, and byte 115 varies per save. **Where records actually begin is still
+# unknown, so nothing may treat any of these as the start of the body.**
 
 
 def make_header(
@@ -47,6 +73,8 @@ def make_header(
     magic: bytes = MAGIC,
     leading: int = LEADING_NULL,
     magic_at_offset_zero: bool = False,
+    sim_date: tuple[int, int, int] = (7, 3, 2024),
+    written_date: tuple[int, int, int] = (16, 8, 2026),
 ) -> bytes:
     """Build a save-file header.
 
@@ -66,7 +94,8 @@ def make_header(
         + struct.pack("<I", version)
         + b"".join(struct.pack("<I", value) for value in HEADER_CONSTANTS)
         + name_field
-        + struct.pack("<I", TRAILING_U32)
+        + b"".join(struct.pack("<I", part) for part in sim_date)
+        + b"".join(struct.pack("<I", part) for part in written_date)
     )
     if magic_at_offset_zero:
         return body
