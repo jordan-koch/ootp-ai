@@ -92,6 +92,30 @@ played the market is live whether or not we are playing; the end is club-specifi
 because once we are eliminated the attention is genuinely free. **Spring training
 is offseason**, which is what the first ruling under this rule established.
 
+**The week runs Monday to Sunday.** Actions are granted each Monday and expire
+unspent at the end of the period.
+
+**A week that straddles a boundary takes the in-season rate** — if any day in the
+Monday–Sunday window falls inside the season, the whole week is in-season. This
+errs toward scarcity, deliberately.
+
+Worked example, 2024 (league starts Thu 7 Mar; league opener Wed 20 Mar; Boston
+opens Thu 28 Mar):
+
+| Period | Rate | Why |
+|---|---|---|
+| Mar 7–10 | 10 | Partial opening week, granted in full — one-off, **no precedent value** |
+| Mar 11–17 | 10 | Offseason |
+| Mar 18–24 | **6** | Contains the 20th, though Boston is idle until the 28th |
+| Mar 25–31 | 6 | In-season |
+
+Twenty offseason actions before the season starts.
+
+The asymmetry pays in both directions at the other end. Miss the playoffs and the
+week after our last game runs at 10 while the rest of the league plays October.
+Reach the World Series and roughly four extra weeks run at 6 instead of 10 —
+**about 20 actions of offseason attention is the price of a deep run.**
+
 This is recorded here rather than in `ledger.jsonl` because the ledger's schema
 adjudicates *actions* as cost or free, and this rules on a *period*. It is not a
 doctrine summary — it defines a term the ledger's `period` field depends on.
