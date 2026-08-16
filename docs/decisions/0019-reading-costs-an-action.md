@@ -180,9 +180,17 @@ should be before anyone reasons about coverage.
 arrives from that point on. The difference decides whether the dial is reversible, and
 therefore whether subscribing early is itself a strategy.
 
-**Open, and left to the mail feature request:** whether a commissioned report is
-*standing* (regenerating each period, free to read forever) or a *snapshot* of one
-moment. A standing report is closer to how a real front office works — you pay a person
-once and get a briefing every Monday — but it means the commissioning decision is the
-expensive one and everything after it is cheap, which should be stated rather than
-discovered when the GM holds twelve standing reports and no actions.
+**A drafting note, corrected before acceptance.** This ADR originally left open whether a
+commissioned report is *standing* (regenerating each period, free to read forever) or a
+*snapshot* of one moment. It was never open:
+[`FRONT_OFFICE.md`](../../FRONT_OFFICE.md) §*The action economy* already distinguishes
+them — *"a **standing view** is a query rendered — commission it once, refresh it free
+forever. An **analysis** is a named advisor's judgment at a moment, and it decays like any
+scouting report. Both cost an action, because in a real front office they are two people's
+work."* Two instruments, both commissioned, and nothing here changes that.
+
+What **is** open is the consequence: a standing view refreshes free forever and nothing
+caps how many the club may hold, so the commissioning decision is expensive and everything
+after it is cheap. A GM with twelve standing views and no actions left is a reachable
+state, and no decision yet says whether that is a problem or simply a well-run front
+office.
