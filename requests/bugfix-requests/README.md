@@ -46,4 +46,6 @@ Every artifact opens with a status blockquote:
 
 ## Index
 
-_No bugs yet._
+| Bug | Stage | Notes |
+|---|---|---|
+| [doc-link-guard-mismatch](doc-link-guard-mismatch/) | intake | Six skills name `tests/test_request_links.py`, which does not exist; the guard that does exist rejects fenced links, `file.py:123` citations and `var/` targets that those skills promise are exempt |
