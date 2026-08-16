@@ -131,12 +131,17 @@ Phase 0 landed the conventions, the format investigation, and the managed league
 The one-time ground-truth export has been captured from a disposable standard-mode
 save and loaded into MySQL.
 
-Next is the parser, entering through the normal intake pipeline as feature request
-#1: read `teams.dat` and `players.dat` sequentially, resolve names against
-`names.dat`, and land the result — validated field-by-field against `players.csv`
-and that export. Its first genuinely useful job is verifying that the managed
-league is configured the way [`docs/league-rules.md`](docs/league-rules.md) claims,
-because Challenge Mode leaves no export there to check against.
+Next is the parser, now **scoped** as feature request #1: read `teams.dat` and
+`players.dat` sequentially, resolve names against `names.dat`, and land the result
+— validated field-by-field against `players.csv` and that export. Its first
+genuinely useful job is telling the GM who is on its roster, which is the thing it
+currently cannot say at all.
+
+Scoping reshaped the request. Verifying that the managed league is configured the
+way [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second
+job, and is now deferred: the league configuration turned out not to live in a
+`leagues.dat` at all — there is no such file — and recovering it means mapping an
+8.9 MB `world.dat` with no Challenge Mode export to check against.
 
 ## License
 
