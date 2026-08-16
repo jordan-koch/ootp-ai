@@ -32,6 +32,25 @@ gm/
 └── decisions/           one file per significant decision — what, why, what was expected
 ```
 
+## Scope — career vs club
+
+The GM is an **employee**, and the experiment follows the *career* rather than one
+club ([ADR 0015](../docs/decisions/0015-gm-is-employed-not-appointed.md)). A firing
+does not end it. So each file here has a scope, and it is recorded now — before the
+split it describes — because the moment of an actual firing is the worst possible
+time to argue about what survives.
+
+| File | Scope | Why |
+|---|---|---|
+| `ledger.jsonl` | **career** | Action doctrine is about what costs an action, not about an employer |
+| `charter.md` | club | Competitive window and philosophy belong to one organization |
+| `standing-orders.md` | club | Policies a specific staff applies to a specific roster |
+| `staff.md` | club | The people the GM employed there |
+| `decisions/` | club, with career-scoped lessons | The call was club-specific; what it taught is not |
+
+**The directory does not split until a second club exists.** One employer, one flat
+layout — don't build the tenure structure speculatively.
+
 ## `ledger.jsonl` — the action ledger
 
 Append-only, one JSON object per line, newest last. It records **every adjudication**,
