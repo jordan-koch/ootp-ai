@@ -56,7 +56,7 @@ docs/
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
-.claude/agents/     The write-capable build subagent — and the rulebook it owns
+.claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
