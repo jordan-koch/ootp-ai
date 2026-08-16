@@ -42,3 +42,60 @@ The warehouse ([ADR 0004](../docs/decisions/0004-mysql-warehouse.md)) runs
 locally. Credentials live in `.env`; nothing is tracked. No cloud resource in
 this project should ever cost money — if a future phase introduces one, it needs
 an ADR and an auto-suspend story before it lands.
+
+### Standing it up
+
+```powershell
+winget install Oracle.MySQL --version 8.4.9
+& "$env:ProgramFiles\MySQL\MySQL Server 8.4\bin\mysql_configurator.exe"
+```
+
+The MSI only lays down binaries. The **configurator** is what creates the data
+directory, writes `my.ini`, and registers the service — skipping it leaves you
+with a `bin/` folder and no server.
+
+> **Skip the configurator's "user accounts" step.** Its DB Admin role grants
+> `SUPER`, `FILE`, `SHUTDOWN`, `RELOAD` and `CREATE USER` on `*.*`
+> `WITH GRANT OPTION` — a near-root account for a pipeline that touches three
+> databases. Use [`mysql-bootstrap.sql`](mysql-bootstrap.sql), which is
+> database-scoped and localhost-only.
+
+```powershell
+# edit CHANGE_ME first, then put the same password in .env as MYSQL_PASSWORD
+mysql -u root -p < ops/mysql-bootstrap.sql
+```
+
+### Bind to loopback
+
+The configurator leaves `bind_address` **unset**, which means `*` — every
+interface — and it adds inbound firewall rules for 3306 and 33060. A local-only
+warehouse wants none of that. Under `[mysqld]` in `my.ini`:
+
+```ini
+bind-address=127.0.0.1,::1
+mysqlx_bind_address=127.0.0.1
+```
+
+Both loopbacks, so a client that resolves `localhost` to `::1` still connects.
+Then, from an **elevated** shell:
+
+```powershell
+Restart-Service MySQL84
+netsh advfirewall firewall delete rule name="Port 3306"
+netsh advfirewall firewall delete rule name="Port 33060"
+```
+
+`my.ini` is UTF-8 and contains a stray U+2212 in a comment. Rewrite it as UTF-8
+with CRLF endings or the server will refuse to start on a mangled line.
+
+### Authentication
+
+MySQL 8.4 defaults to `caching_sha2_password` and ships `mysql_native_password`
+**disabled**. An older client — the game's built-in export connector is the one
+that matters here — may not speak the newer plugin, and the failure presents as
+*wrong credentials* rather than *unsupported auth*. If that happens, add
+`mysql_native_password=ON` to `my.ini`, restart, and recreate the user
+`IDENTIFIED WITH mysql_native_password`.
+
+Connect to `localhost` or `127.0.0.1`, never the machine name or a LAN address —
+after the bind change, nothing else reaches the server.
