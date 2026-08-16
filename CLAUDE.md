@@ -2,38 +2,26 @@
 
 ## What this project is
 
-An **AI front office for Out of the Park Baseball 25**.
+An **AI front office for Out of the Park Baseball 25**. The agent is the General
+Manager; the human is the operator who executes in-game. The claim under test is
+that this front office can be **competitive** in a league it cannot cheat in.
 
-**You are the General Manager.** Not an advisor to one — the GM. You own
-decisions, priorities, staff, and outcomes. A roster of specialist advisors —
-scouting, pitching, hitting, analytics, payroll, pro scouting — works for you,
-reading a warehouse built from the save's own files. They disagree in public; you
-adjudicate ([ADR 0010](docs/decisions/0010-main-thread-is-the-gm.md)).
-
-**The human is the operator**, and that is a real job, not a formality: he
-executes your decisions in-game (nothing here can write to the game), reports
-outcomes honestly, and rules on what costs an action. He does *not* make baseball
-decisions. If you find yourself asking him which of two players to promote, that
-is a violation of ADR 0010, not a helpful check-in.
-
-The claim being tested is that this front office can be **competitive** in a
-Challenge Mode league. That is only meaningful because the league cannot be edited
-underneath it ([ADR 0003](docs/decisions/0003-challenge-mode-league.md)), because
-you see only what a real GM sees
-([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)), and because you cannot
-pause time to optimize forever
-([ADR 0013](docs/decisions/0013-action-economy.md)).
+> **This file is the engineering half.** If you are touching the club — any
+> baseball decision, any action, anything in `gm/` — **read
+> [`FRONT_OFFICE.md`](FRONT_OFFICE.md) first.** It holds the GM's role, the action
+> economy, and what you are allowed to see. Skipping it means acting as a
+> different GM than the one who made every prior decision.
 
 Underneath the baseball, this is a data engineering project: read a proprietary
 binary format nobody has a parser for, land it, model it, and serve it.
 
 ## Status
 
-**Phase 0 — scaffolding.** Conventions, decisions, and the format investigation
-are landed. **No pipeline code exists, and no league has been created.**
-`src/ootp_ai/` is a version string; the `.dat` parser is feature request #1.
-What *is* established is in [`docs/data-access.md`](docs/data-access.md) — read it
-before proposing anything about ingestion.
+**Phase 0 — scaffolding.** Conventions, decisions and the format investigation are
+landed, and **the club exists**: Boston Red Sox, `OOTP-AI`, Challenge Mode, sim
+date 2024-03-07. **No pipeline code does** — `src/ootp_ai/` is a version string,
+the `.dat` parser is feature request #1, and the GM therefore has no warehouse and
+no reports yet ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)).
 
 ## Stack
 
@@ -59,9 +47,11 @@ layers. No cloud, no cost.
 
 ```
 README.md           Public-facing overview, architecture, setup
-CLAUDE.md           This file — onboarding map + the rules to work by
+CLAUDE.md           This file — the engineering half: map, stack, build rules
+FRONT_OFFICE.md     The baseball half — read it before touching the club
 docs/
   data-access.md      What can be read, from where, with epistemic labels
+  league-rules.md     The rule environment; what it implies; what evolves
   decisions/          ADRs — sixteen calls, one superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
@@ -80,10 +70,9 @@ speculatively.
 
 ## Important locations
 
-- **[gm/README.md](gm/README.md)** — **read at the start of any session that
-  touches the club.** The charter, standing orders, and ledger are what make a
-  fresh context the *same* GM rather than a new one
-  ([ADR 0011](docs/decisions/0011-gm-memory-is-tracked.md)).
+- **[FRONT_OFFICE.md](FRONT_OFFICE.md)** — **read before any session that touches
+  the club.** The GM's role, the action economy, what you may see, and where the
+  club's memory lives ([ADR 0011](docs/decisions/0011-gm-memory-is-tracked.md)).
 - **[docs/data-access.md](docs/data-access.md)** — start here for anything
   touching ingestion. Every claim carries an epistemic label, and the labels are
   load-bearing: most of this repo rests on beliefs about a binary format.
@@ -110,24 +99,6 @@ Verified 2026-08-15. Full detail and epistemic labels in
   join key to Retrosheet, Chadwick, FanGraphs, Statcast.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
 
-## Running the club
-
-Two hats, different paperwork. **Engineering goes through `requests/`; baseball
-decisions never do** — routing a lineup change through intake → scope → plan →
-implement would be absurd. Baseball is recorded in `gm/`.
-
-- **You spend actions, and they are scarce** — 6 per in-season week, 10 per
-  offseason week ([ADR 0013](docs/decisions/0013-action-economy.md)). An action
-  buys *information or options*; it never buys *execution*. Reading the warehouse,
-  deliberating, and staff applying an existing standing order are all free.
-- **Standing orders are the lever.** Set a policy once; staff apply it every game
-  for free until you change it. Spend attention on *changing*, not maintaining.
-- **Declare the action before doing the work.** Propose your ruling with reasoning
-  and cite the closest precedent from `gm/ledger.jsonl`; the operator confirms or
-  overrides. A ledger written afterwards is justification, not constraint.
-- **You see scouted ratings only** ([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)).
-  Being wrong about a player is sometimes working as intended.
-
 ## Decisions already made — do not re-propose
 
 - **No write-back of any kind** (0001). Not save edits, not roster import files,
@@ -138,33 +109,23 @@ implement would be absurd. Baseball is recorded in `gm/`.
 - **MySQL** (0004), knowingly paying for a less-mature dbt adapter.
 - **Two data-layer patterns, split by physics** (0005). *Does this change when
   the league is simulated?* No → builder + `datasets/`. Yes → parser + dbt.
-- **You are the GM; the human is the operator** (0010, superseding 0007).
-  Advisors disagree in public and *you* adjudicate — conflicts are never silently
-  merged, and never handed to the operator.
 - **GM memory is tracked in git** (0011). `gm/` is the one inversion of the
   "local state is disposable" rule. `var/` holds only what rebuilds from the save.
-- **Scouted ratings only** (0012). No "just for calibration" peek at true ratings.
-- **The action economy is real** (0013). Declare before doing; the operator rules.
-- **Staff quality is the information channel** (0014). Want a clearer picture? The
-  answer is a personnel move, never a code change — no inference layer that
-  reconstructs true ratings, and real-world data is an input to an evaluation,
-  never a substitute for one.
-- **You are employed, not appointed** (0015). The owner's goals are the only
-  scorecard — you never author, revise, or grade your own. The experiment is a
-  *career*: being fired continues it. You never initiate a departure; the
-  operator decides when a move is on the table.
-- **You read reports, never the warehouse** (0016). Querying a database to answer
-  a *baseball* question is always wrong, even when you can. Commissioning a report
-  costs an action; refreshing and reading it are free forever. The operator relays
-  events and outcomes — he is not your analytics department. Engineering is
-  unaffected: that hat reads whatever it needs.
+
+**The GM-facing decisions — 0010 and 0012 through 0016 — live in
+[`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
+one of them (0016) constrains what an agent may query. Read them before making a
+baseball decision; 0012's parser corollary is restated below under the correctness
+trap because it binds code too.
 
 ## Project conventions
 
 - **Work on a branch; land it through a PR.** `main` is protected.
-- **Agents commit only through `/commit`.** Never `git commit` ad hoc — not for a
-  one-line change, not for an "obviously safe" one. **Never merge, push to
-  `main`, force-push, or amend** — those stay the operator's.
+- **Agents commit only through `/commit`**, never `git commit` ad hoc — not for a
+  one-line change, not for an "obviously safe" one.
+- **Ask before merging a PR, then merge and clean up.** Confirm protection is live
+  and checks are green, ask, and on approval merge, prune and sync. **Never push
+  to `main`, force-push, or amend** — those stay the operator's.
 - **Subagents get read-only git** — never `checkout`/`reset`/`restore`/`clean`/
   `stash` or anything that discards working-tree state. Tell them so when
   spawning; bubble a destructive-git *need* back up.
@@ -197,57 +158,46 @@ survives. Spawn protocol and its limits:
 - **No `ROADMAP.md`.** Work is driven from `requests/` alone; `/commit`'s Step 4
   maintains request statuses and Index rows instead.
 - **A ported panel guard fails on arrival** —
-  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs`, six dedupe and
-  coverage assertions. It fails **identically** in `nba2k-rpg`, so it is an
-  upstream defect. The other four pass. Diagnose before trusting stage 4's
-  verify batching.
+  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs`. It fails
+  **identically** in `nba2k-rpg`, so it is an upstream defect. Diagnose before
+  trusting stage 4's verify batching.
 - **The dbt adapter question is open** —
   [ADR 0004](docs/decisions/0004-mysql-warehouse.md) §Notes. Due with the first
   dbt model, not before.
 
 ## The correctness trap that will bite
 
-**In-game rating displays are filtered and scale-converted** — 20–80 on the
-player page, 1–100 in reports, ~1–1000 in storage, and a separate `scouting.dat`
-means what you see may be the *scout's belief* rather than the true value.
+**In-game rating displays are filtered and scale-converted** — 20–80 on the player
+page, 1–100 in reports, ~1–1000 in storage. Matching a displayed value to a byte
+identifies the **wrong field with no error surfaced**, which is the single most
+likely way to silently corrupt every downstream recommendation. Ground truth is
+`players.csv`, which is raw. Detail: [`docs/data-access.md`](docs/data-access.md) §5.
 
-Matching a screenshot rating to a byte can identify the **wrong field with no
-error surfaced**. Ground truth is `players.csv`, which is raw. This is the single
-most likely way to silently corrupt every downstream recommendation.
-
-Its twin is settled: **you see scouted ratings, never true ones**
-([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)), at the resolution your
-staff affords ([ADR 0014](docs/decisions/0014-staff-is-the-information-channel.md)).
-A field the parser cannot classify is treated as a true rating and withheld —
+A field the parser cannot classify is treated as a true rating and **withheld** —
 "probably fine" is not a classification.
 
 ## Related repos — references, not dependencies
 
-None is upstream; nothing here consumes anything from any of them. Local
-checkouts, paths not recorded here — this repo is public. `.env.example` has the
-keys.
+None is upstream; nothing here consumes anything from them. Local checkouts, paths
+in `.env.example` — this repo is public.
 
-- **`nba-analysis`** — the **style template**: toolchain, ADR format, request
-  tracks, CI, the medallion pattern, and the `data-engineer` agent.
-- **`nba2k-rpg`** — the **process sibling**: `.claude/skills/` was ported from it,
-  as was the tracked-local-state inversion that `gm/` uses.
-- **`pokemon-lab`** — the **data-layer sibling**: `build/` → `datasets/` +
-  `manifest.json` resolve-by-name, for static reference data.
+- **`nba-analysis`** — style template: toolchain, ADR format, request tracks, CI,
+  the medallion pattern, the `data-engineer` agent.
+- **`nba2k-rpg`** — process sibling: `.claude/skills/` and the tracked-local-state
+  inversion `gm/` uses were ported from it.
+- **`pokemon-lab`** — data-layer sibling: `build/` → `datasets/` + `manifest.json`
+  resolve-by-name, for static reference data.
 
 ## Context on the operator
 
-Data engineer. Thinks in systems and pushes back well on design. Wants to own the
-ingestion rather than accept a vendor's export — which is why
-[ADR 0002](docs/decisions/0002-parse-binaries-not-export.md) exists and why the
-harder path was chosen deliberately, not by accident.
+Data engineer. Thinks in systems and pushes back well on design. Wanted to own the
+ingestion rather than accept a vendor's export — hence
+[ADR 0002](docs/decisions/0002-parse-binaries-not-export.md), chosen deliberately.
 
-In the club he is the **operator**, not the GM: he executes, reports, and
-adjudicates actions. He has said plainly that he does not want to make baseball
-decisions — take that at face value. Bringing him a genuine judgment call is
-offloading your job.
+His role in the club is in [`FRONT_OFFICE.md`](FRONT_OFFICE.md).
 
-This is a **fun side project**. That governs scope — size it for sustained
-enjoyment, not completeness. It does *not* mean light process.
+This is a **fun side project**. Size scope for sustained enjoyment, not
+completeness. That does *not* mean light process.
 
 ## How to help
 

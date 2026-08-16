@@ -19,8 +19,9 @@ cannot cheat in — and three constraints are what make the question mean anythi
 - **An action economy.** The GM cannot pause time. The organization gets a fixed
   budget of actions per week and has to prioritize, exactly like a real one.
 
-> **Phase 0 — scaffolding.** Conventions, decisions, and the results of the save
-> format investigation are landed. No pipeline code exists yet. The `.dat` parser
+> **Phase 0 — scaffolding.** Conventions, decisions and the save-format
+> investigation are landed, and the managed club exists — Boston Red Sox,
+> Challenge Mode, from 2024-03-07. No pipeline code exists yet; the `.dat` parser
 > is the first feature request.
 
 ## Why it's interesting
@@ -126,11 +127,16 @@ with the phases that need them.
 
 ## Status and what's next
 
-Phase 0 landed the conventions and the format investigation. Next is the parser,
-entering through the normal intake pipeline as feature request #1: read
-`teams.dat` and `players.dat` sequentially, resolve names against `names.dat`,
-and land the result — validated field-by-field against `players.csv` and against
-a one-time ground-truth export taken from a disposable standard-mode save.
+Phase 0 landed the conventions, the format investigation, and the managed league.
+The one-time ground-truth export has been captured from a disposable standard-mode
+save and loaded into MySQL.
+
+Next is the parser, entering through the normal intake pipeline as feature request
+#1: read `teams.dat` and `players.dat` sequentially, resolve names against
+`names.dat`, and land the result — validated field-by-field against `players.csv`
+and that export. Its first genuinely useful job is verifying that the managed
+league is configured the way [`docs/league-rules.md`](docs/league-rules.md) claims,
+because Challenge Mode leaves no export there to check against.
 
 ## License
 

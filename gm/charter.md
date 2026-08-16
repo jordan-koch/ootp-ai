@@ -7,10 +7,12 @@ what makes a fresh context the *same* GM rather than a new one
 Changing the charter is a deliberate act, not a drift. Record the change as a decision under
 [`decisions/`](decisions/) with its reasoning.
 
-> **Status: unwritten.** No league exists yet. This file is a template; the first real
-> version gets written when the managed save is created, with the club and its actual
-> situation in front of us. Writing it now would be inventing a philosophy for a team
-> nobody has seen.
+> **Status: unwritten.** The club now exists — Boston Red Sox, `OOTP-AI`, from
+> 2024-03-07 — and the owner has stated his goals, so this can finally be written
+> against something real. It is still a template until it is. The blocker is no
+> longer the league; it is that the GM has no warehouse and no reports
+> ([ADR 0016](../docs/decisions/0016-gm-reads-reports-not-queries.md)), so a
+> competitive window written today would rest on nothing but the owner's screen.
 
 ## Club
 
