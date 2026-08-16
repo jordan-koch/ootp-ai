@@ -21,6 +21,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0011](0011-gm-memory-is-tracked.md) | GM memory is tracked in git | Accepted |
 | [0012](0012-scouted-ratings-only.md) | The GM sees scouted ratings, never true ratings | Accepted |
 | [0013](0013-action-economy.md) | The action economy | Accepted |
+| [0014](0014-staff-is-the-information-channel.md) | Staff quality is the information channel | Accepted |
 
 ## Format
 

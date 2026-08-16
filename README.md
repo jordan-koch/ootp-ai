@@ -70,8 +70,8 @@ simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 
 ## Design decisions
 
-Seven are settled and recorded in [`docs/decisions/`](docs/decisions/). The ones
-that shape everything else:
+Fourteen are recorded in [`docs/decisions/`](docs/decisions/) — thirteen live, one
+superseded. The ones that shape everything else:
 
 | ADR | Decision | Why |
 |---|---|---|
@@ -81,6 +81,7 @@ that shape everything else:
 | [0011](docs/decisions/0011-gm-memory-is-tracked.md) | GM memory is tracked in git | The save records what happened, never why |
 | [0012](docs/decisions/0012-scouted-ratings-only.md) | Scouted ratings only | True ratings are the answer key; reading it proves nothing |
 | [0013](docs/decisions/0013-action-economy.md) | The action economy | Pausing time is an advantage no real GM has |
+| [0014](docs/decisions/0014-staff-is-the-information-channel.md) | Staff quality is the information channel | A clearer picture is bought by hiring, never by code |
 
 ## Setup
 

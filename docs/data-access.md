@@ -227,13 +227,45 @@ reaching the screen:
 `inferred` — The save therefore holds *true* ratings and *scout-perceived*
 ratings as distinct values, and an in-game screenshot generally shows the latter.
 
+### There are three rating views, not two
+
+`measured` — The export configuration screen (§6) names **three mutually
+exclusive** rating views, plus an independent fourth option that adds a further
+set of columns. That is the sharpest evidence available that the game
+distinguishes:
+
+| View | What it is | Who holds it in-world |
+|---|---|---|
+| **Real** | True ratings | Nobody |
+| **OSA** | The in-game public scouting service | Every club, identically |
+| **Scouted** | This organization's own read, at its staff's resolution | Us |
+
+`inferred` — The middle tier is **public record**. OSA is published and every club
+sees the same numbers, so it does not sharpen when we hire better scouts. The gap
+between OSA and the organization's own read is therefore an observable measure of
+what the scouting department adds
+([ADR 0014](decisions/0014-staff-is-the-information-channel.md)).
+
 > **Never use a screenshot rating as ground truth for field mapping.** Matching
 > a displayed value to a byte can identify the wrong field with no error
 > surfaced. Use `players.csv`, which is raw and unfiltered.
 
-`unconfirmed` — Which file holds true vs. scouted ratings, and whether
-`players.dat` holds both. This is a task, and it is on the critical path: it
-determines what the front office is allowed to see (see ADR 0007).
+### The critical-path task
+
+`unconfirmed` — **Which file holds which view, and whether the scouted view is
+stored at all.** If OOTP computes it at render time from true ratings plus a
+scout-accuracy seed, the parser cannot reproduce it, and
+[ADR 0012](decisions/0012-scouted-ratings-only.md) and
+[ADR 0014](decisions/0014-staff-is-the-information-channel.md) have no data path —
+the front office would be able to read the answer key and nothing else.
+
+`inferred` — `scouting.dat` at ~2.3 MB across ~18,000 players (~128 B each) is
+consistent with a stored per-player block. That is a guess, not a finding.
+
+The test: export real *and* scouted ratings together (§6), then search
+`scouting.dat` for the exported scouted values. Found → stored, and the parser has
+its source. Absent everywhere → computed, and there is a design problem to solve
+before any rating can be served.
 
 ---
 
@@ -259,6 +291,41 @@ does exist its cadence ceiling is a manual click. See ADR 0002.
 
 Its remaining legitimate use is as a **one-time ground-truth artifact from a
 disposable standard-mode save**, used to validate the parser.
+
+### Export configuration
+
+`measured` — The MySQL/CSV export configuration screen carries the options below.
+The three `Show … ratings` entries are **mutually exclusive**; `Additional
+complete scouted ratings` is independent and combines with them.
+
+| Option | Disposition for ground truth |
+|---|---|
+| `Show OSA player ratings` | The public scouting service's view (§5) |
+| `Show real player ratings` | True ratings — the answer key |
+| `Show no player ratings` | Ratings omitted entirely |
+| `Additional complete scouted ratings` | Adds the organization's own scouted view alongside |
+| `add full message text to messages table` | **On** — this is the news/message body text |
+| `Replace accents` | **Off** — mangles names and breaks validation against `names.dat` |
+| `Use INSERT IGNORE commands` | **Off** — silently drops rows from a reference that exists to be trusted |
+| `Include field names in inserts` | **On** — without it columns are positional, which is the fixed-offset failure in SQL form |
+| `Insert NULL if empty` | **On** — `NULL` and `''` are structural absence vs. empty, and conflating them produces wrong aggregates |
+| `Insert DROP TABLE command` | Safe only in a dedicated schema — see the warning below |
+
+`measured` — `Show real player ratings` together with `Additional complete scouted
+ratings` exports successfully, yielding both views for the same rows out of one
+snapshot. **That is the artifact that resolves §5**, and it is why the two views
+need no alignment work: they come from a single export of a single league state.
+
+`verified` — True ratings in a ground-truth export are sanctioned. ADR 0012 permits
+them "in tests against fixtures, never in the advisory path." They live in the
+ground-truth schema and the test suite; nothing in the serving layer joins to them.
+
+> **The export never writes to the warehouse schema.** `ootp` belongs to the parser
+> ([ADR 0004](decisions/0004-mysql-warehouse.md)); ground truth lands in its own
+> schema, only ever from a disposable standard-mode save. Two reasons, and the
+> second is louder: mixing them destroys the provenance line that makes a data
+> incident triageable, and with `DROP TABLE` enabled a second export into a shared
+> database **destroys the first**. One schema per export variant.
 
 ---
 
