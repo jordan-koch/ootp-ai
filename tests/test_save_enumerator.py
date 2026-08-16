@@ -20,6 +20,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
+from ootp_ai.config import load_settings
 from ootp_ai.saves import (
     CHALLENGE_DAT_SIZE,
     NotChallengeMode,
@@ -28,8 +30,6 @@ from ootp_ai.saves import (
     is_challenge_mode,
     is_save_dir,
 )
-
-from ootp_ai.config import load_settings
 
 # ── offline ──────────────────────────────────────────────────────────────────
 

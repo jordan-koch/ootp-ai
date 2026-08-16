@@ -19,10 +19,10 @@ from __future__ import annotations
 import struct
 
 import pytest
-from ootp_ai.parser.errors import UnexpectedEndOfData
-from ootp_ai.parser.primitives import Cursor
 
 from fixtures.synthetic import make_record, make_string
+from ootp_ai.parser.errors import UnexpectedEndOfData
+from ootp_ai.parser.primitives import Cursor
 
 
 def read_sequentially(data: bytes) -> dict[str, object]:
