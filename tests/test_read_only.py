@@ -22,8 +22,14 @@ ahead — so untested code meets it first. That ordering lives inside a single t
 rather than across two, because two tests are ordered by collection and collection
 order is a convention. If the probe leg fails, the managed leg is never reached.
 
-The cost is real: ~6.4 GB across both roots, hashed three times. That is the price of
-the check, and it is charged only when someone runs `-m gamedata` on purpose.
+The cost is real, and `measured` 2026-08-16 so nobody has to guess whether it hung:
+**2m35s** for the pair, over 30,703 files and ~6.4 GB hashed three times — the baseline,
+then after the probe, then after the managed league. That is the price of the check, and
+it is charged only when someone runs `-m gamedata` on purpose.
+
+First green run, same date: zero mtime differences and zero digest differences under both
+roots, after ingesting the disposable probe and then `OOTP-AI.lg` — the first time any
+code in this project touched the managed league.
 """
 
 from __future__ import annotations
