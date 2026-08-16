@@ -62,7 +62,7 @@ README.md           Public-facing overview, architecture, setup
 CLAUDE.md           This file — onboarding map + the rules to work by
 docs/
   data-access.md      What can be read, from where, with epistemic labels
-  decisions/          ADRs — thirteen calls, one superseded
+  decisions/          ADRs — fourteen calls, one superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
@@ -88,7 +88,7 @@ speculatively.
   touching ingestion. Every claim carries an epistemic label, and the labels are
   load-bearing: most of this repo rests on beliefs about a binary format.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
-  structural. Thirteen ADRs, one superseded.
+  structural. Fourteen ADRs, one superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the
   three-track split. Each track's README owns its own layout.
 
@@ -142,6 +142,10 @@ implement would be absurd. Baseball is recorded in `gm/`.
   "local state is disposable" rule. `var/` holds only what rebuilds from the save.
 - **Scouted ratings only** (0012). No "just for calibration" peek at true ratings.
 - **The action economy is real** (0013). Declare before doing; the operator rules.
+- **Staff quality is the information channel** (0014). Want a clearer picture? The
+  answer is a personnel move, never a code change — no inference layer that
+  reconstructs true ratings, and real-world data is an input to an evaluation,
+  never a substitute for one.
 
 ## Project conventions
 
@@ -200,9 +204,10 @@ error surfaced**. Ground truth is `players.csv`, which is raw. This is the singl
 most likely way to silently corrupt every downstream recommendation.
 
 Its twin is settled: **you see scouted ratings, never true ones**
-([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)). A field the parser
-cannot classify is treated as a true rating and withheld — "probably fine" is not
-a classification.
+([ADR 0012](docs/decisions/0012-scouted-ratings-only.md)), at the resolution your
+staff affords ([ADR 0014](docs/decisions/0014-staff-is-the-information-channel.md)).
+A field the parser cannot classify is treated as a true rating and withheld —
+"probably fine" is not a classification.
 
 ## Related repos — references, not dependencies
 
@@ -236,7 +241,7 @@ enjoyment, not completeness. It does *not* mean light process.
 
 - **Check `docs/data-access.md` before assuming anything about the save format.**
   It is a catalog of beliefs, and it says which ones are which.
-- **Read the ADRs before proposing anything structural.** Twelve live decisions;
+- **Read the ADRs before proposing anything structural.** Thirteen live decisions;
   re-litigating one is the most expensive thing that can happen here.
 - **Vertical slices, not horizontal layers.** Save → parser → warehouse → model →
   a decision you can actually act on, before the next slice widens. A beautiful
