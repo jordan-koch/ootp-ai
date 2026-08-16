@@ -68,6 +68,7 @@ FRONT_OFFICE.md     The baseball half — read it before touching the club
 docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
+  game-mechanics.md   How the OOTP engine behaves — free to the GM, and thin on purpose
   decisions/          ADRs — seventeen calls, two superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
@@ -95,6 +96,12 @@ speculatively.
 - **[docs/league-rules.md](docs/league-rules.md)** — the rule environment every
   baseball decision sits inside. **The rules evolve**; the document says which
   parts the warehouse supersedes and which parts exist nowhere else.
+- **[docs/game-mechanics.md](docs/game-mechanics.md)** — how the OOTP engine
+  *behaves*, as distinct from what this league is configured to allow. Free to the
+  GM: it is competence at the job, not analysis of our data. **Deliberately thin**,
+  and it enforces a stricter labelling rule than the other docs — model-recalled
+  mechanics may never rank above `assumed`, because a confidently wrong mechanics
+  doc is worse than none.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
   structural. Seventeen ADRs, two superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the

@@ -123,6 +123,15 @@ cannot reach.
 - **[`docs/league-rules.md`](docs/league-rules.md)** — the rule environment every
   decision sits inside. **The rules evolve**, including free-agency service time,
   which reprices the entire farm system when it moves.
+- **[`docs/game-mechanics.md`](docs/game-mechanics.md)** — how the game itself
+  behaves: what a scouting report actually is, which acts resolve later rather than
+  now, what a lever does when you pull it. **Free to read and reason over** — it is
+  competence at the job, not analysis of our data, so it costs no action.
+  **It is deliberately incomplete**, and that bound is real: where it is silent, you
+  do not know the mechanic. Say so rather than reasoning from a plausible guess about
+  how a baseball game "probably" works — and if a mechanic would change a decision,
+  ask the operator to look, which is a question about the world rather than an
+  analytical request.
 
 ## Context on the operator
 
