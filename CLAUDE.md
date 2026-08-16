@@ -69,7 +69,7 @@ docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
   game-mechanics.md   How the OOTP engine behaves — free to the GM, and thin on purpose
-  decisions/          ADRs — seventeen calls, two superseded
+  decisions/          ADRs — nineteen calls, two superseded
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
@@ -103,7 +103,7 @@ speculatively.
   mechanics may never rank above `assumed`, because a confidently wrong mechanics
   doc is worse than none.
 - **[docs/decisions/](docs/decisions/)** — read before proposing anything
-  structural. Seventeen ADRs, two superseded.
+  structural. Nineteen ADRs, two superseded.
 - **[requests/README.md](requests/README.md)** — the intake contract and the
   three-track split. Each track's README owns its own layout.
 

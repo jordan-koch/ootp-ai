@@ -33,8 +33,17 @@ $OOTP_SAVED_GAMES/
 └── saved_games.dat            the save index
 ```
 
-`verified` — `saved_games.dat` is the index: plaintext league name, team name,
-league date, and the absolute path of each save. Readable without parsing.
+`measured` 2026-08-16 — **corrected.** This entry previously read `verified` and claimed
+the index was *"plaintext … readable without parsing."* It is not. `saved_games.dat` is a
+record file like every other: the standard header, a 74-byte file-level tail, then one
+variable-length record per save built from u32-LE length-prefixed strings at **unaligned**
+offsets — so a u32 scan misses them and a substring scrape finds them only by luck. It is
+walked with zero residual over 2,070 bytes for three saves. Field table in the module
+docstring of `src/ootp_ai/parser/saved_games.py`.
+
+Two consequences worth carrying: it embeds an absolute user-profile path **four times per
+save record**, not once; and it carries **no team id** — the human club appears as a
+display name and a logo filename only, so an id must come from `teams.dat`.
 
 Each `.lg` directory holds (`measured`):
 
