@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import subprocess
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -64,3 +65,39 @@ def test_var_is_gitignored() -> None:
     """var/ holds ~600MB save snapshots. Tracking it would be a disaster."""
     gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
     assert re.search(r"^var/\s*$", gitignore, re.MULTILINE), "var/ must be gitignored"
+
+
+def test_gm_memory_carve_out_survives() -> None:
+    """gm/ is TRACKED — the one inversion of the disposable-state rule (ADR 0011).
+
+    A blanket ignore rule added carelessly would silently stop backing up the only
+    copy of the GM's reasoning. The save records what happened, never why.
+    """
+    gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+    assert re.search(r"^!gm/\*\*\s*$", gitignore, re.MULTILINE), (
+        "the !gm/** carve-out is missing from .gitignore — GM memory must stay tracked"
+    )
+
+
+def test_gm_memory_is_actually_tracked() -> None:
+    """The carve-out is only worth having if git honours it."""
+    out = subprocess.run(
+        ["git", "check-ignore", "-q", "gm/README.md"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        check=False,
+    )
+    # exit 0 = the path IS ignored, which is the failure we're guarding against.
+    assert out.returncode != 0, "gm/README.md is gitignored — the carve-out is being shadowed"
+
+
+def test_gm_contract_files_exist() -> None:
+    """A GM with no charter or ledger contract is a GM with amnesia (ADR 0010)."""
+    for rel in [
+        "gm/README.md",
+        "gm/charter.md",
+        "gm/standing-orders.md",
+        "gm/staff.md",
+        "gm/decisions/README.md",
+    ]:
+        assert (REPO_ROOT / rel).is_file(), f"missing GM memory contract file: {rel}"

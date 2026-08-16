@@ -45,6 +45,16 @@ schools.xml
 *.dump
 
 # ─── Carve-outs ───────────────────────────────────────────────────────────────
+# THE GM'S MEMORY IS TRACKED. This is the one place this repo inverts the usual
+# "local state is disposable" rule, and it is deliberate: the save records what
+# happened, never WHY the GM chose it. That reasoning — decisions, standing
+# orders, the action ledger — exists in exactly one place. Losing gm/ loses the
+# GM. See ADR 0011.
+#
+# Do not add a blanket *.jsonl or *.md rule above without re-checking these.
+!gm/
+!gm/**
+
 # Small curated/reference datasets are tracked; see datasets/manifest.json.
 # These are OUR derived artifacts (field maps, offsets, lookups), not OOTP's
 # shipped files.

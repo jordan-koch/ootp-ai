@@ -20,6 +20,11 @@
 *.js    text
 *.mjs   text
 
+# The GM's action ledger is append-only JSONL and is tracked (see .gitignore).
+# Union merge means two branches appending different entries both keep their
+# lines instead of conflicting on the last one.
+gm/ledger.jsonl merge=union
+
 # Binary — never diff or normalize
 *.png   binary
 *.jpg   binary

@@ -14,9 +14,13 @@ decision is the most expensive thing that can happen in this repo.
 | [0004](0004-mysql-warehouse.md) | MySQL is the warehouse | Accepted |
 | [0005](0005-hybrid-data-layer.md) | Builders for static reference, dbt medallion for snapshot facts | Accepted |
 | [0006](0006-public-repo-local-data.md) | Public repository, local data | Accepted |
-| [0007](0007-advisory-front-office.md) | The front office advises; the human GM executes | Accepted |
+| [0007](0007-advisory-front-office.md) | The front office advises; the human GM executes | **Superseded by 0010** |
 | [0008](0008-panels-by-default.md) | The panel is the default; a skip is argued in writing | Accepted |
 | [0009](0009-write-capable-implementation-subagent.md) | One write-capable implementation subagent | Accepted |
+| [0010](0010-main-thread-is-the-gm.md) | The main thread is the GM; the human is the operator | Accepted |
+| [0011](0011-gm-memory-is-tracked.md) | GM memory is tracked in git | Accepted |
+| [0012](0012-scouted-ratings-only.md) | The GM sees scouted ratings, never true ratings | Accepted |
+| [0013](0013-action-economy.md) | The action economy | Accepted |
 
 ## Format
 

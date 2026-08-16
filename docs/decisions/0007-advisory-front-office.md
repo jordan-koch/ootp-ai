@@ -1,7 +1,19 @@
 # 0007 — The front office advises; the human GM executes
 
-**Status:** Accepted
+**Status:** Superseded by [0010](0010-main-thread-is-the-gm.md)
 **Date:** 2026-08-15
+
+> **Superseded the same day it was written.** Using this framing surfaced three problems:
+> it left conflict adjudication with a human who did not want to make baseball decisions,
+> it put human judgment inside the loop and so made the competitiveness claim unmeasurable,
+> and it gave nothing a motive to improve its own operations. The open question in its Notes
+> — true versus scouted ratings — is settled by
+> [ADR 0012](0012-scouted-ratings-only.md).
+>
+> **What survived:** the specialist roster, and the rule that staff disagree in public rather
+> than being merged into a false consensus. Only the audience changed — disagreement now
+> surfaces to a GM that can adjudicate it. The reasoning below is kept because it is why the
+> reframe happened.
 
 ## Context
 

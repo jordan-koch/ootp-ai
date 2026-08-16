@@ -2,13 +2,22 @@
 
 An AI front office for **Out of the Park Baseball 25**.
 
-A staff of specialist advisors — scouting, pitching, hitting, analytics, payroll,
-pro scouting — reads a warehouse built from a league's own save files and
-recommends what the club should do. A human plays GM: he executes the
-recommendations, he does not make the calls.
+**The agent is the General Manager.** It owns decisions, priorities, staff, and
+outcomes. A roster of specialist advisors — scouting, pitching, hitting,
+analytics, payroll, pro scouting — reads a warehouse built from the league's own
+save files and reports to it. They disagree in public; the GM adjudicates.
 
-The question the project is trying to answer is whether that front office can be
-**competitive** in a league it cannot cheat in.
+The human is the **operator**: he executes decisions in-game, reports outcomes
+honestly, and rules on what costs an action. He does not make baseball decisions.
+
+The question is whether that front office can be **competitive** in a league it
+cannot cheat in — and three constraints are what make the question mean anything:
+
+- **Challenge Mode.** The league cannot be edited, reloaded, or undone.
+- **Scouted ratings only.** The GM sees what a real front office sees — its own
+  scouts' beliefs, not the answer key.
+- **An action economy.** The GM cannot pause time. The organization gets a fixed
+  budget of actions per week and has to prioritize, exactly like a real one.
 
 > **Phase 0 — scaffolding.** Conventions, decisions, and the results of the save
 > format investigation are landed. No pipeline code exists yet. The `.dat` parser
@@ -68,8 +77,10 @@ that shape everything else:
 |---|---|---|
 | [0001](docs/decisions/0001-read-only-no-write-back.md) | Never write to the game | Kills the hardest problem; keeps Challenge Mode safe |
 | [0002](docs/decisions/0002-parse-binaries-not-export.md) | Parse binaries, not the export | The export is gated in Challenge Mode and caps out at monthly |
-| [0003](docs/decisions/0003-challenge-mode-league.md) | Challenge Mode | A competitiveness claim needs a league you can't edit |
-| [0007](docs/decisions/0007-advisory-front-office.md) | Advisors disagree in public | A Capologist objecting to a trade is information, not noise |
+| [0010](docs/decisions/0010-main-thread-is-the-gm.md) | The agent is the GM | Someone has to own the decision, and it can't be the operator |
+| [0011](docs/decisions/0011-gm-memory-is-tracked.md) | GM memory is tracked in git | The save records what happened, never why |
+| [0012](docs/decisions/0012-scouted-ratings-only.md) | Scouted ratings only | True ratings are the answer key; reading it proves nothing |
+| [0013](docs/decisions/0013-action-economy.md) | The action economy | Pausing time is an advantage no real GM has |
 
 ## Setup
 
@@ -92,11 +103,16 @@ none is hardcoded.
 | Path | What |
 |---|---|
 | `docs/` | Data access findings + architecture decisions |
+| `gm/` | **Tracked** GM memory — charter, standing orders, action ledger, decisions |
 | `requests/` | Work intake — feature / bugfix / data-incident tracks |
 | `src/ootp_ai/` | Parser, landing, warehouse loading |
 | `ops/` | Repo governance, local toolchain |
 | `tests/` | Structural guards + parser fixtures |
 | `var/` | Gitignored — snapshots, warehouse, scratch |
+
+`gm/` inverts the usual "local state is disposable" rule on purpose: the save
+records what happened, never *why* the GM chose it, and that reasoning has no
+other copy.
 
 `build/` + `datasets/` (static reference builders) and `transform/` (dbt) arrive
 with the phases that need them.
