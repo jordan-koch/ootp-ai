@@ -78,6 +78,24 @@ already marks it `merge=union` so two branches appending different entries both 
 | `overridden` | `true` when `ruling` differs from `proposed`. These are the valuable rows. |
 | `overturns` | `seq` of a precedent deliberately ruled against, with the reason in `reasoning`. |
 
+### What a period is
+
+[ADR 0013](../docs/decisions/0013-action-economy.md) budgets **6 actions per
+in-season week and 10 per offseason week** but does not define the boundary.
+Operator ruling, 2026-08-16:
+
+> **The season runs from the day of the first league game — any team — until the
+> end of our club's involvement in the playoffs.** Everything else is offseason.
+
+Deliberately asymmetric. The start is league-wide because once games are being
+played the market is live whether or not we are playing; the end is club-specific
+because once we are eliminated the attention is genuinely free. **Spring training
+is offseason**, which is what the first ruling under this rule established.
+
+This is recorded here rather than in `ledger.jsonl` because the ledger's schema
+adjudicates *actions* as cost or free, and this rules on a *period*. It is not a
+doctrine summary — it defines a term the ledger's `period` field depends on.
+
 ### Two rules that make it mean anything
 
 **Declare before doing.** The entry is written *before* the work, not after. A ledger written
