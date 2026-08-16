@@ -6,13 +6,24 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = { text = "MIT" }
 authors = [{ name = "Jordan Koch" }]
-dependencies = []
+dependencies = [
+    # Runtime dependencies arrive with the source that requires them, never
+    # speculatively. These two arrived together with the config layer and the
+    # warehouse loader, exactly as this comment used to predict.
+    #
+    # python-dotenv moved here OUT of the dev group: config.py imports it at
+    # runtime, so leaving it dev-only means an installed package cannot read .env.
+    "python-dotenv>=1.0",
+    # PyMySQL over mysqlclient (C extension, no maintained stubs, needs a Windows
+    # build toolchain) and over mysql-connector-python (Oracle GPLv2-with-FOSS-
+    # exception, partial inline typing). Pure Python, MIT like this repo, and
+    # types-PyMySQL exists — which matters because mypy runs strict over src.
+    "PyMySQL>=1.1",
+]
 
-# Runtime dependencies arrive with the source that requires them, never
-# speculatively. The parser reads OOTP's binaries with the stdlib alone
-# (struct, pathlib) — that is deliberate, not an oversight. The first real
-# dependency will arrive with the warehouse loader.
-# See requests/feature-requests/README.md.
+# The parser itself still reads OOTP's binaries with the stdlib alone (struct,
+# pathlib, tomllib) — that is deliberate, not an oversight. Neither dependency
+# above is in the parsing path. See requests/feature-requests/README.md.
 
 [dependency-groups]
 dev = [
@@ -20,7 +31,9 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.6",
     "mypy>=1.11",
-    "python-dotenv>=1.0",
+    # Stubs only. mypy is strict over both src and tests, and an unstubbed driver
+    # fails the build at the first import.
+    "types-PyMySQL>=1.1",
 ]
 
 # No `transform` group yet — deliberately. dbt arrives with the first dbt model,
@@ -77,5 +90,10 @@ files = ["src", "tests"]
 testpaths = ["tests"]
 addopts = "-q --strict-markers --strict-config"
 markers = [
-    "gamedata: requires a local OOTP install or save. Excluded from CI; run explicitly with -m gamedata.",
+    # Widened from "install or save" when the warehouse arrived: a test needing a
+    # populated MySQL is just as un-runnable in CI as one needing the game, and
+    # addopts carries --strict-markers, so inventing a second marker is a hard
+    # COLLECTION error — the whole suite fails to collect and presents as a broken
+    # repo rather than a missing marker. Widen, never add.
+    "gamedata: requires a local OOTP install, save, or warehouse. Excluded from CI; run explicitly with -m gamedata.",
 ]

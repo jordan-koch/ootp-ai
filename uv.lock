@@ -355,25 +355,33 @@ wheels = [
 name = "ootp-ai"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "pymysql" },
+    { name = "python-dotenv" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "mypy" },
     { name = "pytest" },
     { name = "pytest-cov" },
-    { name = "python-dotenv" },
     { name = "ruff" },
+    { name = "types-pymysql" },
 ]
 
 [package.metadata]
+requires-dist = [
+    { name = "pymysql", specifier = ">=1.1" },
+    { name = "python-dotenv", specifier = ">=1.0" },
+]
 
 [package.metadata.requires-dev]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "python-dotenv", specifier = ">=1.0" },
     { name = "ruff", specifier = ">=0.6" },
+    { name = "types-pymysql", specifier = ">=1.1" },
 ]
 
 [[package]]
@@ -410,6 +418,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
+]
+
+[[package]]
+name = "pymysql"
+version = "1.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/c9/bc/1c6a92f385940f727daeecf3bacaf186e03875dff57197801046c583bcf0/pymysql-1.2.0.tar.gz", hash = "sha256:6c7b17ca686988104d7426c27895b455cdeea3e9d3ceb1270f0c3704fead8c33", size = 49021, upload-time = "2026-05-19T08:26:22.302Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/bd/2534e130295c8cfd4f0a2e31623baab7502278f1e97bcfe61db75656a77f/pymysql-1.2.0-py3-none-any.whl", hash = "sha256:62169ce6d5510f08e140c5e7990ee884a9764024e4a9a27b2cc11f1099322ae0", size = 45716, upload-time = "2026-05-19T08:26:20.974Z" },
 ]
 
 [[package]]
@@ -474,6 +491,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/78/9b/475b927cf27a5cbbda3c7bafb69ed6ff77e1d7923d5d85f17c2749d7ae32/ruff-0.16.3-py3-none-win32.whl", hash = "sha256:388cdf2166642bd9b13d52b5932d3170f34f8abed7e8d9a855f1d84b83645a0a", size = 10931415, upload-time = "2026-08-13T15:17:05.726Z" },
     { url = "https://files.pythonhosted.org/packages/b2/99/e2a2bfc4fbf0a1e8a916bc9ebe6fe6c58cc34c28e0ffc6ce281d572d1c2e/ruff-0.16.3-py3-none-win_amd64.whl", hash = "sha256:e80a7d69ca2a6d1c4d352ec91458cdca6e56c83cdbcabd93e4abe1e53591d948", size = 11445993, upload-time = "2026-08-13T15:17:08.353Z" },
     { url = "https://files.pythonhosted.org/packages/69/3e/4132e539aed78c148854d4997a2685b0ed4dc4e87110b59ce528564e184e/ruff-0.16.3-py3-none-win_arm64.whl", hash = "sha256:b8ca152da82c1acc1fa8d5874b15951935f0eef46f10e6954c83859011b6178a", size = 11399302, upload-time = "2026-08-13T15:17:10.908Z" },
+]
+
+[[package]]
+name = "types-pymysql"
+version = "1.2.0.20260807"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/cf/71/f2d9cf554a59396c9dcf7cd902d1c187b6d4762dc7650e25a02c4ca2cf9c/types_pymysql-1.2.0.20260807.tar.gz", hash = "sha256:7fd4a7767925dbb0fd3e73fd488184fcd98b7612f8066cda280453b17864264f", size = 22768, upload-time = "2026-08-07T04:17:29.272Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/79/83/37e485e7ad3404aa018b6740d759b74665669c61c9c154f81d890b2ccd3a/types_pymysql-1.2.0.20260807-py3-none-any.whl", hash = "sha256:2a722284451649e1c2564655cba4963c0661851d04cc10195b7c002fab8e55f6", size = 23327, upload-time = "2026-08-07T04:17:28.318Z" },
 ]
 
 [[package]]

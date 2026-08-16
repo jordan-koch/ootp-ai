@@ -54,6 +54,25 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   default ones, so an unsatisfiable optional group blocks the whole install. `dbt-mysql` is
   capped at 1.7.0 and pins `dbt-core~=1.7.0`. · evidence:
   `docs/decisions/0004-mysql-warehouse.md` §Notes · tag: tooling, docs-candidate
+- **2026-08-16** · `measured` · MySQL `information_schema` returns UPPERCASE column names, so
+  with `DictCursor` `row["table_name"]` raises `KeyError` while `row["TABLE_NAME"]` works.
+  Alias every information_schema column (`SELECT table_name AS table_name`) rather than
+  guessing the case. · evidence: `src/ootp_ai/db.py` uses `DictCursor` · tag: tooling
+- **2026-08-16** · `verified` · A PyMySQL read-only session is `SET SESSION TRANSACTION READ
+  ONLY` (SESSION scope — the bare `SET TRANSACTION READ ONLY` expires after one
+  transaction), passed as `init_command`, then **read back** with
+  `SELECT @@session.transaction_read_only` before the connection is handed out; an
+  init_command that silently failed looks identical to one that worked. Observed `1` against
+  the live instance. · evidence: `src/ootp_ai/db.py` · tag: tooling
+- **2026-08-16** · `measured` · `types-PyMySQL` makes `pymysql.connections.Connection`
+  `Generic[_C]` with default `Cursor`, so under mypy strict annotate the factory return as
+  `Connection[DictCursor]`; a bare `Connection` is fine but loses the cursor row type. ·
+  evidence: `src/ootp_ai/db.py` · tag: tooling
+- **2026-08-16** · `measured` · `tests/test_no_leaks.py` and `tests/test_doc_links.py` iterate
+  `git ls-files`, so a file you just created is **invisible to both guards** until the main
+  thread commits it — a green suite says nothing about new files. Import `PATTERNS` from the
+  guard and run it over the new paths yourself before handing off. · evidence:
+  `tests/test_no_leaks.py` `tracked_text_files()` · tag: harness
 - **2026-08-15** · `measured` · The ported panel guard
   `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` fails on arrival, and fails
   **identically** in the `nba2k-rpg` repo it came from — a pre-existing upstream defect, not
