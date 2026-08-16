@@ -155,11 +155,27 @@ printable bytes — nowhere near the ~8.0 of compressed or encrypted data.
 
 ### Header
 
-`measured`:
+`measured` — byte-for-byte against `players.dat` and `teams.dat` in an OOTP 25
+save, identical in both:
 
 ```
-00 | "OOTP" | u32 version (25) | u32 (11) | u32 (104) | u32 (84) | u32 (1) | filename, null-padded
+offset  0 : u8       0x00               leading null — NOT part of the magic
+offset  1 : char[4]  "OOTP"             magic
+offset  5 : u32      25                 version (0x19) — the version guard's anchor
+offset  9 : u32      11
+offset 13 : u32      104
+offset 17 : u32      84
+offset 21 : u32      1
+offset 25 : char[]   filename            null-padded, e.g. "players.dat"
 ```
+
+> **The magic begins at offset 1, not offset 0.** A reader that checks
+> `data[0:4] == b"OOTP"` sees `\x00OOT` and rejects a valid save; one that reads
+> the version as a u32 at offset 4 gets 6480 rather than 25. Both fail loudly,
+> which is the tolerable outcome — but both fail, and on the first file opened.
+
+`measured` — the header names its own file (`players.dat`, `teams.dat`). That is
+a cheap cross-check that the file on disk is the file we think we opened.
 
 ### Primitives
 
