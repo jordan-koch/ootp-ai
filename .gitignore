@@ -1,0 +1,80 @@
+# ─── Secrets ──────────────────────────────────────────────────────────────────
+# The repo is PUBLIC. Assume anything tracked is world-readable, forever.
+# tests/test_no_leaks.py also guards machine paths and personal identifiers.
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+credentials
+credentials.json
+secrets.yml
+secrets.yaml
+
+# ─── Scratch root ─────────────────────────────────────────────────────────────
+# var/ is the gitignored working root: save snapshots, the local warehouse,
+# parsed intermediates, run state, scratch. Everything here is REGENERABLE —
+# snapshots re-copy from the save, the warehouse rebuilds from snapshots.
+var/
+
+# ─── Game data — NEVER tracked ────────────────────────────────────────────────
+# OOTP's shipped database files and every saved game are Out of the Park
+# Developments' intellectual property, not ours. This repo holds the CODE that
+# reads them and the SCHEMA knowledge we derived — never the data itself.
+# Paths to both resolve from .env; see .env.example and ADR 0006.
+*.lg/
+saved_games/
+players.csv
+names.xml
+world_default.xml
+schools.xml
+*.dat
+
+# ─── Bulk data ────────────────────────────────────────────────────────────────
+# This repo holds code, config, docs, and small curated datasets — never bulk
+# data. Big artifacts land in var/ and rebuild on demand.
+*.parquet
+*.avro
+*.orc
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+*.db
+*.sql.gz
+*.dump
+
+# ─── Carve-outs ───────────────────────────────────────────────────────────────
+# Small curated/reference datasets are tracked; see datasets/manifest.json.
+# These are OUR derived artifacts (field maps, offsets, lookups), not OOTP's
+# shipped files.
+!datasets/**
+!tests/fixtures/**
+
+# ─── Python ───────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+build/dist/
+
+# ─── dbt ──────────────────────────────────────────────────────────────────────
+transform/target/
+transform/dbt_packages/
+transform/logs/
+profiles.yml
+
+# ─── Editors & OS ─────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini

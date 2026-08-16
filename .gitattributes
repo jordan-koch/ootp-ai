@@ -1,0 +1,30 @@
+# Line endings are decided by the REPO, not by whatever core.autocrlf a machine has.
+# Authored on Windows, run in Linux CI — without this, CI sees CRLF churn.
+* text=auto eol=lf
+
+# Windows-native scripts keep CRLF so they run correctly when checked out.
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Explicitly text
+*.py    text
+*.sql   text
+*.yml   text
+*.yaml  text
+*.json  text
+*.jsonl text
+*.md    text
+*.toml  text
+*.js    text
+*.mjs   text
+
+# Binary — never diff or normalize
+*.png   binary
+*.jpg   binary
+*.ico   binary
+*.dat   binary
+
+# Collapse generated/vendored files in diffs and language stats
+uv.lock  linguist-generated=true -diff

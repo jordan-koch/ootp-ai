@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Job display names are matched by ops/branch-protection.json.
+  # Renaming one here without updating that file leaves PRs waiting forever
+  # for a check that never reports. Change both in the same commit.
+  quality:
+    name: Lint, types, tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # test_no_leaks.py shells out to `git ls-files`; it needs the repo,
+          # not a detached blob export.
+          fetch-depth: 1
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Sync dependencies
+        run: uv sync --all-extras --dev
+
+      - name: Ruff (lint)
+        run: uv run ruff check .
+
+      - name: Ruff (format check)
+        run: uv run ruff format --check .
+
+      - name: mypy
+        run: uv run mypy
+
+      - name: pytest
+        # -m "not gamedata" — the gamedata marker needs a local OOTP install,
+        # which CI does not and must not have (ADR 0006).
+        run: uv run pytest -m "not gamedata"
