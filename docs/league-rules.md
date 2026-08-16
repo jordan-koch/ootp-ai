@@ -115,6 +115,13 @@ there is nothing to diff against and nothing that supersedes this.
 | Contract opt-outs | allowed | Long deals carry opt-out risk |
 | Qualifying offers | max 1 per career | |
 | Posting system | disabled | No NPB/KBO posting channel |
+
+> **Scouting mechanics moved out of this document.** How scouting *behaves* — its two
+> channels, the manual request's turnaround, what a report carries — is engine
+> behaviour, identical in every OOTP league, and now lives in
+> [`game-mechanics.md`](game-mechanics.md). What it *implies for this club* stays here,
+> in §3. The split was created after this document briefly carried a scouting rule that
+> was wrong within the hour of being written; see that document's opening section.
 | **Draft pool reveal** | 90 days pre-draft — **12 April** | The annual scouting crunch, mid-season |
 | Draft signing | advanced negotiation on, $4.13M slot baseline, 5 rounds negotiable | Draft strategy includes bonus allocation |
 | Cash maximum in trades | $16,000,000 | Caps salary-dump trades |
@@ -189,6 +196,35 @@ rather than adjectives.
 5.6% of budget, and the spread is enormous: Oakland at 13.8%, the Yankees at 1.9%.
 The club that cannot buy players buys knowledge instead. Where Boston sits on that
 curve is a live decision, not a default.
+
+### Many actions cost now and pay later
+
+A manual scouting request is the clearest instance, but it is not a special case. It
+costs the action immediately and returns the information **two weeks later**, and the
+same shape recurs across the game's other levers — trade offers sit with the other
+club, contract negotiations run over days, hires take effect on a cycle. **The
+front office's characteristic act is spending something now for a result that lands
+after the moment of spending.**
+
+Three consequences, and they compound with
+[ADR 0013](decisions/0013-action-economy.md)'s scarcity rather than merely sitting
+beside it:
+
+- **The GM must forecast what he will need before he needs it.** A scouting report
+  requested the week of the deadline arrives after it. Deep information on a target is
+  only available to a front office that decided, a fortnight earlier, that this was the
+  target — which rewards having a thesis and punishes reacting.
+- **He acts on incomplete knowledge of his own pending actions.** Within a period he
+  cannot scout-then-decide; he decides, waits, and finds out. Anything spent while a
+  request is outstanding is spent blind to its result.
+- **Latency is a second currency alongside scarcity.** Two actions of equal cost are
+  not equal if one resolves this period and the other resolves next. Sequencing is
+  therefore part of the decision, not an implementation detail of it.
+
+`inferred` — this is the mechanic that makes an early, cheap, low-resolution read
+genuinely valuable. A wide shallow picture that exists **now** can beat a deep one
+that arrives after the window closes, which is an argument for the thin-sight posture
+[ADR 0016](decisions/0016-gm-reads-reports-not-queries.md) creates rather than against it.
 
 ### The owner is the wall, not the tax
 

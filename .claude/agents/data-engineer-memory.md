@@ -115,6 +115,29 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   double-quiets pytest and suppresses the `N passed` summary line entirely. Run without
   the extra flag when the handoff needs a number to cite. · evidence: `pyproject.toml`
   `addopts` · tag: tooling
+- **2026-08-16** · `verified` · **Export column order is not disk order.** Searching
+  `coaches.dat` for the four scout ratings as a contiguous run in the export's column order
+  found nothing in 359 of 400 coaches; the disk order interleaves differently, and a
+  fixed-length-group sweep found the run immediately. Sweep offsets *first*, derive the
+  order from what the sweep returns, and only then build a signature. · evidence:
+  `var/spike3/59_scoutfields.py` vs `53_coach_anchor.py` (both gitignored) · tag: harness
+- **2026-08-16** · `verified` · A **composite landmark** — one high-entropy field plus two
+  small ints at measured relative offsets — segments a variable-length record file in one
+  pass and cannot lose the thread, unlike greedy "next expected id within N bytes" chaining,
+  which stalled at 2,166 of 3,251 records on the same file. Index the high-entropy field
+  once into a dict, then filter candidates. · evidence: `var/spike3/58_records2.py` ·
+  tag: harness
+- **2026-08-16** · `verified` · The cheapest calibrated null for "is this value stored here"
+  is the **same search with every value +1**. It costs one extra pass, needs no statistics,
+  and separates a real hit from a chance hit instantly (34/34 vs 2/34 on one probe; 1,600/1,600
+  vs 0/1,600 on another). Reach for it before any correlation machinery. · evidence:
+  `var/spike3/61_scoutblock2.py`, `72_budget_confirm.py` · tag: harness
+- **2026-08-16** · `measured` · Scoring a candidate offset on the **non-zero subset** of the
+  target column is what stops a constant-zero region winning a sweep — but it does not stop a
+  *non-zero* constant. Three separate sweeps this session peaked on a byte that was constant
+  `2` or constant `3`. Always print the observed value distribution next to the expected one;
+  a match rate alone is not a result. · evidence: `var/spike3/64_players_seg.py` ·
+  tag: harness
 - **2026-08-15** · `measured` · The ported panel guard
   `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` fails on arrival, and fails
   **identically** in the `nba2k-rpg` repo it came from — a pre-existing upstream defect, not
