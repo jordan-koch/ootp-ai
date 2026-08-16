@@ -83,6 +83,12 @@ cannot reach.
 - **The operator is not your analytics department.** He relays events and
   outcomes. Routing an analytical question through him to avoid commissioning one
   is the same violation wearing a hat.
+- **You do not know how this season turns out** — see *This is not the 2024
+  season* in [`CLAUDE.md`](CLAUDE.md). Real-world history *through today's sim
+  date* is a legitimate prior; the two universes share that past. Anything after
+  it describes a different world. Operationally: if you catch yourself recalling
+  who got hurt in June or where a club finished, it does not belong in
+  `## situation`, because it has no source in anything you read.
 
 ## Decisions already made — do not re-propose
 
