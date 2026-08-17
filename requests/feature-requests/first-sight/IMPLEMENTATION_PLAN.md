@@ -256,7 +256,7 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 **Goal.** Get every later phase parsing a snapshot rather than the live save, and prove mechanically that nothing under the game directories was touched — **before** the phases that open the big files, not after.
 
 **Steps.**
-1. `snapshot.py` — copy **only** the in-scope set to `<snapshot_root>/<league>/<sim_date>/`: `teams.dat` (5,318,831 B), `players.dat` (32,070,106 B), `names.dat` (8,642,110 B) — ~46 MB, **not** the ~600 MB `.lg`, and explicitly not `retired.dat` (154 MB). Write a per-file size + SHA-256 manifest. Every handle `"rb"`. Refuse to overwrite an existing snapshot directory — snapshots are immutable (`.claude/agents/data-engineer.md:85-87`), which is what makes incident triage tractable and history re-parseable without the game.
+1. `snapshot.py` — copy **only** the in-scope set to `<snapshot_root>/<league>/<sim_date>/`: `teams.dat` (5,318,831 B), `players.dat` (32,070,106 B), `names.dat` (8,642,110 B) — ~46 MB, **not** the ~600 MB `.lg`, and explicitly not `retired.dat` (154 MB). *(Superseded in Phase 5: the set grew to five files and ~55 MB, adding `world.dat` and `human_managers.dat` under ADR 0018 tier 2. The three-file figure below describes what Phase 4 built, not the current set.)* Write a per-file size + SHA-256 manifest. Every handle `"rb"`. Refuse to overwrite an existing snapshot directory — snapshots are immutable (`.claude/agents/data-engineer.md:85-87`), which is what makes incident triage tractable and history re-parseable without the game.
 2. `ingest.py` — land the ingest-run record **shape** now (source file sizes, digests, header versions, sim date, human team, and placeholders for row counts, residual bytes and parse seconds). It is not persisted until Phase 8; landing the shape here means later phases fill fields rather than inventing a schema under time pressure.
 3. `parser/saved_games.py` — **correction to a `verified` claim.** `docs/data-access.md:36-38` states `saved_games.dat` is *"plaintext … readable without parsing"*; scope finding F19 contradicts this at `high` confidence. It carries the standard header and length-prefixed strings, so read it through the **same header reader plus a string walk** — never substring-scrape. It yields each save's sim date and human team.
 4. **Resolve the human team from data on every run** (folded-in §7). `OOTP-AI` is Boston at 2024-03-07; the probe is the Chicago Cubs at 2024-03-18. Code that hardcodes *"we are team 6"* or *"perspective 2759 is us"* **passes on ground truth and breaks on our league, invisibly** — and the entire validation harness runs against the probe, so nothing would catch it.
@@ -273,6 +273,40 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 
 ### Phase 5 — `teams.dat` sequential walk and the team dimension
 
+> **AMENDED 2026-08-16, after the first build escalated and a recon pass answered it.**
+> The original phase assumed `teams.dat` carries a fixed field sequence including
+> `division_id`, `allstar_team` and the standings. **It does not**, and the phase is now
+> split. What changed, all `measured` against all three saves with `ootp_truth_real` as
+> oracle and re-run on a second save with no refit:
+>
+> - **A team record omits an integer field entirely when its value is zero.** The
+>   pre-colour run is `[city_id, park_id, league_id, sub_league_id, nation_id, human]`,
+>   zeros dropped — exact on **259 of 259** records in two independent saves. The
+>   export's column order scores **0 of 259**, a second falsification of "export order is
+>   disk order" after the `coaches.dat` finding.
+> - **`division_id` and `allstar_team` are not in the file.** Inserting `division_id`
+>   scores 0 of 140 on the teams that have a non-zero one; appending `allstar_team`
+>   scores 0 of 30 on the All-Star sides. Those are the subsets that could refute them,
+>   which is why a 232/233 overall fit was not evidence either way.
+> - **`level` (259/259) and `parent_team_id` (199/199, control 0) are landable** — after
+>   the three ARGB colours, which are themselves not in export order.
+> - **The last slot is `human_team` or `human_id` and no oracle can separate them.**
+>   18 field orders tie at 259/259, differing only there and in where the
+>   constant-zero `prevent_any_moves`/`gender` sit. One flag lands; the ambiguity is
+>   recorded rather than resolved by preference.
+> - **26 of 259 records carry no city string**, so the `verified` five-string signature
+>   is four strings on the minor-league All-Star sides.
+> - **`human_managers.dat` names the managed club directly** — 835 bytes, offsets
+>   231/235/239, reading 4/4/6 across the three saves, with the same intersection at
+>   ±1/+2/+10/+100 empty. This takes the hardest field off the critical path.
+> - **Header-tail field 5 is a record count for `teams`/`names`/`parks`/`coaches`/
+>   `retired` but *not* universally** — `players.dat` declares `0xFFFFFFFF`.
+> - **`world.dat` holds division membership and the league calendar**, and the operator
+>   disposed widening `SNAPSHOT_FILES` to reach them (ADR 0018 tier 2, 2026-08-16).
+>
+> **Phase 5a is `teams.dat` + `human_managers.dat`. Phase 5b is `world.dat`.** Full
+> evidence in `reviews/handoff-phase-5.md` and `reviews/handoff-phase-5-recon.md`.
+
 **Goal.** Land the first real walk against the file with the strongest existing ground truth, validating the walker pattern before the two hard files.
 
 **Steps.**
@@ -286,6 +320,29 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 **Acceptance.** The three test selectors above green at their declared tiers, and the declared tier matches what the test actually asserts. `test_no_fixed_offsets.py` still green over the enlarged parser tree. `test_read_only.py` re-run green after a full `teams.dat` walk. **Extend `tests/test_cross_mode_format.py`** (§2.5): the same walker parses `teams.dat` from the Challenge and Standard test saves — both at 2024-03-18 — and yields the same record shape, field ordering and byte-accounting tier, differing only in content. This is the first record-level evidence that Challenge Mode does not change the format.
 
 **Commit note.** *"Walk teams.dat sequentially: team dimension, hierarchy, W-L, byte accounting."* From here on, **every phase re-runs `test_read_only.py` and `test_no_fixed_offsets.py` as part of its own acceptance** — the two unrecoverable-failure guards, checked at every checkpoint for the cost of seconds.
+
+---
+
+
+### Phase 5b — `world.dat`: the division hierarchy and the league calendar
+
+**Goal.** Reach the two structures `teams.dat` turned out not to hold, and land the calendar that tells the front office which dates it is required to show up for.
+
+**Steps.**
+1. `parser/world.py` — **composite-landmark entry, not a fixed offset.** The league region sits ~62% into an 8.9 MB file whose header declares `record_count = 1`, behind a ~94,000-record city array, so a from-the-top walk is its own project and seeking is banned outright. Enter by locating a length-prefixed string matched on **prefix and payload together** — `\x15\0\0\0Major League Baseball` and `\x02\0\0\0AL\x0f\0\0\0American League` each occur exactly once in all three saves, while bare `OPENING DAY` occurs 95 times — then walk sequentially forward. Both target regions declare their own count, so the walk is self-checking after entry: read the count, consume exactly that many records, land on the next region's boundary.
+2. **Division membership**, nested `league → sub_league → division → u32 count + explicit team_id array`. Matches the export exactly on all six MLB divisions in all three saves. Lands as `bronze_division_team`; **`teams.division_id` is derived in silver from that array and never parsed**, which is what makes Phase 5a's omission of it correct rather than a gap.
+3. **All-Star sides appear in no division array.** Their export `sub_league_id`/`division_id` of `0` is **structural absence rendered as zero** — a live instance of the trap the scope names, and the thing that lets the top-league count tighten from 34 to 30.
+4. **The league calendar**, a `u32`-count-prefixed array (3,058) of `u32 seq, u32 league_id, u16 type, u8 day, u8 month, u16 year, 3 pad, u32 len + name, u8 event_over, u8 deleted, u8 needs_human_action, u16 real_sim_date`. All 3,058 entries match `ootp_truth_real.league_events` exactly on all eight columns, and the calendar is byte-identical across all three saves.
+5. **The grain is `(save_id, sim_date, ingest_seq, event_seq)`, and this is not a preference.** `seq` is unique across all 3,058 entries and the export does not expose it. The human-readable alternative `(league_id, start_date, type, name)` collapses 3,058 rows to 2,600 — **458 events lost with nothing raised.** Declare the key on `seq`.
+6. **`deleted` is not "past".** 2,482 of 3,058 rows carry it and every deleted MLB row is dated *after* the sim date; the set includes a duplicate OPENING DAY and three PLAYOFFS BEGIN. Land it as an attribute and let the report filter; do not filter at parse time, and do not treat it as history.
+7. **`needs_human_action` is the field this phase is for.** Three live MLB events carry it — First-Year Player Draft (2024-07-11), Trading Deadline (2024-07-31), Rule 5 Draft (2024-12-13). It is the game's own answer to which dates the front office must act on, which [ADR 0013](../../../docs/decisions/0013-action-economy.md) currently answers by our judgment alone. Land it; do not build doctrine on it in this phase.
+8. **MAIN THREAD:** `tests/test_parse_world.py`, the world half of `tests/test_byte_accounting.py` at the **`region-accounted`** tier, and the world half of `tests/test_cross_mode_format.py`. Tighten `test_parse_real_save.py`'s top-league count from 34 to 30.
+
+**Acceptance.** All 3,058 calendar entries match the export on all eight columns, with the control (shifting `league_id` ±3) scoring materially worse. All six MLB divisions match on membership in all three saves. `region-accounted` holds: zero residual within each walked region, both declared counts matched, un-walked prefix and suffix byte counts recorded. `test_read_only.py` and `test_no_fixed_offsets.py` green after a full `world.dat` read.
+
+**Deferred, explicitly.** The 12,961-game schedule (bounded and shaped — exactly 37 bytes per record — but nothing consumes it until the league sims), geography, schools, the `teams.dat` record body, a from-the-top walk, and the ~1,200-byte league scalar block that is the `docs/league-rules.md` §1 diff the scope already gated.
+
+**Commit note.** *"world.dat: composite-landmark entry, division membership, and the 3,058-entry league calendar."*
 
 ---
 

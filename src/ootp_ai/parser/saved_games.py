@@ -56,7 +56,7 @@ recorded as *this file's* tail and nothing more. Then, per save:
 | 20 | human team logo filename | dropped |
 | 21 | absolute path | **dropped** |
 
-## Why `human_team_id` is always `None`
+## Why there is no `human_team_id` field
 
 The index identifies the human team **by display name and logo filename only. There is
 no team id in it.** Every numeric slot in all three records was enumerated at `u8`, `u16`
@@ -71,10 +71,13 @@ Standard** — corroborated by field 10, which reads 0, 0, 1 on the same boundar
 it as a team would have produced a confidently wrong number with a green test behind it,
 which is the single failure this project cannot afford.
 
-So the honest answer at this phase is `None`. The human team is recoverable — the export
-schema carries `human_team` and `human_id` on `teams` — but from `teams.dat`, which is
-Phase 5's walker, not from here. `None` here is **structural absence, not a placeholder
-zero**: the field the index would need does not exist.
+So `SavedGameEntry` carries **no id field at all**, and the absence is the finding. An
+earlier draft carried `human_team_id: int | None`, `None` on every entry — which reads
+as structural absence in the ordinary sense, a field the record has that happens to hold
+nothing. It is not that. The field does not exist in the file, and a value that is
+`None` by construction on every possible input invites the next reader to believe the
+index might one day supply it. The human team is recoverable — the export schema carries
+`human_team` and `human_id` on `teams` — but from `teams.dat`, and from nowhere else.
 """
 
 from __future__ import annotations
@@ -114,15 +117,15 @@ _UNCLASSIFIED_TAIL_LEN = 9
 class SavedGameEntry:
     """One save as the index describes it: which league, when, managed by whom.
 
-    Four fields, and the one absence is as deliberate as the presences.
+    Three fields, and the two absences are as deliberate as the presences.
 
     **No path field.** The record embeds an absolute user-profile path four times over,
     and this type is what guarantees none of them can reach a warehouse row, a rendered
     report or a tracked catalog. A later phase cannot leak what it cannot construct.
 
-    `human_team_id` is `None` on every entry read from a real index — the file carries no
-    team id at all. See the module docstring for what was checked and why the obvious
-    candidate is not one.
+    **No team id field.** The file carries no team id at all — see the module docstring
+    for what was enumerated and why the obvious candidate is not one. Carrying the id as
+    a permanently-`None` column would have described the wrong kind of absence.
 
     `human_team_name` is the club's **display string**, and it is carried for exactly one
     purpose: to check Phase 5's answer. `teams.dat` resolves the human club from a flag on
@@ -137,7 +140,6 @@ class SavedGameEntry:
 
     league: str
     sim_date: SaveDate
-    human_team_id: int | None
     human_team_name: str | None
 
 
@@ -215,7 +217,6 @@ def _read_entry(cursor: Cursor) -> SavedGameEntry:
     return SavedGameEntry(
         league=league,
         sim_date=sim_date,
-        human_team_id=None,
         human_team_name=human_team_name,
     )
 

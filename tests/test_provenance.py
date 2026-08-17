@@ -57,14 +57,23 @@ def test_a_saved_game_entry_has_nowhere_to_put_a_path() -> None:
 def test_a_saved_game_entry_carries_exactly_what_it_is_for() -> None:
     """Which league, at what in-game date, managed by whom. Nothing else.
 
-    `human_team_name` is the club's display string and is here to **check** Phase 5's
-    answer, not to be joined on — `teams.dat` resolves the id from a flag, and this is
-    the only independent statement of which club that should be.
+    **`human_team_id` was removed here in Phase 5, and its absence is the finding.**
+    Phase 4 carried it as `None` on every entry, which read as structural absence — a
+    field the record has, holding nothing. It is not that. The index has no team id at
+    all: every numeric slot in all three records was enumerated at u8/u16/u32 against
+    ground truth and none of them held one. A field that is `None` by construction on
+    every input invites the next reader to believe the index might one day supply it.
+    The id comes from `teams.dat` and nowhere else.
+
+    `human_team_name` stays, because it is real and because it is an independent
+    statement of which club the team flag should be pointing at. Measured: it is the
+    club's **full name** (`'Boston Red Sox'`, `'Chicago Cubs'`), so it identifies the
+    club unambiguously — but it remains a **cross-check, never a join key**, because
+    joining on a display name across two universes is what `team_id` exists to avoid.
     """
     assert _field_names(SavedGameEntry) == {
         "league",
         "sim_date",
-        "human_team_id",
         "human_team_name",
     }
 
@@ -162,11 +171,13 @@ def _all_three(settings: Settings) -> list[SavedGameEntry]:
 
 @pytest.mark.gamedata
 def test_the_human_club_is_read_from_data_not_hardcoded() -> None:
-    """The control that works at this phase: Boston, Boston, Chicago.
+    """The control that works from the index alone: two Bostons and a Chicago.
 
-    The display name is the only human-club fact the index carries, and it is enough to
-    prove the walk reaches the right region of the record. It is **not** enough to
-    identify the club to the warehouse, which is what its sibling below is for.
+    Measured: the index carries full club names — `'Boston Red Sox'`, `'Chicago Cubs'`.
+    That is enough to prove the walk reaches the right region of the record, and enough
+    to name the club, but it is **not an id**, which is what every downstream row is
+    keyed on. `tests/test_parse_real_save.py` resolves the id from `human_managers.dat`
+    and `teams.dat` and holds all three sources against each other.
     """
     names = [entry.human_team_name for entry in _all_three(_settings())]
 
@@ -178,28 +189,12 @@ def test_the_human_club_is_read_from_data_not_hardcoded() -> None:
     )
 
 
-@pytest.mark.gamedata
-def test_the_human_team_id_resolves_to_the_club_the_warehouse_knows() -> None:
-    """KNOWN RED until Phase 5. The index carries no team id; `teams.dat` does.
-
-    Kept red rather than deleted or xfailed, because this is the assertion that actually
-    matters: a display name cannot key a join, and every downstream row needs the id.
-
-    Measured 2026-08-16 — the index identifies the human club by display name and logo
-    filename only. Every numeric slot in all three records was enumerated at u8/u16/u32
-    against ground truth (Boston 4, Cubs 6) with no match. The one slot that separates
-    the Boston saves from the Cubs save reads 2/2/1 and splits Challenge/Challenge/
-    Standard, not Boston/Boston/Chicago — reading it here would go green with a
-    confidently wrong club, which is the one failure this project cannot afford.
-    """
-    teams = [entry.human_team_id for entry in _all_three(_settings())]
-
-    assert all(team is not None for team in teams), (
-        f"a human team id failed to resolve: {teams}. EXPECTED until Phase 5 lands the "
-        "teams.dat walk — the id comes from a flag on the team record, not from the "
-        "index. This is a known gap, not a regression."
-    )
-    assert len(set(teams)) > 1, f"all three saves resolved to team {teams[0]}"
+#: The human team **id** is asserted in `tests/test_parse_real_save.py`, not here.
+#: Phase 4 kept a known-red assertion at this spot, on the theory that the index would
+#: eventually yield an id. It does not, and the walk that does — `teams.dat`'s human
+#: flag — belongs with the rest of the team-dimension checks rather than in a module
+#: about the saved-games index. What remains here is the display-name control below,
+#: which is the index's own contribution to the same question.
 
 
 @pytest.mark.gamedata
@@ -220,12 +215,14 @@ def test_the_sim_dates_differ_across_saves_as_measured() -> None:
 
 @pytest.mark.gamedata
 def test_an_ingest_run_resolves_its_own_provenance(tmp_path: Path) -> None:
-    """End to end at this phase: snapshot taken, sources digested, club resolved.
+    """End to end: snapshot taken, sources digested, club resolved from the data.
 
-    The one KNOWN-RED assertion sits **last** on purpose. Put anywhere earlier it aborts
-    the test at the Phase 5 gap, and every genuine end-to-end check below it stops running
-    — so a real regression in snapshotting or digesting would hide behind a failure
-    everyone had already agreed to ignore.
+    The club assertion sits **last** deliberately, and stays there now that it passes.
+    While it was the Phase 4 known-red, putting it earlier would have aborted the test at
+    the known gap and stopped every genuine end-to-end check below it from running — a
+    real regression in snapshotting or digesting would have hidden behind a failure
+    everyone had agreed to ignore. The ordering costs nothing and keeps that property if
+    a later phase ever adds another gap here.
     """
     settings = _settings()
     if settings.probe_save is None:
@@ -242,7 +239,8 @@ def test_an_ingest_run_resolves_its_own_provenance(tmp_path: Path) -> None:
     assert run.row_counts == {} and run.residual_bytes == {}
 
     assert run.human_team_id is not None, (
-        "KNOWN RED until Phase 5 — the id comes from a flag on the team record in "
-        "teams.dat, not from the saved-games index. Everything above this line passed, "
-        "so this is the known gap rather than a regression."
+        "the run resolved no human club. The id comes from the human flag on a record "
+        "in the snapshot's teams.dat — if the walk found no flagged club, the ingest "
+        "cannot say which organisation it is reporting on."
     )
+    assert run.human_team_id > 0, "team ids run from 1; zero is 'no team', not a club"

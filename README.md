@@ -19,10 +19,12 @@ cannot cheat in — and three constraints are what make the question mean anythi
 - **An action economy.** The GM cannot pause time. The organization gets a fixed
   budget of actions per week and has to prioritize, exactly like a real one.
 
-> **Phase 0 — scaffolding.** Conventions, decisions and the save-format
-> investigation are landed, and the managed club exists — Boston Red Sox,
-> Challenge Mode, from 2024-03-07. No pipeline code exists yet; the `.dat` parser
-> is the first feature request.
+> **Phase 1 — the parser is real.** The managed club exists — Boston Red Sox,
+> Challenge Mode, from 2024-03-07 — and the code that reads its save does too:
+> a forward-only cursor, a header and version guard, an immutable snapshot layer,
+> and working walkers for three of the save's binaries. Every team record of the
+> validation save matches the game's own export field-by-field. No warehouse and
+> no reports yet, so the GM still cannot see its own club.
 
 ## Why it's interesting
 

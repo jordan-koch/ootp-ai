@@ -57,8 +57,17 @@ SYNTHETIC_SIM_DATE_TEXT = "2024-03-07"
 
 #: Present in a save, deliberately NOT in scope for the copy. `retired.dat` is 154 MB
 #: of players nobody on the roster is; `challenge.dat` is a 241-byte integrity blob
-#: that is not ours to move around. The snapshot copies three files, not a directory.
+#: that is not ours to move around. The snapshot copies a **named set**, never a
+#: directory — a sweep would quietly grow the copy every time OOTP adds a file.
 NOT_COPIED = ("retired.dat", "challenge.dat", "scouting.dat")
+
+#: Files the set must contain, whatever else it grows. `world.dat` joined in Phase 5
+#: under ADR 0018's tier-2 rule (operator-disposed 2026-08-16): division membership
+#: and the league calendar are there and nowhere else, so a snapshot without it cannot
+#: reproduce a parse. `human_managers.dat` is 835 bytes and is the **only** file that
+#: names the club we manage — measured, offsets 231/235/239 read 4/4/6 across the
+#: three saves — so omitting it would make provenance unresolvable from the copy.
+REQUIRED_IN_SET = ("teams.dat", "players.dat", "names.dat", "world.dat", "human_managers.dat")
 
 
 # ── a synthetic save, so the whole contract runs offline ─────────────────────
@@ -87,7 +96,7 @@ def _stat_facts(path: Path) -> dict[str, tuple[int, int]]:
 # ── the copy is the source ───────────────────────────────────────────────────
 
 
-def test_a_snapshot_copies_exactly_the_three_in_scope_files(tmp_path: Path) -> None:
+def test_a_snapshot_copies_exactly_the_in_scope_files(tmp_path: Path) -> None:
     save = _make_save(tmp_path / "games")
     snap = take_snapshot(save, snapshot_root=tmp_path / "snapshots")
 
@@ -95,9 +104,24 @@ def test_a_snapshot_copies_exactly_the_three_in_scope_files(tmp_path: Path) -> N
     assert {p.name for p in snap.path.glob("*.dat")} == set(SNAPSHOT_FILES)
     for excluded in NOT_COPIED:
         assert not (snap.path / excluded).exists(), (
-            f"{excluded} was copied. The snapshot is three named files (~46 MB), not "
-            "a directory sweep — retired.dat alone is 154 MB and out of scope."
+            f"{excluded} was copied. The snapshot is a named set, not a directory "
+            "sweep — retired.dat alone is 154 MB and out of scope."
         )
+
+
+def test_the_snapshot_set_holds_every_file_a_parse_depends_on() -> None:
+    """Widening this set is ADR 0018 tier 2 and belongs in a request, not a refactor.
+
+    Narrowing it is the failure this guards. A snapshot that omits a file the parser
+    needs is not a smaller snapshot — it is one that cannot be re-parsed without the
+    game, which is the entire property snapshots exist to provide.
+    """
+    missing = [name for name in REQUIRED_IN_SET if name not in SNAPSHOT_FILES]
+    assert not missing, (
+        f"SNAPSHOT_FILES no longer copies {missing}. Division membership and the "
+        "league calendar live only in world.dat, and human_managers.dat is the only "
+        "file naming the club we manage — a snapshot without them is not re-parseable."
+    )
 
 
 def test_every_copied_byte_matches_the_source(tmp_path: Path) -> None:
@@ -324,7 +348,7 @@ def test_the_configured_snapshot_root_is_never_tracked() -> None:
 
 
 @pytest.mark.gamedata
-def test_a_real_snapshot_of_the_probe_carries_the_three_files(tmp_path: Path) -> None:
+def test_a_real_snapshot_of_the_probe_carries_the_whole_set(tmp_path: Path) -> None:
     snap = take_snapshot(_probe(), snapshot_root=tmp_path)
 
     assert {entry.name for entry in snap.files} == set(SNAPSHOT_FILES)
@@ -336,10 +360,13 @@ def test_a_real_snapshot_of_the_probe_carries_the_three_files(tmp_path: Path) ->
 
 @pytest.mark.gamedata
 def test_a_real_snapshot_is_the_size_the_measurement_predicts(tmp_path: Path) -> None:
-    """~46 MB across three files. A band, not the measured triple.
+    """~55 MB across the set. A band, not the measured sizes.
 
     Exact sizes would go red the moment the operator legitimately sims the probe,
-    which is what the probe is for. A truncated or empty copy still fails.
+    which is what the probe is for. A truncated or empty copy still fails. The band
+    was already wide enough to absorb `world.dat`'s 8.9 MB, so Phase 5's widening did
+    not move it — worth knowing, because a band that never has to move is a band that
+    might not be measuring anything.
     """
     total = sum(entry.size for entry in take_snapshot(_probe(), snapshot_root=tmp_path).files)
     assert 20_000_000 < total < 120_000_000, f"snapshot totals {total:,} bytes"

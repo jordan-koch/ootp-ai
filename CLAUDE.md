@@ -33,11 +33,17 @@ get, and it is still more reliable than remembering a different world.
 
 ## Status
 
-**Phase 0 — scaffolding.** Conventions, decisions and the format investigation are
-landed, and **the club exists**: Boston Red Sox, `OOTP-AI`, Challenge Mode, sim
-date 2024-03-07. **No pipeline code does** — `src/ootp_ai/` is a version string,
-the `.dat` parser is feature request #1, and the GM therefore has no warehouse and
-no reports yet ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)).
+**Phase 1 — the parser is real.** The club exists — Boston Red Sox, `OOTP-AI`,
+Challenge Mode, sim date 2024-03-07 — and so does the code that reads it.
+`src/ootp_ai/` holds the config layer, a forward-only cursor, the header and
+version guard, the save enumerator, an immutable snapshot layer, and walkers for
+`saved_games.dat`, `human_managers.dat` and `teams.dat`. All 259 team records of
+the validation probe match the game's own export field-by-field.
+
+**There is still no warehouse and no reports**, so the GM cannot yet see its own
+club ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Bronze
+landing is Phase 8 of [`first-sight`](requests/feature-requests/first-sight/),
+which is the request driving all of this.
 
 ## Stack
 
