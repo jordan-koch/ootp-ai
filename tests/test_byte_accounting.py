@@ -7,26 +7,27 @@ bytes behind? A walk that ends where the file ends has had every one of its widt
 assumptions checked by the file itself — a wrong width anywhere desynchronises the very
 next length prefix and raises, rather than returning a plausible wrong value.
 
-**Three pre-registered tiers, and the choice is not the test's to make.**
+**The tiers are pre-registered, and the choice is not the test's to make.**
+`tests/fixtures/tiers.py` owns the vocabulary and explains what each one claims; each
+walker declares which one it reached.
 
-* `strict` — zero residual bytes. Every width is confirmed by the walk reaching the end.
-* `diagnostic` — the residual is *recorded* and the walk is asserted to stop on a record
-  boundary, with a written rationale for the demotion.
-* `region-accounted` — added 2026-08-16 (operator-disposed) for `world.dat`, which fits
-  neither: a landmark-entered walk of a single-record 8.9 MB file never reads ~7.5 MB of
-  it. Zero residual *within* each walked region, the region's own declared count matched,
-  and the un-walked prefix and suffix recorded rather than waved at. It is a weaker claim
-  than `diagnostic` and has its own name so that it cannot be mistaken for one.
+This module holds those declarations to what the real files do, **in both directions**: a
+`strict` claim must survive zero-residual on every configured save, and a `diagnostic`
+claim that in fact achieves zero residual everywhere is an **under-claim** and fails too.
+Under-claiming is the cheaper mistake to make and the harder one to notice, because it
+never turns anything red.
 
-`parser/teams.py` declares which one it reached. This module holds that declaration to
-what the real files do, in both directions: a `strict` claim must survive zero-residual
-on every configured save, and a `diagnostic` claim that in fact achieves zero residual
-everywhere is an **under-claim** and fails too. Under-claiming is the cheaper mistake to
-make and the harder one to notice, because it never turns anything red.
+Scope note: this module covers `teams.dat` (diagnostic) and, since Phase 5b, `world.dat`
+(region-accounted). `names.dat` joins it at the strict tier in Phase 7; `players.dat`
+joins at the diagnostic tier in Phase 6, where the scope is explicit that full accounting
+over 32 MB is a research task rather than a counter.
 
-Scope note: this module covers `teams.dat` only. `names.dat` joins it at the strict tier
-in Phase 7; `players.dat` joins at the diagnostic tier in Phase 6, where the scope is
-explicit that full accounting over 32 MB is a research task rather than a counter.
+`world.dat` is the one that needs its own section rather than another helper, because
+"residual" is not the question there. A landmark-entered walk never reads most of the
+file, so what can be audited from outside is an **identity**: every byte of the file is
+either inside a region the walk claims to have accounted for, or in the un-walked
+remainder it reports. Anything that satisfies that identity has nowhere to hide a byte it
+quietly skipped inside a region it claimed.
 
 `gamedata`: needs the saves. Excluded from CI.
 """
@@ -39,6 +40,8 @@ import pytest
 
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
 from ootp_ai.parser.teams import BYTE_ACCOUNTING_TIER, TEAMS_FILE, TeamsFile, read_teams
+from ootp_ai.parser.world import BYTE_ACCOUNTING_TIER as WORLD_TIER
+from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
 
 pytestmark = pytest.mark.gamedata
 
@@ -187,6 +190,139 @@ def test_the_managed_league_count_degrades_honestly_without_an_export() -> None:
         "two walks of the same unchanged file disagreed about the residual, so the "
         "walker is carrying state between calls"
     )
+
+
+# ── world.dat, at the region-accounted tier ──────────────────────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class WalkedWorld:
+    """One save's world walk, with the size the accounting identity is checked against.
+
+    `file_bytes` is read from disk here rather than taken from the parser's own report,
+    and the first assertion below is that the two agree. A walker that supplies both
+    halves of an identity can satisfy it while being wrong about the file.
+    """
+
+    league: str
+    parsed: WorldFile
+    file_bytes: int
+
+    @property
+    def walked_bytes(self) -> int:
+        return sum(region.length for region in self.parsed.regions)
+
+    @property
+    def unwalked_bytes(self) -> int:
+        return self.file_bytes - self.walked_bytes
+
+    @property
+    def prefix_bytes(self) -> int:
+        """Everything before the first region — the header, the world settings, ~94k cities."""
+        return min(region.entered_at for region in self.parsed.regions)
+
+    @property
+    def suffix_bytes(self) -> int:
+        """Everything after the last region — the ~1.9 MB of high schools and colleges."""
+        end = max(region.entered_at + region.length for region in self.parsed.regions)
+        return self.file_bytes - end
+
+
+def _walk_world(save: SaveRef) -> WalkedWorld:
+    path = save.path / WORLD_FILE
+    if not path.is_file():
+        pytest.skip(f"{save.league} has no {WORLD_FILE} — nothing to account for")
+    payload = path.read_bytes()
+    return WalkedWorld(league=save.league, parsed=read_world(payload), file_bytes=len(payload))
+
+
+def _every_world(settings: Settings) -> list[WalkedWorld]:
+    present = [ref for ref in (settings.managed, settings.probe_save, settings.truth_save) if ref]
+    if len(present) < 2:
+        pytest.skip("fewer than two saves are configured")
+    return [_walk_world(ref) for ref in present]
+
+
+def test_the_world_walk_agrees_with_the_filesystem_about_the_size_of_the_file() -> None:
+    """The identity's outside anchor, asserted before anything is derived from it."""
+    for walked in _every_world(_settings()):
+        assert walked.parsed.file_bytes == walked.file_bytes, (
+            f"{walked.league}: the walk reports a {walked.parsed.file_bytes}-byte "
+            f"{WORLD_FILE} and the file is {walked.file_bytes} bytes. Every number below "
+            "is derived from this one, so nothing else here means anything until it agrees."
+        )
+
+
+def test_every_byte_is_either_inside_a_walked_region_or_reported_as_un_walked() -> None:
+    """What `region-accounted` actually asserts, and the only form it can be asserted in.
+
+    Zero-residual is unavailable — the walk never reads ~7.5 MB of an 8.9 MB file, by
+    design. What is available is the accounting identity: regions are ordered, they do
+    not overlap, they sit inside the file, and what they cover plus what is reported
+    un-walked is the file exactly. A region whose declared length exceeded what it really
+    consumed would show up as an overlap with the next one, or as a suffix that runs past
+    the end of the file.
+    """
+    for walked in _every_world(_settings()):
+        regions = walked.parsed.regions
+        assert regions, f"{walked.league}: no regions were walked at all"
+
+        cursor = 0
+        for region in regions:
+            assert region.entered_at >= cursor, (
+                f"{walked.league}: region {region.name!r} starts at {region.entered_at}, "
+                f"inside or before the previous region which ended at {cursor}. Two "
+                "regions claiming the same bytes means one of the lengths is wrong."
+            )
+            assert region.length > 0
+            cursor = region.entered_at + region.length
+
+        assert cursor <= walked.file_bytes, (
+            f"{walked.league}: the regions run {cursor - walked.file_bytes} bytes past "
+            "the end of the file"
+        )
+        assert walked.walked_bytes + walked.unwalked_bytes == walked.file_bytes
+
+
+def test_a_region_accounted_claim_is_not_an_under_claim_either() -> None:
+    """Same escape hatch the diagnostic tier has, closed the same way.
+
+    `region-accounted` is the weakest claim this project makes, so it is the most
+    comfortable place to park. If a walk in fact covered the whole file it reached a
+    stronger tier and the declaration should say so — otherwise the next reader inherits a
+    warning about a limitation that no longer exists and stops believing the labels.
+    """
+    if WORLD_TIER != "region-accounted":
+        pytest.skip(f"the world walk is declared {WORLD_TIER!r}")
+
+    for walked in _every_world(_settings()):
+        assert walked.unwalked_bytes > 0, (
+            f"{walked.league}: the walk covered all {walked.file_bytes} bytes of "
+            f"{WORLD_FILE} while still declaring the region-accounted tier. Promote it."
+        )
+
+
+def test_the_un_walked_prefix_and_suffix_are_recorded_rather_than_waved_at() -> None:
+    """The plan's wording, made checkable: *un-walked prefix and suffix byte counts recorded*.
+
+    Both are large and both are expected — ~62% of the file precedes the leagues region
+    and ~1.9 MB of schools follows the calendar. The point is not that they are small. It
+    is that a number exists for each, so the ingest row can carry it and a later reader
+    can see exactly how much of this file has never been read by anything.
+    """
+    if WORLD_TIER != "region-accounted":
+        pytest.skip(f"the world walk is declared {WORLD_TIER!r}")
+
+    for walked in _every_world(_settings()):
+        assert walked.prefix_bytes > 0, (
+            f"{walked.league}: the first region starts at byte 0, which would mean the "
+            "walk began before the header it is required to validate"
+        )
+        assert walked.suffix_bytes > 0, (
+            f"{walked.league}: nothing follows the last walked region. Measured, ~1.9 MB "
+            "of high schools and colleges does — a zero suffix means the last region's "
+            "length is being computed as 'everything left', which accounts for nothing."
+        )
 
 
 # ── the premise byte accounting exists to protect ────────────────────────────

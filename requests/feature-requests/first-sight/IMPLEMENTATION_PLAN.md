@@ -326,6 +326,32 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 
 ### Phase 5b — `world.dat`: the division hierarchy and the league calendar
 
+> **AMENDED 2026-08-16, on completion.** Three claims below were carried in from the Phase 5
+> recon and the build falsified all three. They are struck here rather than edited in place,
+> because in each case the *shape* of the error matters more than the number — and in each
+> case the false version was the one that made the managed league look like the probes.
+>
+> - **The calendar is NOT byte-identical across all three saves.** The two probes are
+>   byte-identical to each other; `OOTP-AI.lg` differs in exactly **233 bytes, every one of
+>   them a `deleted` flag**. The shipped calendar is common; deletion is per-universe state.
+> - **`deleted` is 2,492, not 2,482 — and it is per save.** The export agrees at 2,492
+>   (`SUM(deleted <> 0)`); `OOTP-AI.lg` reads 2,259. Step 6's single number was wrong by ten
+>   against the answer key *and* wrong in kind about the league we manage.
+> - **The schedule's 37-byte stride does not reproduce.** Both probes give
+>   `479,557 = 12,961 × 37` exactly; `OOTP-AI.lg` gives `622,233 = 16,817 × 37 + 4`. Crossing
+>   it to reach the calendar was therefore rejected — exact in the two universes with an
+>   export, four bytes off in the one without, which is this project's signature failure
+>   shape. The calendar is entered by its own structural landmark instead.
+>
+> Two further findings, neither a correction: **`needs_human_action` totals 112 in every
+> save**, of which three survive undeleted in the probes and **ten** in `OOTP-AI.lg` (it
+> still holds live duplicate Trading Deadlines and Rule 5 Drafts) — so the managed club
+> faces more of these dates than the probe suggested. And the walk lands **MLB's six
+> divisions only**; the other fourteen leagues each sit behind their own unmapped scalar
+> block. Full evidence in `reviews/handoff-phase-5b.md`, which **supersedes the `world.dat`
+> rows of `reviews/handoff-phase-5-recon.md`'s docs-delta** — route the corrected version
+> at Phase 12, not the original.
+
 **Goal.** Reach the two structures `teams.dat` turned out not to hold, and land the calendar that tells the front office which dates it is required to show up for.
 
 **Steps.**

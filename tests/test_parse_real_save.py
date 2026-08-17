@@ -22,17 +22,25 @@ key, because joining on a display name across two universes is what `team_id` ex
 avoid. None of the three carried a usable id in Phase 4, which is why it left the
 question red rather than guessing.
 
-**What this file cannot assert, and why.** `division_id` and `allstar_team` are not in
-`teams.dat` — measured, 0 of 140 and 0 of 30 on their own discriminating subsets — so
-the 30-club count and the division hierarchy come from `world.dat` in Phase 5b. The
-standings region is not in `teams.dat` either. Nothing here fakes them from a field that
-does not exist.
+**What this file cannot assert on its own, and why.** `division_id` and `allstar_team`
+are not in `teams.dat` — measured, 0 of 140 and 0 of 30 on their own discriminating
+subsets. Phase 5b supplies them from `world.dat`, and the way it does so is worth
+following, because it is a nicer answer than the field would have been:
+
+> The four All-Star sides **appear in no division array.** Not with a zero, not with a
+> sentinel — they are simply absent from the nest. The export renders that absence as
+> `division_id = 0`, which is a live instance of the trap the scope names: structural
+> absence written out as a value. So the 30-club count is not read anywhere. It is what
+> is left when the clubs the divisions actually name are counted, and the four records
+> that no division claims fall out as the All-Star sides.
+
+That is why the top-league assertions below join two files. The standings region is in
+neither of them; nothing here fakes it.
 
 `gamedata`: needs the saves, and the export half needs MySQL. Excluded from CI.
 
-This module grows: Phase 5b tightens the top-league count from 34 to 30, Phase 6 adds the
-player and roster clauses, and Phase 7 adds AC9's display-name clause, which cannot pass
-before the `names.dat` join exists.
+This module grows: Phase 6 adds the player and roster clauses, and Phase 7 adds AC9's
+display-name clause, which cannot pass before the `names.dat` join exists.
 """
 
 from __future__ import annotations
@@ -48,6 +56,7 @@ from ootp_ai.db import connect_truth
 from ootp_ai.parser.human_managers import HUMAN_MANAGERS_FILE, read_human_manager
 from ootp_ai.parser.saved_games import SAVED_GAMES_FILE, read_saved_games
 from ootp_ai.parser.teams import TEAMS_FILE, TeamRecord, TeamsFile, read_teams
+from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
 
 pytestmark = pytest.mark.gamedata
 
@@ -99,18 +108,24 @@ def _human_club(parsed: TeamsFile) -> TeamRecord:
     return flagged[0]
 
 
+def _read_world(save: SaveRef) -> WorldFile:
+    path = save.path / WORLD_FILE
+    if not path.is_file():
+        pytest.skip(f"{save.league} has no {WORLD_FILE}")
+    return read_world(path.read_bytes())
+
+
 def _top_league(parsed: TeamsFile) -> list[TeamRecord]:
-    """Every level-1 record in the human club's own league — **34, not 30**.
+    """Every level-1 record in the human club's own league — **34 records, 30 clubs**.
 
     `league_id` 203 is the top league in the export, but `OOTP-AI.lg` was created
     separately and nothing has checked that its ids match. Anchoring on the human club
     keeps this working in a universe nobody has an export for.
 
-    The four All-Star sides cannot be separated out here, and that is not an oversight:
-    `allstar_team` is **not in `teams.dat`** — appending it to the integer model scores
-    0 of 30 on the All-Star sides themselves. The 30-club assertion therefore needs
-    `world.dat`'s division arrays, where the All-Star sides appear in none, and it
-    lands in Phase 5b rather than being faked here from a field that does not exist.
+    This is the level-1 *record* set, which includes the four All-Star sides. `teams.dat`
+    cannot separate them — `allstar_team` is not in the file, and appending it to the
+    integer model scores 0 of 30 on the All-Star sides themselves. `_franchises()` does
+    the separating, using `world.dat`.
     """
     home = _human_club(parsed)
     return [
@@ -118,6 +133,28 @@ def _top_league(parsed: TeamsFile) -> list[TeamRecord]:
         for team in parsed.teams
         if team.league_id == home.league_id and team.level == TOP_LEVEL
     ]
+
+
+def _franchises(parsed: TeamsFile, world: WorldFile) -> list[TeamRecord]:
+    """The clubs some division of the top league actually names — the real 30.
+
+    The join runs in this direction on purpose. Asking *"which teams are not All-Star
+    sides"* has no answer in either file; asking *"which teams does a division claim"* has
+    an explicit one, a `u32` count followed by the ids. What no division claims is left
+    over, and the leftovers turn out to be exactly the four All-Star records.
+
+    Note what this is not: it is **not** `teams.division_id`. Nothing writes a division
+    onto a team record here (`tests/test_parse_world.py` guards that). The membership
+    array is read in the direction the file wrote it.
+    """
+    home = _human_club(parsed)
+    claimed = {
+        team_id
+        for division in world.divisions
+        if division.league_id == home.league_id
+        for team_id in division.team_ids
+    }
+    return [team for team in _top_league(parsed) if team.team_id in claimed]
 
 
 @contextmanager
@@ -140,42 +177,72 @@ def _truth_cursor(settings: Settings) -> Iterator[Any]:
 # ── the league we actually manage ────────────────────────────────────────────
 
 
-def test_the_managed_leagues_top_level_is_thirty_clubs_plus_four_all_star_sides() -> None:
-    """AC9's headline clause, at the strength `teams.dat` alone can actually support.
+def test_the_managed_league_is_thirty_clubs_once_the_divisions_say_which_ones() -> None:
+    """AC9's headline clause, at full strength — **tightened from 34 to 30 in Phase 5b.**
 
-    34 = the 30 franchises plus the AL/NL All-Star and Future Stars squads. Asserting
-    30 here would require `allstar_team`, which this file does not carry, so the honest
-    form is 34 with the four named — and Phase 5b tightens it to 30 once `world.dat`'s
-    division arrays are readable.
+    Phase 5a could only assert 34, because separating the All-Star sides needed a field
+    `teams.dat` does not carry. `world.dat`'s division arrays supply it, and the two
+    numbers are asserted together: 34 records at level 1, of which 30 are named by some
+    division. Keeping both is what makes the test say something — 30 alone would also
+    pass if the walk had simply lost four records somewhere.
     """
-    clubs = _top_league(_walk(_settings().managed))
-    assert len(clubs) == 34, (
-        f"{len(clubs)} records at top level, expected 34 (30 clubs + 4 All-Star sides): "
-        f"{sorted(team.abbr for team in clubs)}"
+    settings = _settings()
+    parsed = _walk(settings.managed)
+    world = _read_world(settings.managed)
+
+    records = _top_league(parsed)
+    assert len(records) == 34, (
+        f"{len(records)} records at top level, expected 34 (30 clubs + 4 All-Star sides): "
+        f"{sorted(team.abbr for team in records)}"
+    )
+
+    clubs = _franchises(parsed, world)
+    assert len(clubs) == 30, (
+        f"the divisions of the top league name {len(clubs)} of those 34 records, "
+        f"expected 30: {sorted(team.abbr for team in clubs)}"
+    )
+
+
+def test_the_four_records_no_division_claims_are_the_all_star_sides() -> None:
+    """Structural absence, demonstrated rather than described.
+
+    The export gives these four a `division_id` of `0`, which reads like a value and is
+    not one — they are absent from the nest entirely. This is the assertion that says so:
+    the leftovers are not an arbitrary four records, they are the AL/NL All-Star and
+    Future Stars squads, and the parser is right to land their division as NULL rather
+    than as the zero the export prints.
+    """
+    settings = _settings()
+    parsed = _walk(settings.managed)
+    world = _read_world(settings.managed)
+
+    unclaimed = set(_top_league(parsed)) - set(_franchises(parsed, world))
+    assert len(unclaimed) == 4, (
+        f"{len(unclaimed)} top-level records belong to no division, expected the 4 "
+        f"All-Star sides: {sorted(team.abbr for team in unclaimed)}"
+    )
+    # Measured: the four share two abbreviations — the All-Star and Future Stars squads
+    # of each sub-league both render `AL` / `NL`, so the set is 2 while the count is 4.
+    assert {team.abbr for team in unclaimed} == {"AL", "NL"}, (
+        f"the unclaimed records are not the All-Star sides: "
+        f"{sorted(team.abbr for team in unclaimed)}"
     )
 
 
 def test_the_managed_league_renders_the_thirty_abbreviations_of_real_baseball() -> None:
-    """Content, not just cardinality. Thirty-four wrong strings also count to 34.
+    """Content, not just cardinality. Thirty wrong strings also count to 30.
 
-    Stated as a superset rather than equality, because the four All-Star sides are in
-    this list and are not franchises. Equality returns in Phase 5b.
+    **Equality, since Phase 5b.** While the All-Star sides could not be separated this had
+    to be a superset assertion, which would have passed with an extra club in the list.
+    Now the two sets are the same set or the test is red.
     """
-    clubs = _top_league(_walk(_settings().managed))
+    settings = _settings()
+    clubs = _franchises(_walk(settings.managed), _read_world(settings.managed))
     abbrs = {team.abbr for team in clubs}
 
-    missing = MLB_ABBREVIATIONS - abbrs
-    assert not missing, f"top league is missing real clubs: {sorted(missing)}"
-
-    # Measured: the four All-Star sides share two abbreviations between them — the
-    # All-Star and Future Stars squads of each sub-league both render `AL` / `NL`. So
-    # the set difference is 2 while the record count is 4, and asserting the set size
-    # was 4 was simply wrong about the data.
-    assert abbrs - MLB_ABBREVIATIONS == {"AL", "NL"}, (
-        f"unexpected non-franchise abbreviations: {sorted(abbrs - MLB_ABBREVIATIONS)}"
-    )
-    assert sum(1 for team in clubs if team.abbr in {"AL", "NL"}) == 4, (
-        "expected 4 All-Star records (All-Star and Future Stars, per sub-league)"
+    assert abbrs == MLB_ABBREVIATIONS, (
+        f"missing real clubs {sorted(MLB_ABBREVIATIONS - abbrs)}; "
+        f"unexpected {sorted(abbrs - MLB_ABBREVIATIONS)}"
     )
 
 
@@ -454,6 +521,64 @@ def test_exactly_the_minor_league_all_star_sides_carry_no_city_string() -> None:
         f"the city-less records are not the minor-league All-Star sides: "
         f"unexpected {sorted(cityless - minor_all_stars)}, "
         f"missing {sorted(minor_all_stars - cityless)}"
+    )
+
+
+def test_the_division_arrays_match_the_exports_division_column() -> None:
+    """`world.dat`'s nest against an answer key, per division rather than in aggregate.
+
+    The two sources describe the same thing from opposite directions. `world.dat` holds
+    membership as an explicit `u32` count plus a `team_id` array, written division by
+    division. The export holds it as a `division_id` column, written club by club. Neither
+    was derived from the other, which is what makes agreement worth something — and the
+    comparison is the whole mapping at once, so a division that gained a club and another
+    that lost one cannot cancel out.
+
+    Scoped to the top league, which is where the claim was measured (6 of 6, all three
+    saves) — and, as it turns out, the only place there is anything to compare. **The
+    walker lands MLB's six divisions and nothing else**: each of the other fourteen
+    leagues sits behind its own unmapped scalar block, so reaching them is a separate
+    piece of work rather than more of this one. Saying so is cheaper than a green test
+    that quietly covers less than its name suggests.
+
+    All-Star sides are excluded on the export side because their `division_id` of `0` is
+    structural absence rendered as a value — they appear in no array at all, which
+    `test_the_four_records_no_division_claims_are_the_all_star_sides` asserts directly.
+    """
+    settings = _settings()
+    if settings.truth_save is None:
+        pytest.skip("OOTP_TRUTH_LEAGUE is unset — the export describes that save only")
+
+    home = _human_club(_walk(settings.truth_save))
+    world = _read_world(settings.truth_save)
+
+    parsed = {
+        (division.sub_league_id, division.division_id): frozenset(division.team_ids)
+        for division in world.divisions
+        if division.league_id == home.league_id
+    }
+    assert len(parsed) == 6, (
+        f"the top league nests {len(parsed)} divisions, expected 6 (two sub-leagues of "
+        f"three): {sorted(parsed)}"
+    )
+
+    with _truth_cursor(settings) as cursor:
+        cursor.execute(
+            "SELECT sub_league_id, division_id, team_id FROM teams "
+            "WHERE league_id = %s AND allstar_team = 0",
+            (home.league_id,),
+        )
+        expected: dict[tuple[int, int], set[int]] = {}
+        for row in cursor.fetchall():
+            key = (row["sub_league_id"], row["division_id"])
+            expected.setdefault(key, set()).add(row["team_id"])
+
+    frozen = {key: frozenset(value) for key, value in expected.items()}
+    assert parsed == frozen, "division membership disagrees with the export:\n" + "\n".join(
+        f"  {key}: parsed {sorted(parsed.get(key, frozenset()))} != "
+        f"export {sorted(frozen.get(key, frozenset()))}"
+        for key in sorted(set(parsed) | set(frozen))
+        if parsed.get(key) != frozen.get(key)
     )
 
 

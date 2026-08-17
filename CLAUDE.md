@@ -37,8 +37,9 @@ get, and it is still more reliable than remembering a different world.
 Challenge Mode, sim date 2024-03-07 — and so does the code that reads it.
 `src/ootp_ai/` holds the config layer, a forward-only cursor, the header and
 version guard, the save enumerator, an immutable snapshot layer, and walkers for
-`saved_games.dat`, `human_managers.dat` and `teams.dat`. All 259 team records of
-the validation probe match the game's own export field-by-field.
+`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`. All 259 team
+records of the validation probe match the game's own export field-by-field, as do
+all 3,058 entries of the league calendar and all six division rosters.
 
 **There is still no warehouse and no reports**, so the GM cannot yet see its own
 club ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Bronze

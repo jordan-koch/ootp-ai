@@ -14,8 +14,9 @@ Measured 2026-08-16, and re-asserted here so a game patch cannot quietly change 
 the only file-set difference is `challenge.dat`, nothing is *absent* from a Challenge
 save, and the managed league's file set is identical to the Challenge probe's.
 
-This module grows: Phase 5 adds `teams.dat`, Phase 6 `players.dat`, Phase 7
-`names.dat`, each asserting the same walker yields the same record shape on both.
+This module grows: Phase 5a adds `teams.dat`, Phase 5b `world.dat`, Phase 6
+`players.dat`, Phase 7 `names.dat`, each asserting the same walker yields the same record
+shape on both.
 """
 
 from __future__ import annotations
@@ -27,6 +28,7 @@ import pytest
 from ootp_ai.config import Settings, load_settings
 from ootp_ai.parser.header import read_header
 from ootp_ai.parser.teams import TEAMS_FILE, TeamsFile, read_teams
+from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
 from ootp_ai.saves import is_challenge_mode, is_record_file
 
 pytestmark = pytest.mark.gamedata
@@ -190,3 +192,70 @@ def test_the_two_modes_differ_only_in_content_not_in_shape() -> None:
         f"both probes flag the same club {managed[0]} as human; they were created to be "
         "managed by different clubs, so an identical flag means it is not being read"
     )
+
+
+# ── record level: world.dat, Phase 5b ────────────────────────────────────────
+
+
+def _matched_worlds(settings: Settings) -> tuple[WorldFile, WorldFile]:
+    assert settings.probe_save is not None and settings.truth_save is not None
+    return (
+        read_world((settings.probe_save.path / WORLD_FILE).read_bytes()),
+        read_world((settings.truth_save.path / WORLD_FILE).read_bytes()),
+    )
+
+
+def test_the_same_landmark_finds_the_same_regions_in_both_modes() -> None:
+    """Entry by content has a mode-specific failure the header check cannot see.
+
+    `teams.dat` is walked from the top, so a cross-mode difference would have to be a
+    difference in record widths. `world.dat` is *entered by searching for a string*, and
+    the thing that could quietly differ between modes is whether the anchor is still
+    unique — a Challenge save carries `challenge.dat` and could in principle carry
+    different world content too. Then the walk enters somewhere else, finds a
+    plausible-looking count, and returns a different world with nothing raised.
+
+    So both probes are walked and their regions compared as structure: same regions, same
+    order, same declared counts.
+    """
+    challenge, standard = _matched_worlds(_settings())
+
+    def structure(parsed: WorldFile) -> list[tuple[str, int, int]]:
+        return [(r.name, r.declared_count, r.parsed_count) for r in parsed.regions]
+
+    assert structure(challenge) == structure(standard), (
+        f"the walk found {structure(challenge)} in Challenge mode and "
+        f"{structure(standard)} in Standard — the landmark is resolving differently by "
+        "mode, so every division and every calendar row below is from a different place "
+        "in the file than the one validated against the export"
+    )
+    assert str(challenge.sim_date) == str(standard.sim_date) == "2024-03-18"
+
+
+def test_world_dat_is_identical_in_both_modes_down_to_the_row() -> None:
+    """A stronger claim than the `teams.dat` one, and deliberately so.
+
+    `teams.dat` legitimately differs between the two probes: they are managed by different
+    clubs, so the human flag *must* differ, and the cross-mode test there asserts
+    everything-but-that. `world.dat` holds no per-manager state at all — leagues,
+    divisions, a calendar — so there is no field with a licence to differ, and equality is
+    the honest assertion rather than a lucky one.
+
+    That makes this the cleanest cross-mode evidence in the suite: two files written by
+    the same engine in two different modes, parsed by one walker, yielding identical rows.
+    """
+    challenge, standard = _matched_worlds(_settings())
+
+    assert challenge.divisions == standard.divisions, (
+        "division membership differs between the two modes; they are the same universe "
+        "at the same sim date, so a difference here is the parser, not the game"
+    )
+    assert challenge.calendar == standard.calendar, (
+        "the league calendars differ between the two modes. Measured 2026-08-16, the two "
+        "probes' calendar arrays are byte-identical to each other — so this is a walk "
+        "that entered at a different place, not a game that scheduled differently."
+    )
+    # Byte-identity holds between the two PROBES and nowhere else. `OOTP-AI.lg` shares the
+    # same 3,058 events and differs on 233 `deleted` flags, so the equality above is a
+    # cross-MODE claim, not a cross-save one. `tests/test_parse_world.py` holds the
+    # managed league to the weaker statement that is actually true of it.

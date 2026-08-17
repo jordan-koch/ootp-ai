@@ -21,9 +21,13 @@ index. A zero-residual walk of it is a genuinely harder claim, and Phase 0
 pre-registered a demotion to the diagnostic tier precisely so a research task cannot
 park itself on the critical path. The hazard a demotion carries is that it happens
 quietly, so it is made expensive to hide: the parser must *declare* its tier, the
-declaration must be one of two known values, and a demotion must carry a written
-rationale. `tests/test_byte_accounting.py` then holds the declaration to whatever the
-real file actually does.
+declaration must be one of the values `tests/fixtures/tiers.py` pre-registers, and a
+demotion must carry a written rationale. `tests/test_byte_accounting.py` then holds the
+declaration to whatever the real file actually does.
+
+The tier vocabulary moved to `tests/fixtures/tiers.py` in Phase 5b, when `world.dat`
+needed the same guard: three modules declaring a tier against four private copies of the
+legal set is how a vocabulary starts disagreeing with itself.
 """
 
 from __future__ import annotations
@@ -34,6 +38,7 @@ from typing import get_args, get_origin, get_type_hints
 import pytest
 
 from fixtures.synthetic import make_header
+from fixtures.tiers import KNOWN_TIERS
 from ootp_ai.parser.errors import (
     MalformedHeader,
     SaveFilenameMismatch,
@@ -48,13 +53,6 @@ from ootp_ai.parser.teams import (
     TeamsFile,
     read_teams,
 )
-
-#: The three pre-registered tiers. Phase 0 registered two; `region-accounted` was added
-#: 2026-08-16 (operator-disposed) when `world.dat` turned out to fit neither — a
-#: landmark-entered walk of a single-record 8.9 MB file never reads ~7.5 MB of it, and
-#: calling that `diagnostic` would make one word mean two very different strengths of
-#: claim. A tier outside this set is an undeclared weakening.
-KNOWN_TIERS = frozenset({"strict", "diagnostic", "region-accounted"})
 
 #: Fields whose zero is a **value**, not an absence, so none of them may be typed
 #: optional — and this bites harder here than anywhere else in the parser, because
