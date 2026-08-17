@@ -1,4 +1,4 @@
-"""Copy the three in-scope save files, digest them, and never touch them again.
+"""Copy the in-scope save files, digest them, and never touch them again.
 
 Everything downstream parses a snapshot, not the live save. That is not tidiness —
 it is what makes a past decision re-examinable. The warehouse can be rebuilt from a
@@ -62,16 +62,29 @@ __all__ = [
     "verify_snapshot",
 ]
 
-#: The files this project parses, and nothing else. ~46 MB against a ~600 MB `.lg`.
+#: The files this project parses, and nothing else. ~55 MB against a ~600 MB `.lg`.
 #: `retired.dat` (154 MB) is players nobody on a roster is; `challenge.dat` is a
 #: 241-byte integrity blob that is not ours to move around; `scouting.dat` has no
-#: walker. A snapshot is three named files, never a directory sweep — a sweep would
-#: quietly grow the copy every time OOTP adds a file.
-SNAPSHOT_FILES: tuple[str, ...] = ("teams.dat", "players.dat", "names.dat")
+#: walker. A snapshot is a named set, never a directory sweep — a sweep would quietly
+#: grow the copy every time OOTP adds a file.
+#:
+#: **Widened 2026-08-16, operator-disposed under ADR 0018 tier 2.** `world.dat` (8.9 MB)
+#: is the only home of division membership and the league calendar, and
+#: `human_managers.dat` (835 bytes) is the only file that names the club we manage
+#: outright — so a snapshot without either cannot be re-parsed without the game, which is
+#: the entire property a snapshot exists to provide. `world.dat` joins now rather than
+#: with its walker so that the snapshot stops changing shape between phases.
+SNAPSHOT_FILES: tuple[str, ...] = (
+    "teams.dat",
+    "players.dat",
+    "names.dat",
+    "world.dat",
+    "human_managers.dat",
+)
 
-#: Which file's header supplies the league's in-game date. `teams.dat` because it is
-#: the smallest of the three and every save has one; `measured` — all three files in a
-#: save carry the same sim date in their headers.
+#: Which file's header supplies the league's in-game date. `teams.dat` because every save
+#: has one and it is already the file the walkers open first; `measured` — every record
+#: file in a save carries the same sim date in its header.
 SIM_DATE_SOURCE = "teams.dat"
 
 MANIFEST_NAME = "manifest.json"

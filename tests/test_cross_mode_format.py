@@ -26,6 +26,7 @@ import pytest
 
 from ootp_ai.config import Settings, load_settings
 from ootp_ai.parser.header import read_header
+from ootp_ai.parser.teams import TEAMS_FILE, TeamsFile, read_teams
 from ootp_ai.saves import is_challenge_mode, is_record_file
 
 pytestmark = pytest.mark.gamedata
@@ -109,3 +110,83 @@ def test_mode_detection_agrees_with_the_file_set() -> None:
     assert is_challenge_mode(settings.managed.path)
     assert is_challenge_mode(settings.probe_save.path)
     assert not is_challenge_mode(settings.truth_save.path)
+
+
+# ── record level: teams.dat, Phase 5 ─────────────────────────────────────────
+
+
+def _matched_pair(settings: Settings) -> tuple[TeamsFile, TeamsFile]:
+    """The Challenge and Standard probes' team files.
+
+    A matched pair in the strong sense: same universe, same sim date, differing in mode
+    and in which club is managed. Everything else about them should be identical, which
+    is what makes a difference here meaningful rather than merely expected.
+    """
+    assert settings.probe_save is not None and settings.truth_save is not None
+    return (
+        read_teams((settings.probe_save.path / TEAMS_FILE).read_bytes()),
+        read_teams((settings.truth_save.path / TEAMS_FILE).read_bytes()),
+    )
+
+
+def test_the_same_walker_reads_teams_dat_in_both_modes() -> None:
+    """The first record-level evidence for the assumption the whole project rests on.
+
+    Header equality was necessary but weak — it says two files start the same way, not
+    that their records do. This walks 259 variable-length records in each and requires
+    the walk to succeed identically, which is the claim that actually matters.
+    """
+    challenge, standard = _matched_pair(_settings())
+
+    assert len(challenge.teams) == len(standard.teams), (
+        f"Challenge mode yields {len(challenge.teams)} teams and Standard "
+        f"{len(standard.teams)} — mode changes the record count, and every field "
+        "mapping validated against the export is therefore validated against a "
+        "different format than the league we manage"
+    )
+    # Not an equality: the two files differ by 49 bytes (their league names differ in
+    # length), so identical residuals are not required. What must hold is that the
+    # walker reaches the *same tier* on both — accounting for one file exactly while
+    # leaving bytes in the other would mean the record shape is mode-dependent.
+    assert (challenge.residual_bytes == 0) == (standard.residual_bytes == 0), (
+        f"the walk leaves {challenge.residual_bytes} bytes in Challenge mode and "
+        f"{standard.residual_bytes} in Standard — one of them is not fully accounted "
+        "for, so the record widths differ by mode"
+    )
+    assert str(challenge.sim_date) == str(standard.sim_date) == "2024-03-18"
+
+
+def test_the_two_modes_differ_only_in_content_not_in_shape() -> None:
+    """Same clubs, same ids, same hierarchy — a different manager, and nothing else.
+
+    The human flag is the one field that *should* differ (Boston manages the Challenge
+    save, the Cubs the Standard one). Asserting that it differs while everything else
+    matches is what separates "the format is identical" from "the files are identical".
+    """
+    challenge, standard = _matched_pair(_settings())
+
+    def shape(parsed: TeamsFile) -> list[tuple[int, str, str, int, int, int, int, int]]:
+        return sorted(
+            (
+                team.team_id,
+                team.abbr,
+                team.nickname,
+                team.level,
+                team.league_id,
+                team.sub_league_id,
+                team.park_id,
+                team.parent_team_id,
+            )
+            for team in parsed.teams
+        )
+
+    assert shape(challenge) == shape(standard)
+
+    managed = [
+        {team.team_id for team in parsed.teams if team.human_team}
+        for parsed in (challenge, standard)
+    ]
+    assert managed[0] != managed[1], (
+        f"both probes flag the same club {managed[0]} as human; they were created to be "
+        "managed by different clubs, so an identical flag means it is not being read"
+    )

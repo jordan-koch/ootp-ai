@@ -7,11 +7,11 @@ point — a provenance schema invented three phases from now, under time pressur
 a grain drifts and how a key ends up meaning two things.
 
 **Every fact in a run is resolved from data, never configured or assumed.** The sim date
-comes from `teams.dat`'s own header, the digests and sizes from the snapshot copy, the
-version from each file's header, and the human team from the saved-games index. Code
-that hardcoded *"we are team 6"* would pass on every save the parser is developed
-against and break invisibly on the managed league — and since the validation harness
-runs against a probe, nothing would catch it.
+comes from `teams.dat`'s own header, the digests and sizes from the snapshot copy, and
+the version from each file's header. Code that hardcoded *"we are team 6"* would pass on
+every save the parser is developed against and break invisibly on the managed league —
+and since the validation harness runs against a probe, nothing would catch it. The human
+club is now resolved the same way, out of the snapshot's own `human_managers.dat`.
 
 **Nothing here writes.** `snapshot.py` is the only module in this package allowed to
 create a file, and `tests/test_read_only.py` asserts that allowlist mechanically. This
@@ -29,8 +29,8 @@ from dataclasses import dataclass, field
 
 from ootp_ai.config import SaveRef, Settings
 from ootp_ai.parser.header import read_header
+from ootp_ai.parser.human_managers import HUMAN_MANAGERS_FILE, read_human_manager
 from ootp_ai.parser.primitives import SaveDate
-from ootp_ai.parser.saved_games import SAVED_GAMES_FILE, read_saved_games
 from ootp_ai.snapshot import Snapshot, SnapshotFile, take_snapshot
 
 __all__ = [
@@ -64,10 +64,13 @@ class IngestRun:
     wall-clock field in the key: ingestion time is an attribute, and keying on it would
     fragment a single game state across re-runs.
 
-    `human_team_id` is `None` at this phase for every real save. The saved-games index
-    names the human club by display string and carries no team id at all; the id lives
-    in `teams.dat`, which Phase 5 walks. See `parser/saved_games.py` for what was
-    checked. `None` is structural absence — the field is not there — never a zero.
+    `human_team_id` is resolved from `human_managers.dat`, which names the managed club
+    outright in 835 bytes. It is **not** taken from `saved_games.dat`, which carries only
+    a display string ("Chicago" is two clubs), and not from `teams.dat`, which reaches the
+    same answer through the last slot of a variable-length integer run — a longer route,
+    and the one `tests/test_parse_real_save.py` cross-checks this against rather than
+    trusts. `None` means the file was absent from the snapshot, which is a known gap and
+    never a zero.
     """
 
     save_id: str
@@ -105,10 +108,28 @@ def ingest_save(save: SaveRef, *, settings: Settings) -> IngestRun:
         save_id=snapshot.save_id,
         sim_date=snapshot.sim_date,
         ingest_seq=snapshot.ingest_seq,
-        human_team_id=_resolve_human_team(save),
+        human_team_id=_resolve_human_team(snapshot),
         snapshot=snapshot,
         sources=tuple(_describe(snapshot, entry) for entry in snapshot.files),
     )
+
+
+def _resolve_human_team(snapshot: Snapshot) -> int | None:
+    """Which club this universe is managed by, read from the snapshot copy.
+
+    From the **copy**, never the save: re-opening the game's directory to answer a
+    question the snapshot can answer is avoidable contact with the one tree this project
+    must not disturb, and the copy is verified byte-identical to it (ADR 0001).
+
+    `None` only when the file is not in the snapshot at all — a save shape this project
+    has not seen. A parse failure is *not* swallowed into `None`: an unreadable
+    `human_managers.dat` means the run does not know which club it describes, and every
+    bronze row would be stamped with that ignorance.
+    """
+    source = snapshot.path / HUMAN_MANAGERS_FILE
+    if not source.is_file():
+        return None
+    return read_human_manager(source.read_bytes()).team_id
 
 
 def _describe(snapshot: Snapshot, entry: SnapshotFile) -> SourceFile:
@@ -126,24 +147,3 @@ def _describe(snapshot: Snapshot, entry: SnapshotFile) -> SourceFile:
         sha256=entry.sha256,
         version=header.version,
     )
-
-
-def _resolve_human_team(save: SaveRef) -> int | None:
-    """The human team for this save, from the saved-games index beside it.
-
-    Returns `None` when the index is absent or does not list the save, and — at this
-    phase — `None` even when it does: the index carries no team id. That absence is
-    reported rather than papered over, because a plausible wrong club would propagate
-    into every roster report with nothing raised.
-
-    A malformed index is *not* swallowed. If the walk refuses, the layout is not the one
-    it was measured against, and that is worth a loud failure here rather than a quiet
-    `None` that looks like an ordinary absence.
-    """
-    index = save.root / SAVED_GAMES_FILE
-    if not index.is_file():
-        return None
-    for entry in read_saved_games(index.read_bytes()):
-        if entry.league == save.league:
-            return entry.human_team_id
-    return None
