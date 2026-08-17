@@ -93,6 +93,10 @@ the docs describe:
 - anything contradicting an accepted ADR
 - a source claim that moved from `unconfirmed` to `verified` (`docs/data-access.md`)
 - a request artifact whose status advanced (the track Index rows)
+- **`.claude/agents/data-engineer-memory.md` appearing in the staged diff** — that file has
+  no size guard in CI on purpose, so the sweep's audit of it is the only curation it ever
+  gets. The trigger is the file's presence, not a judgment about whether the entries look
+  fine; an agent appended, so a human reads.
 
 **Otherwise, do the two-minute version yourself:**
 

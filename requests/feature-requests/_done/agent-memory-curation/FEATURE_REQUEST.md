@@ -1,4 +1,9 @@
-> **Status:** intake · created 2026-08-16 · decided · next: implement
+> **Status:** implemented · created 2026-08-16 · decided · next: commit
+>
+> Direct build, disposed by the operator: *"we shouldn't need the full intake for this."*
+> Stages 2 and 3 did not run and their artifacts are absent, which is the record that they
+> were skipped. This request is therefore both the intake and the specification the build
+> was made against.
 
 # Feature Request — Move agent-memory curation from CI to the doc gate
 
@@ -154,7 +159,7 @@ a judgment into an arithmetic exercise once already.
 **Direct build. Stages 2 and 3 skipped, argued below; stage 4 runs with this request
 standing in for the plan.**
 
-Against the three hard triggers in [`requests/README.md`](../../README.md):
+Against the three hard triggers in [`requests/README.md`](../../../README.md):
 
 1. **Open Questions came out non-empty?** No. The single open question — the forcing
    function once CI stops enforcing — was surfaced and answered before this was written,
@@ -174,8 +179,22 @@ defect is fully diagnosed; the fix is subtraction plus prose. The main-thread co
 structural rather than procedural — `tests/` is the builder's deny set, so this cannot be
 delegated regardless of which stages run.
 
-**One fold-in, unrelated but discovered in the same files.** `/update-docs` Step 1 and
-`/commit` Step 3 both instruct running `uv run pytest tests/test_request_links.py`. **That
-file does not exist** — the guard is `tests/test_doc_links.py`. The dead command was hit
-during the Phase 5b commit. Two one-word corrections in files this request already opens;
-folding them in rather than opening a request to fix a filename.
+**A fold-in was proposed and withdrawn. No fold-ins.** `/update-docs` Step 1 and `/commit`
+Step 3 both instruct running `uv run pytest tests/test_request_links.py`, which does not
+exist — the guard is `tests/test_doc_links.py`. That looked like two one-word corrections
+in files this request already opens, and the corrections were made and then reverted, for
+two reasons found on checking:
+
+- **It is already filed.** `requests/bugfix-requests/doc-link-guard-mismatch/` covers it at
+  `intake`, names all **six** skills that carry the dead path, and is on the **full
+  pipeline** by its own argued stage plan.
+- **It is not a filename fix.** That report's symptom B is that the guard which *does*
+  exist rejects fenced links, `file.py:123` citations and `var/` targets that the same six
+  skills promise are exempt — and its first Open Question is *"rename the guard to match
+  the skills, or correct the skills to match the guard? These produce materially different
+  repos."* Editing two of the six occurrences silently answers that question in one
+  direction, on a third of the surface, and leaves the bug report's own symptom
+  description stale.
+
+So this request touches neither skill's link-check command. The substitution stays a known
+workaround until that bug is diagnosed.

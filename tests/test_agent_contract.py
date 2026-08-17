@@ -18,7 +18,14 @@ AGENT_DIR = REPO_ROOT / ".claude" / "agents"
 DEFINITION = AGENT_DIR / "data-engineer.md"
 MEMORY = AGENT_DIR / "data-engineer-memory.md"
 
-MEMORY_CEILING = 250  # the runaway ceiling; ~120 is the curation target, judged at /update-docs
+# There is deliberately no length guard on the memory file. One existed — a 250-line
+# ceiling — and it was removed on 2026-08-16 because it was enforced against the wrong
+# actor. The file's own rules tell the agent to append freely and never prune, so at the
+# ceiling there was no legal move: the Phase 5b builder had six entries to record, could
+# not append without turning this file red, and was forbidden to trim. The judgment about
+# what to cut and the authority to cut it both live with the curator at `/update-docs`,
+# which now owns the audit. What survives here is the guard below, which is about whether
+# an entry is *honest* rather than whether the file is *long* — and that one CI can answer.
 
 
 def definition_text() -> str:
@@ -72,14 +79,6 @@ def test_deny_set_still_protects_the_guards() -> None:
     allowlist_section = text.split("## Write allowlist", 1)[1].split("## Tool allowlist", 1)[0]
     for denied in ["tests/", ".github/", "ops/", "CLAUDE.md", "docs/decisions/"]:
         assert denied in allowlist_section, f"{denied} missing from the agent's deny set"
-
-
-def test_memory_file_under_runaway_ceiling() -> None:
-    lines = MEMORY.read_text(encoding="utf-8").splitlines()
-    assert len(lines) <= MEMORY_CEILING, (
-        f"agent memory is {len(lines)} lines, over the {MEMORY_CEILING}-line runaway ceiling. "
-        "Curate it at /update-docs — the agent appends and never prunes, by design."
-    )
 
 
 def test_memory_entries_carry_an_epistemic_label() -> None:
