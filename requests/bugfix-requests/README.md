@@ -50,3 +50,4 @@ Every artifact opens with a status blockquote:
 |---|---|---|
 | [doc-link-guard-mismatch](doc-link-guard-mismatch/) | intake | Six skills name `tests/test_request_links.py`, which does not exist; the guard that does exist rejects fenced links, `file.py:123` citations and `var/` targets that those skills promise are exempt |
 | [leak-guard-blind-to-untracked-files](leak-guard-blind-to-untracked-files/) | intake | `test_no_leaks.py` enumerates via `git ls-files`, so a banned pattern in a new file passes until it is staged — the guard fires only once a leak can enter history, and it is the repo's only leak protection |
+| [verify-batching-guard-red-on-arrival](verify-batching-guard-red-on-arrival/) | intake | `verify_batching_guard.mjs` exits 1 on a clean checkout and always has, so stage 4's Verify phase is unproven; fails byte-identically in `nba2k-rpg` from a separately-adapted copy, which points the defect at the shared ported logic |

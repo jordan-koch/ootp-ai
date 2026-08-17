@@ -30,18 +30,14 @@ get, and it is still more reliable than remembering a different world.
 
 ## Status
 
-**Phase 1 — the parser is real.** The club exists — Boston Red Sox, `OOTP-AI`,
-Challenge Mode, sim date 2024-03-07 — and so does the code that reads it.
-`src/ootp_ai/` holds the config layer, a forward-only cursor, the header and
-version guard, the save enumerator, an immutable snapshot layer, and walkers for
-`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`. Against the
-game's own export: 259 of 259 team records match field-by-field, as do all 3,058
-league-calendar entries and all six division rosters.
+**Phase 1 — the parser is real.** Boston Red Sox, `OOTP-AI`, Challenge Mode, sim
+date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
+the game's own export. [`README.md`](README.md) carries what has landed and what
+is next.
 
 **There is still no warehouse and no reports**, so the GM cannot yet see its own
 club ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Bronze
-landing is Phase 8 of [`first-sight`](requests/feature-requests/first-sight/),
-the request driving all of this.
+landing is Phase 8 of [`first-sight`](requests/feature-requests/first-sight/).
 
 ## Stack
 
@@ -98,16 +94,14 @@ epistemic labels are load-bearing. [`league-rules.md`](docs/league-rules.md)
 
 ## Established facts — do not re-investigate
 
-Verified 2026-08-15; full detail and epistemic labels in
+Verified 2026-08-15; detail and epistemic labels in
 [`docs/data-access.md`](docs/data-access.md).
 
-- **`players.csv` ships with the game and is the Rosetta Stone** — ~12,855 real
-  players, raw unfiltered ratings. It is what located the ratings block.
-- **Records contain variable-length regions.** Parse sequentially; **never seek
-  to a fixed offset.** Field *order* is stable across saves; offsets are not.
-- **Names are indirected** into `names.dat`. `players.dat` holds indices.
-- **Real players carry their Lahman/BBRef ID** (`deverra01`), ~1,712 unique — a
-  join key to Retrosheet, Chadwick, FanGraphs, Statcast.
+- **`players.csv` ships with the game and is the Rosetta Stone** — raw, unfiltered.
+- **Records contain variable-length regions** — field *order* is stable, offsets
+  are not. The fixed-offset ban is the rulebook's, and CI enforces it.
+- **Names are indirected** into `names.dat`; `players.dat` holds indices.
+- **Real players carry their Lahman/BBRef ID** — a join key to public baseball data.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
 
 ## Decisions already made — do not re-propose
@@ -126,7 +120,7 @@ Verified 2026-08-15; full detail and epistemic labels in
 **The GM-facing decisions — 0012 through 0017 — live in
 [`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
 0016 constrains what an agent may query. Read them before any baseball decision;
-0012's parser corollary is below, under the correctness trap, because it binds code.
+0012's parser corollary binds code instead, and is owned by the ADR itself.
 
 ## Project conventions
 
@@ -142,6 +136,7 @@ Verified 2026-08-15; full detail and epistemic labels in
 - **Every substantial engineering change is a request.** The full pipeline is the
   default; a skip is argued in writing. See
   [requests/README.md](requests/README.md). Baseball decisions are *not* requests.
+- **Work is driven from `requests/` alone — there is no `ROADMAP.md`.**
 - **Label your epistemics.** *Measured*, *verified*, *inferred*, *assumed*,
   *unconfirmed* mean different things. Nearly everything known about the save
   format is a belief formed by looking at bytes; an unconfirmed claim is a task.
@@ -164,35 +159,11 @@ exists to prevent, and
 survives. Spawn protocol: [`.claude/agents/README.md`](.claude/agents/README.md),
 [ADR 0009](docs/decisions/0009-write-capable-implementation-subagent.md).
 
-## Outstanding scaffolding work
-
-- **No `ROADMAP.md`.** Work is driven from `requests/` alone; `/commit`'s Step 4
-  maintains request statuses and Index rows instead.
-- **A ported panel guard fails on arrival** —
-  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs`, **identically**
-  in `nba2k-rpg`, so it is an upstream defect. Diagnose before trusting stage 4's
-  verify batching.
-- **The dbt adapter question is open** —
-  [ADR 0004](docs/decisions/0004-mysql-warehouse.md) §Notes, due with the first
-  dbt model.
-
 ## The correctness trap that will bite
 
-**In-game rating displays are filtered and scale-converted** — 20–80 on the player
-page, 1–100 in reports, ~1–1000 in storage. Matching a displayed value to a byte
-identifies the **wrong field with no error surfaced**, the single most likely way
-to silently corrupt every downstream recommendation. Ground truth is `players.csv`,
-which is raw ([`docs/data-access.md`](docs/data-access.md) §5). A field the parser
-cannot classify is treated as a true rating and **withheld** — "probably fine" is
-not a classification.
-
-## Context on the operator
-
-Data engineer; thinks in systems and pushes back well on design. Wanted to own the
-ingestion rather than accept a vendor's export — hence
-[ADR 0002](docs/decisions/0002-parse-binaries-not-export.md). His role in the club
-is in [`FRONT_OFFICE.md`](FRONT_OFFICE.md). This is a **fun side project**: size
-scope for sustained enjoyment, not completeness. That does *not* mean light process.
-
-Three sibling repos are style references, not dependencies — nothing here consumes
-them, and [`README.md`](README.md) says what each contributed.
+**In-game rating displays are filtered and scale-converted** — matching a displayed
+value to a byte identifies the **wrong field with no error surfaced**, the likeliest
+way to silently corrupt every downstream recommendation. The scales, the ground
+truth and the withhold-if-unclassified rule are owned by
+[`docs/data-access.md`](docs/data-access.md) §5 and
+[ADR 0012](docs/decisions/0012-scouted-ratings-only.md); the rulebook binds them.
