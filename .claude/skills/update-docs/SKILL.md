@@ -73,9 +73,14 @@ Work through these against the diff. Each is a question a machine can't answer.
   week.
 - **Constraints & Gotchas.** Did this change discover a new trap, or retire an existing one? This
   section is the repo's scar tissue — it should grow when something bites.
-- **The line budget.** `CLAUDE.md` stays **under 200 lines**. Check it:
-  `(Get-Content CLAUDE.md | Measure-Object -Line).Lines`. Over budget means cutting, not
-  reformatting — the file is a map, and a map that takes an hour to read is not a map.
+- **The line budget.** `CLAUDE.md` stays **under 200 physical lines**. Check it:
+  `(Get-Content CLAUDE.md).Count`. Over budget means cutting, not reformatting — the file is
+  a map, and a map that takes an hour to read is not a map.
+
+  **Use `.Count`, not `Measure-Object -Line`.** The latter skips blank lines, and on a file
+  this heavily paragraphed the two disagree by about 20% — it read 196 against a real 242,
+  so the budget silently went unenforced for the whole life of the file. Any guard whose
+  number matters should count the thing it claims to count.
 
 ### README.md — is it still true?
 
@@ -128,6 +133,48 @@ weaker test.
 
 Also check: does every new model and column carry a description at all? An undocumented column in
 a repo built on documentation is a gap.
+
+### .claude/agents/data-engineer-memory.md — is every entry still true?
+
+**Run this whenever the memory file appears in the diff.** That is the whole trigger: the
+file changed, so an agent appended to it, so it needs a reader. Nothing else about the
+change matters.
+
+This file is the one place in the repo with **no mechanical guard on its size**, by design.
+The agent is told to append freely and never prune, because pruning mid-build means
+predicting which entries later phases will need. That makes this section the only thing
+standing between the file and rot — if the sweep doesn't read it, nobody does.
+
+Four questions, in priority order:
+
+- **Did an entry become false?** The most valuable and the easiest to miss. A tooling entry
+  outlives its toolchain; an entry citing a function, a docstring section, or a test that
+  has since been renamed now points at nothing. Open the cited artifact and check it
+  resolves — a stale pointer in a file agents treat as authoritative teaches them to
+  distrust something that works, or to trust something that no longer does.
+- **Should this have gone somewhere else?** The routing rule says data facts belong in
+  `docs/data-access.md` and repo-wide traps in `CLAUDE.md` — because those are audited and
+  this file is not. Nothing enforces that rule at write time. An entry that is really a
+  field's meaning, a population's structural gap, or a scale behaviour is a data fact
+  wearing an ergonomics hat: move it, and say so in the report.
+- **Are two entries the same finding?** Say so. Then read the merge rule below before
+  acting.
+- **Is anything here now obvious?** A trap that has since been made structurally impossible
+  — by a guard, a type, or an API that no longer permits it — is a historical note, not a
+  warning. Cut it and name the thing that replaced it.
+
+**The merge rule, which is not a length rule.** Every entry carries a date and an evidence
+pointer, and those cannot be reconstructed once merged. So:
+
+> **Prefer deleting a falsified entry over merging two live ones.** Deleting a dead entry
+> costs nothing. Merging two live ones costs provenance. Where a merge is genuinely right,
+> keep both dates and both pointers as sub-bullets under the shared claim.
+
+**Length is never by itself a reason to touch this file.** A long file of true, well-cited
+entries is working correctly. If it feels unwieldy, the finding to report is *what kind* of
+entry dominates it — a bloc that is never false, never obsolete and never merges is
+evidence that it wants its own home in `docs/`, which is a proposal for the user, not an
+edit to make here.
 
 ### requests/ — do the Index rows match the artifacts?
 

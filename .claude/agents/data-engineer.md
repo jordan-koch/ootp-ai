@@ -232,10 +232,16 @@ Then these sections, **all present, none empty** — write "none" rather than de
   carry. **Never drop a `verified` row, a measured number, or a `could-not-do` entry to
   fit a length.**
 
-  The reason the memory file and `CLAUDE.md` *do* carry caps is that they are loaded into
-  someone's context on **every** invocation, so their length is a tax paid forever. A
-  handoff is written once, read about once, and then it is history. It pays that cost
-  precisely never. Do not import their budget.
+  The reason `CLAUDE.md` *does* carry a cap is that it is loaded into someone's context on
+  **every** invocation, so its length is a tax paid forever. A handoff is written once,
+  read about once, and then it is history. It pays that cost precisely never. Do not
+  import its budget.
+
+  **Your memory file carries no cap either**, and for a related reason: a length rule is
+  only useful where the person reading it can also act on it. `CLAUDE.md` is curated by
+  whoever is editing it. You are told never to prune your memory, so a cap there gave you
+  a rule you could break but not obey. It was removed on 2026-08-16 after a build hit it
+  mid-phase. Append and move on.
 
   This is not licence to pad. Length should follow the evidence: a phase that measured
   twelve things has a longer `verified` table than one that measured three, and a

@@ -5,6 +5,8 @@
 An **AI front office for Out of the Park Baseball 25**. The agent is the General
 Manager; the human is the operator who executes in-game. The claim under test is
 that this front office can be **competitive** in a league it cannot cheat in.
+Underneath the baseball it is a data engineering project: read a proprietary binary
+format nobody has a parser for, land it, model it, and serve it.
 
 > **This file is the engineering half.** If you are touching the club — any
 > baseball decision, any action, anything in `gm/` — **read
@@ -12,19 +14,14 @@ that this front office can be **competitive** in a league it cannot cheat in.
 > economy, and what you are allowed to see. Skipping it means acting as a
 > different GM than the one who made every prior decision.
 
-Underneath the baseball, this is a data engineering project: read a proprietary
-binary format nobody has a parser for, land it, model it, and serve it.
-
 ## This is not the 2024 season
 
 It looks like it. It is seeded from real baseball and **diverges from it on the
-first pitch.** The two universes share a past up to the current sim date and
-nothing after.
-
-So recalled knowledge about how a player's career actually went is knowledge about
-**a different person**. Not contraband — simply wrong, and more wrong every week.
-That applies to every agent here, and it bites hardest on prospects, where the
-temptation to "already know" is strongest and the divergence is largest.
+first pitch** — the two universes share a past up to the current sim date and
+nothing after. So recalled knowledge about how a player's career actually went is
+knowledge about **a different person**: not contraband, simply wrong, and more
+wrong every week. It bites hardest on prospects, where the temptation to "already
+know" is strongest and the divergence is largest.
 
 **The warehouse is the only reliable source of truth about this universe.** Where
 it holds a scout's belief rather than a fact, that is deliberate
@@ -37,14 +34,14 @@ get, and it is still more reliable than remembering a different world.
 Challenge Mode, sim date 2024-03-07 — and so does the code that reads it.
 `src/ootp_ai/` holds the config layer, a forward-only cursor, the header and
 version guard, the save enumerator, an immutable snapshot layer, and walkers for
-`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`. All 259 team
-records of the validation probe match the game's own export field-by-field, as do
-all 3,058 entries of the league calendar and all six division rosters.
+`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`. Against the
+game's own export: 259 of 259 team records match field-by-field, as do all 3,058
+league-calendar entries and all six division rosters.
 
 **There is still no warehouse and no reports**, so the GM cannot yet see its own
 club ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Bronze
 landing is Phase 8 of [`first-sight`](requests/feature-requests/first-sight/),
-which is the request driving all of this.
+the request driving all of this.
 
 ## Stack
 
@@ -61,7 +58,7 @@ layers. No cloud, no cost.
   `players.csv`, the XML reference files, `.dat`, `.lg/`, snapshots, exports —
   gitignored by name and extension. They are Out of the Park Developments' IP.
 - **Derived schema knowledge is ours and is tracked.** "The ratings block is 18
-  contiguous u16 values ordered vR, vL, potential" is our observation; a copy of
+  contiguous u16s ordered vR, vL, potential" is our observation; a copy of
   `players.csv` is not.
 - **No machine-specific paths, account ids, tokens, or personal identifiers.**
   Everything resolves from `.env`; `tests/test_no_leaks.py` fails the build.
@@ -75,8 +72,8 @@ FRONT_OFFICE.md     The baseball half — read it before touching the club
 docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
-  game-mechanics.md   How the OOTP engine behaves — free to the GM, and thin on purpose
-  decisions/          ADRs — nineteen calls, two superseded
+  game-mechanics.md   How the OOTP engine behaves — free to the GM, thin on purpose
+  decisions/          ADRs — nineteen calls, two superseded, seventeen live
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
@@ -87,39 +84,23 @@ tests/              Structural guards + parser fixtures
 var/                GITIGNORED — save snapshots, warehouse files, scratch
 ```
 
-Directories appear when their phase does. `build/`, `datasets/`, and `transform/`
+Directories appear when their phase does. `build/`, `datasets/` and `transform/`
 don't exist yet — their shapes are in
 [ADR 0005](docs/decisions/0005-hybrid-data-layer.md); don't create them
 speculatively.
 
-## Important locations
-
-- **[FRONT_OFFICE.md](FRONT_OFFICE.md)** — **read before any session that touches
-  the club.** The GM's role, the action economy, what you may see, and where the
-  club's memory lives ([ADR 0011](docs/decisions/0011-gm-memory-is-tracked.md)).
-- **[docs/data-access.md](docs/data-access.md)** — start here for anything
-  touching ingestion. Every claim carries an epistemic label, and the labels are
-  load-bearing: most of this repo rests on beliefs about a binary format.
-- **[docs/league-rules.md](docs/league-rules.md)** — the rule environment every
-  baseball decision sits inside. **The rules evolve**; the document says which
-  parts the warehouse supersedes and which parts exist nowhere else.
-- **[docs/game-mechanics.md](docs/game-mechanics.md)** — how the OOTP engine
-  *behaves*, as distinct from what this league is configured to allow. Free to the
-  GM: it is competence at the job, not analysis of our data. **Deliberately thin**,
-  and it enforces a stricter labelling rule than the other docs — model-recalled
-  mechanics may never rank above `assumed`, because a confidently wrong mechanics
-  doc is worse than none.
-- **[docs/decisions/](docs/decisions/)** — read before proposing anything
-  structural. Nineteen ADRs, two superseded.
-- **[requests/README.md](requests/README.md)** — the intake contract and the
-  three-track split. Each track's README owns its own layout.
+**Three of those docs carry rules, not just information.**
+[`data-access.md`](docs/data-access.md) starts anything touching ingestion, and its
+epistemic labels are load-bearing. [`league-rules.md`](docs/league-rules.md)
+**evolves**, and says which parts the warehouse supersedes.
+[`game-mechanics.md`](docs/game-mechanics.md) caps model-recalled mechanics at
+`assumed` — a confidently wrong mechanics doc is worse than none.
 
 ## Established facts — do not re-investigate
 
-Verified 2026-08-15. Full detail and epistemic labels in
+Verified 2026-08-15; full detail and epistemic labels in
 [`docs/data-access.md`](docs/data-access.md).
 
-- **Save binaries are plain** — not encrypted, not compressed; primitives decoded.
 - **`players.csv` ships with the game and is the Rosetta Stone** — ~12,855 real
   players, raw unfiltered ratings. It is what located the ratings block.
 - **Records contain variable-length regions.** Parse sequentially; **never seek
@@ -144,9 +125,8 @@ Verified 2026-08-15. Full detail and epistemic labels in
 
 **The GM-facing decisions — 0012 through 0017 — live in
 [`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
-one of them (0016) constrains what an agent may query. Read them before making a
-baseball decision; 0012's parser corollary is restated below under the correctness
-trap because it binds code too.
+0016 constrains what an agent may query. Read them before any baseball decision;
+0012's parser corollary is below, under the correctness trap, because it binds code.
 
 ## Project conventions
 
@@ -166,21 +146,22 @@ trap because it binds code too.
   *unconfirmed* mean different things. Nearly everything known about the save
   format is a belief formed by looking at bytes; an unconfirmed claim is a task.
 - **Mechanical checks live in CI; judgment lives in `/update-docs`.**
+- **Vertical slices, not horizontal layers.** Save → parser → warehouse → model →
+  a decision you can actually act on, before the next slice widens. A beautiful
+  pipeline that has never set a lineup has failed at both of this project's goals.
 
 ## The build rulebook
 
 **[`.claude/agents/data-engineer.md`](.claude/agents/data-engineer.md) is the
 single owner of the build rules** — read it before writing pipeline code, whether
-you are the agent or building directly. Topics it owns: game-is-read-only;
-sequential parsing and the fixed-offset ban; ground truth and epistemic labelling;
-the version guard; snapshot immutability; grain contracts and the two player keys;
-structural absence; the write allowlist; the handoff contract.
-
-Named here, not restated — restating one in actionable form recreates the second
-copy that single ownership exists to prevent.
+you are the agent or building directly. It owns game-is-read-only, sequential
+parsing and the fixed-offset ban, ground truth and epistemic labelling, the version
+guard, snapshot immutability, grain contracts and the two player keys, structural
+absence, the write allowlist and the handoff contract. **Named here, not restated**
+— restating one in actionable form recreates the second copy that single ownership
+exists to prevent, and
 [`tests/test_agent_contract.py`](tests/test_agent_contract.py) asserts each
-survives. Spawn protocol and its limits:
-[`.claude/agents/README.md`](.claude/agents/README.md),
+survives. Spawn protocol: [`.claude/agents/README.md`](.claude/agents/README.md),
 [ADR 0009](docs/decisions/0009-write-capable-implementation-subagent.md).
 
 ## Outstanding scaffolding work
@@ -188,55 +169,30 @@ survives. Spawn protocol and its limits:
 - **No `ROADMAP.md`.** Work is driven from `requests/` alone; `/commit`'s Step 4
   maintains request statuses and Index rows instead.
 - **A ported panel guard fails on arrival** —
-  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs`. It fails
-  **identically** in `nba2k-rpg`, so it is an upstream defect. Diagnose before
-  trusting stage 4's verify batching.
+  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs`, **identically**
+  in `nba2k-rpg`, so it is an upstream defect. Diagnose before trusting stage 4's
+  verify batching.
 - **The dbt adapter question is open** —
-  [ADR 0004](docs/decisions/0004-mysql-warehouse.md) §Notes. Due with the first
-  dbt model, not before.
+  [ADR 0004](docs/decisions/0004-mysql-warehouse.md) §Notes, due with the first
+  dbt model.
 
 ## The correctness trap that will bite
 
 **In-game rating displays are filtered and scale-converted** — 20–80 on the player
 page, 1–100 in reports, ~1–1000 in storage. Matching a displayed value to a byte
-identifies the **wrong field with no error surfaced**, which is the single most
-likely way to silently corrupt every downstream recommendation. Ground truth is
-`players.csv`, which is raw. Detail: [`docs/data-access.md`](docs/data-access.md) §5.
-
-A field the parser cannot classify is treated as a true rating and **withheld** —
-"probably fine" is not a classification.
-
-## Related repos — references, not dependencies
-
-None is upstream; nothing here consumes anything from them. Local checkouts, paths
-in `.env.example` — this repo is public.
-
-- **`nba-analysis`** — style template: toolchain, ADR format, request tracks, CI,
-  the medallion pattern, the `data-engineer` agent.
-- **`nba2k-rpg`** — process sibling: `.claude/skills/` and the tracked-local-state
-  inversion `gm/` uses were ported from it.
-- **`pokemon-lab`** — data-layer sibling: `build/` → `datasets/` + `manifest.json`
-  resolve-by-name, for static reference data.
+identifies the **wrong field with no error surfaced**, the single most likely way
+to silently corrupt every downstream recommendation. Ground truth is `players.csv`,
+which is raw ([`docs/data-access.md`](docs/data-access.md) §5). A field the parser
+cannot classify is treated as a true rating and **withheld** — "probably fine" is
+not a classification.
 
 ## Context on the operator
 
-Data engineer. Thinks in systems and pushes back well on design. Wanted to own the
+Data engineer; thinks in systems and pushes back well on design. Wanted to own the
 ingestion rather than accept a vendor's export — hence
-[ADR 0002](docs/decisions/0002-parse-binaries-not-export.md), chosen deliberately.
+[ADR 0002](docs/decisions/0002-parse-binaries-not-export.md). His role in the club
+is in [`FRONT_OFFICE.md`](FRONT_OFFICE.md). This is a **fun side project**: size
+scope for sustained enjoyment, not completeness. That does *not* mean light process.
 
-His role in the club is in [`FRONT_OFFICE.md`](FRONT_OFFICE.md).
-
-This is a **fun side project**. Size scope for sustained enjoyment, not
-completeness. That does *not* mean light process.
-
-## How to help
-
-- **Check `docs/data-access.md` before assuming anything about the save format.**
-  It is a catalog of beliefs, and it says which ones are which.
-- **Read the ADRs before proposing anything structural.** Fifteen live decisions;
-  re-litigating one is the most expensive thing that can happen here.
-- **Vertical slices, not horizontal layers.** Save → parser → warehouse → model →
-  a decision you can actually act on, before the next slice widens. A beautiful
-  pipeline that has never set a lineup has failed at both of this project's goals.
-- **The parser is where correctness risk concentrates.** A mis-mapped field yields
-  a plausible number, not a crash. Ground-truth validation is not a later phase.
+Three sibling repos are style references, not dependencies — nothing here consumes
+them, and [`README.md`](README.md) says what each contributed.

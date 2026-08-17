@@ -130,21 +130,35 @@ with the phases that need them.
 
 ## Status and what's next
 
-Phase 0 landed the conventions, the format investigation, and the managed league.
-The one-time ground-truth export has been captured from a disposable standard-mode
-save and loaded into MySQL.
+Phase 0 landed the conventions, the format investigation, and the managed league,
+plus a one-time ground-truth export captured from a disposable standard-mode save
+and loaded into MySQL. The parser is now real through **Phase 5b** of feature
+request #1: the spine, an immutable snapshot layer, and walkers for
+`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`.
 
-Next is the parser, now **scoped** as feature request #1: read `teams.dat` and
-`players.dat` sequentially, resolve names against `names.dat`, and land the result
-— validated field-by-field against `players.csv` and that export. Its first
-genuinely useful job is telling the GM who is on its roster, which is the thing it
-currently cannot say at all.
+Next is `players.dat` and the roster grain, then resolving names against
+`names.dat` — the step that turns a roster of integers into people — and then
+bronze landing. The first genuinely useful job is telling the GM who is on its
+roster, which is the thing this still cannot say at all.
 
-Scoping reshaped the request. Verifying that the managed league is configured the
-way [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second
-job, and is now deferred: the league configuration turned out not to live in a
-`leagues.dat` at all — there is no such file — and recovering it means mapping an
-8.9 MB `world.dat` with no Challenge Mode export to check against.
+Verifying that the managed league is configured the way
+[`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job
+and remains deferred, though the reason has narrowed. The league configuration
+does not live in a `leagues.dat` — there is no such file — and the 8.9 MB
+`world.dat` that holds it is now entered and partly mapped: its division hierarchy
+and its 3,058-entry league calendar both land, validated against the export. What
+is still unread is the ~1,200-byte scalar block holding the rules themselves.
+
+## Related repos — references, not dependencies
+
+Local checkouts; none is upstream and nothing here consumes anything from them.
+
+- **`nba-analysis`** — style template: toolchain, ADR format, request tracks, CI,
+  the medallion pattern, the `data-engineer` agent.
+- **`nba2k-rpg`** — process sibling: `.claude/skills/` and the tracked-local-state
+  inversion `gm/` uses were ported from it.
+- **`pokemon-lab`** — data-layer sibling: `build/` → `datasets/` + `manifest.json`
+  resolve-by-name, for static reference data.
 
 ## License
 

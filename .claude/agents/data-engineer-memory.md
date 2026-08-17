@@ -36,14 +36,21 @@ Continuation lines are indented under the bullet. Keep an entry to about four li
 syntax, so a backticked path is invisible to it. **Cite a repo artifact, never raw
 environment output**: this file is committed and the repo is public.
 
-## The budget — two numbers, two jobs
+## Length — not your problem
 
-**~120 physical lines is the curation target**, enforced by judgment at the `/update-docs`
-sweep before merge. **250 is the runaway ceiling**, enforced mechanically in CI.
+**There is no budget. Append freely while you work, and never prune.** Do not count the
+lines in this file, do not trim it to fit, and do not weigh whether an entry is worth the
+space. If something cost you time, write it down and get back to the build.
 
-**Append freely while you work. Never prune.** Pruning mid-build means predicting which
-entries later phases will need, and guessing wrong drops the one that would have saved them.
-Curation is the human's job, at the doc gate, with the whole build visible.
+Pruning mid-build means predicting which entries later phases will need, and guessing wrong
+drops the one that would have saved them. **Curation happens at `/update-docs`**, which
+runs whenever this file appears in a staged diff — by a reader who has the whole change in
+front of them and can tell a dead entry from a quiet one.
+
+There used to be a 250-line ceiling here, enforced in CI, and it was removed on 2026-08-16
+because it contradicted the paragraph above. A build hit it, had six things to record, and
+had no legal move: forbidden to prune, unable to append. The rule now has one branch and it
+is the one you are already following.
 
 ## Entries
 
@@ -68,11 +75,14 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   `Generic[_C]` with default `Cursor`, so under mypy strict annotate the factory return as
   `Connection[DictCursor]`; a bare `Connection` is fine but loses the cursor row type. ·
   evidence: `src/ootp_ai/db.py` · tag: tooling
-- **2026-08-16** · `measured` · `tests/test_no_leaks.py` and `tests/test_doc_links.py` iterate
-  `git ls-files`, so a file you just created is **invisible to both guards** until the main
-  thread commits it — a green suite says nothing about new files. Import `PATTERNS` from the
-  guard and run it over the new paths yourself before handing off. · evidence:
-  `tests/test_no_leaks.py` `tracked_text_files()` · tag: harness
+- **2026-08-16** · `measured` · `tests/test_no_leaks.py` iterates `git ls-files`, so a file
+  you just created is **invisible to it** until the main thread commits it — a green suite
+  says nothing about new files. Import `PATTERNS` from the guard and run it over the new
+  paths yourself before handing off. `tests/test_doc_links.py` does **not** share this
+  limitation: it uses `Path.rglob("*.md")` and sees untracked files. *(Corrected 2026-08-16
+  at the doc gate — this entry originally named both guards, and the wrong half taught
+  agents to work around a check that works.)* · evidence: `tests/test_no_leaks.py`
+  `tracked_text_files()` vs `tests/test_doc_links.py` `markdown_files()` · tag: harness
 - **2026-08-16** · `measured` · Ruff `N818` demands an `Error` suffix on every exception
   class, but the offline suite imports `MalformedHeader`, `UnsupportedSaveVersion`,
   `SaveFilenameMismatch`, `UnexpectedEndOfData` and `NotChallengeMode` by those exact
@@ -148,7 +158,7 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   anti-hardcoding test outright — but the clubs are 4/4/6 and the split falls along
   Challenge/Challenge/Standard. Enumerate every numeric slot at u8/u16/u32 and match the
   **actual expected values**; discriminating power alone is what a mode flag has too. ·
-  evidence: `src/ootp_ai/parser/saved_games.py` § *Why `human_team_id` is always `None`* ·
+  evidence: `src/ootp_ai/parser/saved_games.py` § *Why there is no `human_team_id` field* ·
   tag: harness
 - **2026-08-16** · `verified` · A `skip(N)` width constant is defensible only inside a
   **strictly byte-accounted** walk — run to `cursor.exhausted()` and let a wrong width
@@ -187,10 +197,6 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   green to error and the one signal worth protecting disappears. Leave the seam unwired and
   say so at the construction site. · evidence: `src/ootp_ai/ingest.py` `human_team_id=None` ·
   tag: harness
-- **2026-08-16** · `measured` · The `saved_games.py` docstring section cited by the earlier
-  *"varies across saves is not the field"* entry was renamed to **§ *Why there is no
-  `human_team_id` field*** when the dead field was removed. Same finding, new heading. ·
-  evidence: `src/ootp_ai/parser/saved_games.py` · tag: harness
 - **2026-08-16** · `verified` · **A model that scores 100% is not a unique model — enumerate
   the orders that tie, and the tie set *is* the ambiguity statement.** Brute-forcing every
   field order under a drop-zeros rule returned 18 distinct orders all scoring 259/259; they
@@ -248,3 +254,36 @@ Curation is the human's job, at the doc gate, with the whole build visible.
   inside `tests/`**, which is deny-set: mypy runs over `src` *and* `tests`, so `len(x)` or
   `y in x` on the attribute becomes an error you cannot fix. Grep the test tree for the
   attribute before changing its type. · evidence: `pyproject.toml` `files` · tag: harness
+- **2026-08-16** · `verified` · **A structural landmark beats a string landmark when the
+  string is not unique.** The calendar could not be entered by any string (`OPENING DAY`
+  occurs 95 times) but is trivially identifiable by *shape*: one count-prefixed array of
+  self-consistent records, maximal in both directions. 43,813 motif hits reduce to exactly
+  one candidate per save in 0.16 s. · evidence: `src/ootp_ai/parser/world.py`
+  `_find_calendar_array` · tag: harness
+- **2026-08-16** · `verified` · **Right-maximality alone is not uniqueness — every record in
+  a count-prefixed array is a candidate head**, because the four bytes in front of a record
+  are the previous record's tail and often read as a small count. The array's own last
+  record declares `count=1`, walks, and is right-maximal. The fix is a bounded
+  **left-maximality** test: no record may end exactly where the count begins. Two survivors
+  become one. · evidence: `src/ootp_ai/parser/world.py` `_is_left_maximal` · tag: harness
+- **2026-08-16** · `measured` · **`re.finditer` is non-overlapping, which can hide the very
+  match a byte-motif search needs.** A seven-byte motif consumed at offset *n* hides one
+  starting at *n+4*. Wrap the pattern in a zero-width lookahead `(?=…)` — 33,564 hits become
+  43,813, cost 0.06 s over 8.9 MB. · evidence: `src/ootp_ai/parser/world.py` `_EVENT_MOTIF` ·
+  tag: tooling
+- **2026-08-16** · `measured` · **PowerShell `Measure-Object -Line` does not count blank
+  lines**, so it disagrees with Python's `splitlines()` and with `(Get-Content …).Count` —
+  observed 235 against 250 on the same file. Use `.Count` whenever the number is the
+  question rather than a rough size. · evidence: `tests/test_agent_contract.py`
+  `test_memory_entries_carry_an_epistemic_label`, which counts with `splitlines()` ·
+  tag: tooling
+- **2026-08-16** · `verified` · **Two decode paths over the same bytes is a cheap, real
+  cross-check.** The lookahead scan that validates an entry and the cursor that then reads
+  it produce `declared_count` and `parsed_count` independently, so a `WorldRegion`'s
+  self-audit is not a tautology the way `len(list)` against its own count would be. ·
+  evidence: `src/ootp_ai/parser/world.py` `_walk_divisions` · tag: harness
+- **2026-08-16** · `measured` · **A landmark's offset can coincide across saves and still not
+  be a constant.** The MLB league name sits at byte 5,548,618 in *both* the managed league
+  and the Challenge probe — two independently created universes — and at 5,547,958 in the
+  standard probe. An offset that agrees in two of three saves is the most dangerous kind of
+  near-constant. · evidence: `var/spike5/p1_landmarks.py` (gitignored) · tag: harness
