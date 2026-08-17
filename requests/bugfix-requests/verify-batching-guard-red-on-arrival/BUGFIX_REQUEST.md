@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-17 · open · next: root-cause
+> **Status:** diagnosed · created 2026-08-17 · decided · next: plan
 
 # Bug Report — The acceptance panel's verify-batching guard has never been green
 

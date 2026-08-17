@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-16 · open · next: root-cause
+> **Status:** diagnosed · created 2026-08-16 · decided · next: plan
 
 # Bug Report — Link guard: six skills name a test that does not exist, and the test that does rejects content those skills promise is exempt
 
