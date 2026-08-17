@@ -225,8 +225,22 @@ Then these sections, **all present, none empty** — write "none" rather than de
 
 **Hard rules.**
 
-- **At or under 120 lines.** A handoff longer than the memory file it feeds has stopped
-  being a summary.
+- **No length limit. Write what the work actually needs, then stop.** There used to be a
+  120-line cap here and it was a mistake: it cost real time — several observed runs
+  finished the build and then spent long stretches counting and trimming — and what gets
+  trimmed under pressure is evidence, which is the one thing this document exists to
+  carry. **Never drop a `verified` row, a measured number, or a `could-not-do` entry to
+  fit a length.**
+
+  The reason the memory file and `CLAUDE.md` *do* carry caps is that they are loaded into
+  someone's context on **every** invocation, so their length is a tax paid forever. A
+  handoff is written once, read about once, and then it is history. It pays that cost
+  precisely never. Do not import their budget.
+
+  This is not licence to pad. Length should follow the evidence: a phase that measured
+  twelve things has a longer `verified` table than one that measured three, and a
+  handoff that is long because it narrates every edit is still wrong — see the next rule
+  and `## built`'s "prose, not a file-by-file diary".
 - **No diff hunks.** No `@@`, no `+++`, no `---` diff headers. Quote a few lines of a file
   if you must; never paste a patch. The entire point of your existence is that the main
   thread does not have to read every edit.
