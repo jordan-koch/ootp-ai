@@ -118,6 +118,76 @@ def make_color(argb: int) -> bytes:
     return struct.pack("<I", argb)
 
 
+# ── The league calendar, measured ────────────────────────────────────────────
+# `world.dat`'s calendar is a u32-count-prefixed array of fixed-shape records with one
+# length-prefixed string in the middle. Layout `measured` 2026-08-16: all 3,058 entries
+# in the standard-mode probe decode against `ootp_truth_real.league_events` on all eight
+# exported columns, and the array is byte-identical in all three saves on disk.
+#
+# **This is why a synthetic calendar record is legitimate where a synthetic `teams.dat`
+# record was not.** Phase 5a refused to hand-build a team record because that record's
+# layout was the thing being measured in the phase — a fixture would have asserted a
+# guess. Here the shape was measured first, against a full answer key, and the fixture
+# pins a finding rather than a hypothesis.
+#
+# Three bytes of padding sit between the date and the name's length prefix. Measured, the
+# real ones are zero — and `parser/world.py`'s *search* relies on that, since three zero
+# bytes in a fixed position are part of what distinguishes a calendar record from 8.9 MB of
+# everything else. The *decoder* must not rely on it: it is handed a region whose boundaries
+# the search already established, and a width it re-derives from the pad would be a width it
+# did not read. So the builder fills them with a non-zero byte by default, and a decoder
+# that quietly starts validating them goes red here rather than in a save that pads
+# differently.
+CALENDAR_PAD = b"\xcd\xcd\xcd"
+
+
+def make_calendar_event(
+    *,
+    seq: int = 1,
+    league_id: int = 1,
+    event_type: int = 7,
+    day: int = 11,
+    month: int = 7,
+    year: int = 2024,
+    name: str = "SYNTHETIC EVENT",
+    event_over: int = 0,
+    deleted: int = 0,
+    needs_human_action: int = 0,
+    real_sim_date: int = 0,
+    pad: bytes = CALENDAR_PAD,
+) -> bytes:
+    """One calendar record: `u32 seq, u32 league_id, u16 type, date, 3 pad, name, 3 flags, u16`.
+
+    `name` is length-prefixed, so records built with different names have different
+    widths — which is the whole point of building two of them in a test. Every field
+    after the name sits at a different absolute offset in a short-named record than in a
+    long-named one, and a reader that seeks past the name by a constant returns the wrong
+    flag with nothing raised.
+    """
+    return (
+        struct.pack("<I", seq)
+        + struct.pack("<I", league_id)
+        + struct.pack("<H", event_type)
+        + make_date(day, month, year)
+        + pad
+        + make_string(name)
+        + struct.pack("<BBB", event_over, deleted, needs_human_action)
+        + struct.pack("<H", real_sim_date)
+    )
+
+
+def make_calendar(events: tuple[bytes, ...], *, declared_count: int | None = None) -> bytes:
+    """A u32 count followed by the events themselves.
+
+    `declared_count` defaults to the truth and exists so a test can **lie** — a region
+    that declares more records than it carries must raise rather than return a short
+    calendar, which is the self-checking property that makes landmark entry defensible
+    at all (`IMPLEMENTATION_PLAN.md` §Phase 5b step 1).
+    """
+    count = len(events) if declared_count is None else declared_count
+    return struct.pack("<I", count) + b"".join(events)
+
+
 def make_record(
     *,
     player_id: int = 47035,

@@ -22,9 +22,10 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > **Phase 1 — the parser is real.** The managed club exists — Boston Red Sox,
 > Challenge Mode, from 2024-03-07 — and the code that reads its save does too:
 > a forward-only cursor, a header and version guard, an immutable snapshot layer,
-> and working walkers for three of the save's binaries. Every team record of the
-> validation save matches the game's own export field-by-field. No warehouse and
-> no reports yet, so the GM still cannot see its own club.
+> and working walkers for four of the save's binaries. Every team record of the
+> validation save matches the game's own export field-by-field, and so does every
+> entry of the league calendar. No warehouse and no reports yet, so the GM still
+> cannot see its own club.
 
 ## Why it's interesting
 
