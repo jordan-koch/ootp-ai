@@ -152,7 +152,9 @@ from dataclasses import dataclass
 from ootp_ai.parser.errors import SaveFormatError
 from ootp_ai.parser.header import read_header_from
 from ootp_ai.parser.lookahead import (
+    DATE_WIDTH,
     U8_WIDTH,
+    U32_WIDTH,
     peek_date_parts,
     peek_u8,
     peek_u32,
@@ -218,13 +220,44 @@ _PAD_RUN = b"\x00" * 24
 #: the run has been located. Bounded, and every candidate is validated before it is used.
 _ALIGNMENT_WINDOW = 4
 
+#: The widths of the head fields the lookaheads step over. `_NAME_INDEX_COUNT` is 2 because
+#: the head carries an opaque *pair* of `u32`s at +4 and +8 — the head-layout table above
+#: already records what is and is not established about them, and naming their count here
+#: claims nothing further.
+_PLAYER_ID_WIDTH = U32_WIDTH
+_NAME_INDEX_WIDTH = U32_WIDTH
+_NAME_INDEX_COUNT = 2
+
+#: Unclassified spans inside the fixed head, named so the walk reads as a sequence of
+#: fields rather than a series of magic skips. Each is bytes the walk crosses and does
+#: not interpret — recorded in `contracts/field_map.toml` as unclassified, per the
+#: withhold-by-default rule.
+#:
+#: The block sits above the lookaheads rather than in field order further down, because
+#: `_AGE_LOOKAHEAD` derives from `_GAP_AFTER_BIRTH_DATE` and Python resolves module-level
+#: names in order — declared later, the module raises `NameError` at import.
+_GAP_AFTER_BIRTH_DATE = 3
+_GAP_AFTER_AGE = 1
+_GAP_AFTER_NATION = 5
+_GAP_AFTER_HEIGHT = 1
+
 #: Where the birth date and the age sit inside the fixed head. These are **validation
 #: lookaheads**, not field reads: the walk confirms a candidate record start by checking
 #: the three-way agreement described in the docstring, then hands the cursor a plain
 #: sequential read. The same pattern `teams.py` uses to confirm a framed team id before
 #: committing to it.
-_BIRTH_DATE_LOOKAHEAD = 12
-_AGE_LOOKAHEAD = 19
+#:
+#: **Written as sums of named field widths, not as 12 and 19.** Both spellings compute the
+#: same number; only this one says *why* it is that number, and only this one moves when a
+#: field ahead of it does. It is the form `world.py` already uses to step over a known run
+#: of fields, and re-expressing these two is what the bugfix request that widened
+#: `tests/test_no_fixed_offsets.py` set out to earn — a raw record-relative constant is
+#: indistinguishable from the fixed-offset read the ban exists to prevent, whatever its
+#: prose defence. Read them against the head walk in `_read_record`: id, then the two name
+#: indices, and you are at the birth date; the date and the gap that follows it, and you
+#: are at the age. `tests/test_parse_players.py` pins both against a synthetic head.
+_BIRTH_DATE_LOOKAHEAD = _PLAYER_ID_WIDTH + _NAME_INDEX_COUNT * _NAME_INDEX_WIDTH
+_AGE_LOOKAHEAD = _BIRTH_DATE_LOOKAHEAD + DATE_WIDTH + _GAP_AFTER_BIRTH_DATE
 
 #: Refuse an id that is not a player id, so a lost alignment raises instead of walking a
 #: 32 MB buffer to its end inventing records. Deliberately loose — the real work is done
@@ -243,15 +276,6 @@ _MAX_BIRTH_YEAR = 2200
 #: 18,072 records. The tolerance is here so a rounding change in a future OOTP build
 #: degrades to a slightly weaker frame check rather than to a parser that reads nothing.
 _AGE_TOLERANCE = 1
-
-#: Unclassified spans inside the fixed head, named so the walk reads as a sequence of
-#: fields rather than a series of magic skips. Each is bytes the walk crosses and does
-#: not interpret — recorded in `contracts/field_map.toml` as unclassified, per the
-#: withhold-by-default rule.
-_GAP_AFTER_BIRTH_DATE = 3
-_GAP_AFTER_AGE = 1
-_GAP_AFTER_NATION = 5
-_GAP_AFTER_HEIGHT = 1
 
 #: Between `experience` and the assignment block. Fourteen bytes of high-entropy values in
 #: the 60-200 range — personality and injury-proneness territory on the evidence of the
