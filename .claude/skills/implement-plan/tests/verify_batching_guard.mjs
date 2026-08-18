@@ -51,7 +51,7 @@ const FINDINGS_BY_LENS = {
     { loc: 'src/ootp_ai/parse/reader.py:120', title: 'plan phase 3 was never implemented at all' },
   ],
   correctness: [
-    { loc: 'src/ootp_ai/land/writer.py:42', title: 'landed payload is overwritten, not written once' },  // dup of fidelity[0]
+    { loc: 'src/ootp_ai/land/writer.py:42', title: 'CI NON-VACUITY PROBE - reverted immediately' },  // dup of fidelity[0]
     { loc: 'transform/models/silver/dim_player.sql:17', title: 'team affiliation resolves as-of today, not as-of the game date' },
   ],
   edgecases: [
