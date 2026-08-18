@@ -109,6 +109,13 @@ from dataclasses import dataclass
 
 from ootp_ai.parser.errors import SaveFormatError
 from ootp_ai.parser.header import read_header_from
+from ootp_ai.parser.lookahead import (
+    peek_bytes,
+    peek_date_parts,
+    peek_length_prefixed_ascii,
+    peek_u32,
+    zero_run_width,
+)
 from ootp_ai.parser.primitives import Cursor, SaveDate
 
 __all__ = [
@@ -571,7 +578,7 @@ def _scan_division_nest(data: bytes, offset: int, anchor: int) -> tuple[int, int
     required to agree. This is the posture `teams.py` takes — decide every variable width
     by looking ahead, then read forward at exactly those widths.
     """
-    count = _peek_u32(data, offset)
+    count = peek_u32(data, offset)
     if count is None or not 0 < count <= _MAX_SUB_LEAGUES:
         return None
 
@@ -580,23 +587,23 @@ def _scan_division_nest(data: bytes, offset: int, anchor: int) -> tuple[int, int
     for _ in range(count):
         position += 4  # sub_league_id
         for limit in (_MAX_SUB_LEAGUE_ABBR, _MAX_SUB_LEAGUE_NAME):
-            read = _scan_string(data, position, limit)
+            read = peek_length_prefixed_ascii(data, position, limit)
             if read is None:
                 return None
-            position = read
+            position = read[1]
         position += 4 + 1  # gender, designated hitter
-        divisions = _peek_u32(data, position)
+        divisions = peek_u32(data, position)
         if divisions is None or divisions > _MAX_DIVISIONS:
             return None
         position += 4
         declared += divisions
         for _ in range(divisions):
             position += 4  # division_id
-            read = _scan_string(data, position, _MAX_DIVISION_NAME)
+            read = peek_length_prefixed_ascii(data, position, _MAX_DIVISION_NAME)
             if read is None:
                 return None
-            position = read + 4  # gender
-            teams = _peek_u32(data, position)
+            position = read[1] + 4  # gender
+            teams = peek_u32(data, position)
             if teams is None or teams > _MAX_DIVISION_TEAMS:
                 return None
             position += 4 + 4 * teams
@@ -705,7 +712,7 @@ def _find_calendar_array(data: bytes, floor: int) -> tuple[int, int]:
 
 def _scan_calendar_array(data: bytes, offset: int) -> tuple[int, int] | None:
     """`(declared, end)` if a `u32` count at `offset` is followed by that many events."""
-    declared = _peek_u32(data, offset)
+    declared = peek_u32(data, offset)
     if declared is None or not 0 < declared <= _MAX_CALENDAR_EVENTS:
         return None
 
@@ -731,32 +738,37 @@ def _scan_event(data: bytes, offset: int) -> tuple[int, int] | None:
     **not** constrained — their domain is a question about the format, and a value outside
     {0, 1} should arrive as a red test rather than as a region this walk cannot find.
     """
-    seq = _peek_u32(data, offset)
+    seq = peek_u32(data, offset)
     if seq is None:
         return None
 
     pad_at = offset + _EVENT_HEAD_WIDTH
     length_at = pad_at + _EVENT_PAD_WIDTH
-    if data[pad_at:length_at] != b"\x00" * _EVENT_PAD_WIDTH:
+    if zero_run_width(data, pad_at, limit=_EVENT_PAD_WIDTH) != _EVENT_PAD_WIDTH:
         return None
 
     date_at = offset + _SEQ_WIDTH + _LEAGUE_ID_WIDTH + _EVENT_TYPE_WIDTH
-    day = data[date_at]
-    month = data[date_at + 1]
-    year = int.from_bytes(data[date_at + 2 : date_at + _DATE_WIDTH], "little")
+    parts = peek_date_parts(data, date_at)
+    if parts is None:
+        return None
+    day, month, year = parts
     if day > _MAX_DAY or month > _MAX_MONTH:
         return None
+    # `year == 0` is legitimate here and rejected in `players.py` — which is exactly why
+    # the seam hands back raw parts instead of validating. A calendar record with no date
+    # is structural absence; a player record framed on a zero year is a mis-frame.
     if year != 0 and not _MIN_YEAR <= year <= _MAX_YEAR:
         return None
 
-    length = _peek_u32(data, length_at)
+    length = peek_u32(data, length_at)
     if length is None or not 0 < length <= _MAX_EVENT_NAME:
         return None
     name_at = length_at + _LENGTH_PREFIX_WIDTH
     end = name_at + length + _EVENT_TAIL_WIDTH
     if end > len(data):
         return None
-    if any(byte < 0x20 or byte > 0x7E for byte in data[name_at : name_at + length]):
+    name = peek_bytes(data, name_at, length)
+    if name is None or any(byte < 0x20 or byte > 0x7E for byte in name):
         return None
     return seq, end
 
@@ -856,28 +868,8 @@ def _find_unique(data: bytes, pattern: bytes, floor: int, what: str) -> int:
     return first
 
 
-def _scan_string(data: bytes, position: int, limit: int) -> int | None:
-    """The offset just past a length-prefixed printable ASCII string, or `None`.
-
-    Printability is what keeps this from firing on integer data: the high bytes of a small
-    `u32` are nulls, and a null is not a character a division's name contains.
-    """
-    length = _peek_u32(data, position)
-    if length is None or length > limit or position + 4 + length > len(data):
-        return None
-    payload = data[position + 4 : position + 4 + length]
-    if any(byte < 0x20 or byte > 0x7E for byte in payload):
-        return None
-    return position + 4 + length
-
-
-def _peek_u32(data: bytes, position: int) -> int | None:
-    """The `u32` at `position` without consuming it, or `None` past the end.
-
-    A lookahead at a position computed from the data — a landmark match, or a width the
-    file itself declared — never at a constant. The cursor stays forward-only, and every
-    width it is later asked to advance by was decided here.
-    """
-    if position + 4 > len(data):
-        return None
-    return int.from_bytes(data[position : position + 4], "little")
+# `_scan_string` and `_peek_u32` used to live here. Both moved to `parser/lookahead.py`
+# as `peek_length_prefixed_ascii` and `peek_u32`. This module's copies were behaviourally
+# identical to `teams.py`'s, differing only in whether they returned the length alongside
+# the end offset — which is how three modules ended up asserting the same rule in prose
+# while nothing checked any of them.
