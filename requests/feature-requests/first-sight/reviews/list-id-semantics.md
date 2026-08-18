@@ -24,9 +24,13 @@ different teams.
 
 ## Method
 
-The operator loaded the standard-mode probe save (Chicago Cubs, 2024-03-18 — the only save
+The operator loaded the standard-mode save (Chicago Cubs, 2024-03-18 — the only save
 with an export, so every answer is checkable) and opened the **Los Angeles Dodgers** roster
-page. Eight players were chosen because their export rows fall into four distinct
+page. **Call it the standard-mode save, never "the probe save":** `config.Settings` binds
+`truth_save` to *Test Save - Standard Mode* and `probe_save` to *Test Save - Challenge Mode*, so
+the loose word names the wrong file — and the file it names is a Boston challenge-mode save that
+is a near-twin of the managed league.
+Eight players were chosen because their export rows fall into four distinct
 list-membership signatures, so a single screen read discriminates all four values at once.
 The operator was **not told the hypothesis first**, to keep the reading independent.
 
@@ -63,8 +67,21 @@ League-wide counts, consistent throughout: `{1: 7370, 2: 7037, 3: 935, 4: 330}`.
 ## The strongest check: the screen's own panel counts reconcile exactly
 
 The operator supplied a full-organization screenshot, which turns the reading into
-**arithmetic across three independent panels** rather than a per-player spot-check. The
-Dodgers' 39 distinct players partition as:
+**arithmetic across three independent panels** rather than a per-player spot-check.
+
+> **The exhibit, so this reading stays checkable.**
+> `var/operator/screenshots/2024-03-18-test-save-standard-mode-dodgers-organization.png` —
+> gitignored, because a game screenshot is OOTP's data
+> ([ADR 0006](../../../../docs/decisions/0006-public-repo-local-data.md)), so the path is recorded
+> rather than the image tracked.
+>
+> The save is the **Cubs'** and the page is the **Dodgers'** — which is why every panel reads
+> *Show Ratings (D. Kantrovitz)*, the Cubs' scouting director. The 2024-03-18 date is `measured`
+> from `saved_games.dat`, not read off the screen: the Organization header shows
+> `YESTERDAY / TODAY / TOMORROW` as labels and its first dated row is three days out, so a date
+> taken from that screen runs ahead of the save.
+
+The Dodgers' 39 distinct players partition as:
 
 | Export signature | Players | Panel it corresponds to |
 |---|---|---|
@@ -96,9 +113,31 @@ The same panel lists injured affiliate players below a separator — Frasso and 
 (AAA), Crowell at RAN (A), Brown at ALA1 (R) — which is why `list_id = 4` appears at team
 levels 2, 3, 4 and 6 and not only at MLB.
 
+## Confirmed a second time, on the league we actually manage
+
+The operator supplied the same screen for **`OOTP-AI.lg` at 2024-03-07**
+(`var/operator/screenshots/2024-03-07-ootp-ai-boston-organization.png`). This is a stronger
+replication than a second club would be, because it changes three variables at once: a different
+club, a different save, and **Challenge Mode instead of Standard**. There is no export behind it,
+so it confirms the *rules* rather than re-deriving them.
+
+Boston's headers read *Active Roster (**26/26**)* and *Secondary (40-man) Roster (**30/40**)*, over
+seven MLB-level injured rows. Those seven split by *IL Time Left* exactly as the Dodgers' eight
+did — `61 days (60)` for Fulmer, Giolito, Hendriks and Murphy; `11`/`16 days` for Grissom, Mata and
+Refsnyder — and the 40-man panel's TEAM column shows Cooper Criswell at `WOR (IL, AAA)`, the
+cross-team fan-out visible in one cell.
+
+**26 active + 3 short-IL + 1 affiliate-assigned = 30.** The four 60-day players are excluded, which
+is the same rule closing the same arithmetic on the other side of a mode boundary. The two findings
+this document rests on — the **cross-team fan-out** and the **60-day IL dropping a player from the
+40-man** — therefore hold in Challenge Mode, which is the mode every real decision will be made in.
+
+Expected in `OOTP-AI.lg` at `team_id` 4, and asserted by Phase 6: `list_id` 1 → 33 rows, 2 → 26,
+3 → 30, 4 → 7; **96 rows over 34 distinct players.**
+
 ## League-wide invariants worth asserting in Phase 6
 
-Measured across all 259 teams of the probe export. Each is a hard number that a mis-parsed
+Measured across all 259 teams of the standard-mode export. Each is a hard number that a mis-parsed
 `list_id` would break immediately, which makes them better acceptance criteria than a row
 count:
 
@@ -114,7 +153,7 @@ count:
   against 118 that do. Both populations are large enough that a parse dropping either would
   be visible.
 
-Note these are properties of the **probe** export at 2024-03-18. The 26 and the 40 are league
+Note these are properties of the **standard-mode** export at 2024-03-18. The 26 and the 40 are league
 *rules* and should hold in the managed save too; the 58/118 split is a state of that universe
 on that date and must not be asserted against `OOTP-AI.lg`.
 
