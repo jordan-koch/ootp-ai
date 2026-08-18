@@ -386,6 +386,38 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 
 ### Phase 6 — `players.dat` walk and roster-list extraction
 
+> **SPLIT 2026-08-17 into 6a and 6b, at the operator's disposition.** The trigger the
+> second amendment below pre-registered fired: the phase's two halves turned out to be
+> two jobs against two files, and the second is a research task of its own. Per risk 20's
+> logic — three checkpoints cost three commits and buy three independently revertible
+> units — the phase splits rather than widens.
+>
+> **Phase 6a — LANDED.** `parser/players.py`, the record framing, the fixed head, byte
+> accounting at the diagnostic tier, `contracts/field_map.toml`, and the tests. Nine
+> fields land `verified` against **every** `retired = 0` row of the export, not a sample:
+> `player_id`, `date_of_birth`, `age`, `nation_id`, `city_of_birth_id`, `weight`,
+> `height`, `uniform_number`, `experience`, plus the name-index pair carried
+> `unconfirmed`.
+>
+> **Phase 6b — DEFERRED, and it owns three things.** (1) The **drop-zero region** that
+> begins after `experience`, which is where `team_id`, `organization_id`, `league_id`,
+> `position`, `role`, `bats` and `throws` live. (2) **`historical_id`** — see below.
+> (3) `parser/rosters.py` and the `(team_id, player_id, list_id)` grain from `teams.dat`.
+> **AC9's roster clauses move to 6b with it** — Boston's 26 / 30 / 7 / 33 counts cannot
+> be asserted until the roster grain exists.
+>
+> **`historical_id` is called out separately because it nearly went unrecorded**, and it
+> is the costliest thing here to lose track of. Step 1 names it; **AC8 depends on it** as
+> the join key for the only Tier-A validation of the names join on the league we actually
+> manage. It is `measured` as a `u32`-length-prefixed ASCII string appearing twice per
+> record, ~60-80 bytes in — which puts it *after* the drop-zero region, so it is out of
+> reach for exactly the same reason `team_id` is. **AC8 cannot be attempted until 6b
+> lands it**, and Phase 7 must not be started on the assumption that it exists.
+>
+> **Two of this phase's premises were refuted by measurement and are corrected below**,
+> because both would otherwise have become acceptance criteria that a correct parse fails:
+> the file declares no record count, and it holds 18,077 records rather than 18,072.
+
 > **AMENDED 2026-08-17 — `list_id` is SETTLED, and the fan-out is wider than this phase assumed.**
 > The operator read the Dodgers organization screen in the standard-mode probe and supplied a
 > full-organization screenshot. Step 2's research task is therefore **done before the phase
@@ -468,12 +500,22 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
      the walk has mis-framed a record.
    - Do **not** assert the probe's 58/118 short-vs-60-day IL split against `OOTP-AI.lg`; that is
      a state of one universe on one date, not a rule.
-3. **Verify, do not assume, the `players.dat` population.** The plan (and AC12's diagnostic tier, and Phase 11's coverage statements) assumes `players.dat` holds the export's `retired = 0` set of 18,072 and `retired.dat` holds the rest. That is an **inference from filenames, not a measurement.** Confirm it by record count against the export before treating it as fact.
+3. ~~**Verify, do not assume, the `players.dat` population.**~~ **MEASURED 2026-08-17 — and the assumption was wrong.** The plan assumed `players.dat` holds the export's `retired = 0` set of **18,072**. It holds **18,077**. The five extras are `player_id` 42001, 49008, 50468, 50469 and 132324, and **none appears anywhere in the export at any `retired` value** — so this is a strict superset, not a filtering difference within a shared population.
+
+   They are real records, not mis-framed bytes, on four independent grounds: each carries the same 26-byte padding every record does; each has a length (1,152–1,320 bytes) inside the normal distribution; each has a coherent birth date, age, nationality, height and weight; and **the same five ids appear in both test saves**. On the evidence — blank uniform numbers, ages 18 to 25 — they look like an unrevealed amateur or international pool; *which* filter the export applies is `unconfirmed` and nothing depends on knowing.
+
+   **Consequence, and it is not cosmetic.** AC12's record-count assertion and Phase 11's coverage statements both rest on 18,072. A test asserting that number **fails on a correct parse**, which is the most expensive kind of wrong test — it sends the next agent hunting a bug in working code. Both constants are now pinned in `tests/test_byte_accounting.py` as `TRUTH_ACTIVE_PLAYERS = 18_072` (what the export holds) and `TRUTH_PLAYER_RECORDS = 18_077` (what the file holds), deliberately as two different numbers.
+
+   **A second premise went with it: the file declares no record count.** `teams.dat` puts its count in the fifth `u32` of the header tail and the walk uses it as a loop bound, so a mis-framed file raises. `players.dat` puts `0xFFFFFFFF` there in all three saves. The walk therefore has **no in-file oracle**, which is why its diagnostic tier is weaker than `teams.dat`'s and why the record-boundary check carries the whole load on the managed save.
 4. Byte accounting at the **diagnostic** tier for `players.dat` (blocker F3): assert the walk terminates on a record boundary and reaches a record count matching the independent count, and **record** the residual byte count rather than asserting it is zero. Full byte accounting on a 32 MB `players.dat` is a research task, not a counter — say so in the tier rationale so a later reader does not mistake the weaker assertion for sloppiness. On `OOTP-AI.lg` there is no export, so the check degrades to boundary termination plus Phase 9's Boston sanity check; encode that degradation explicitly rather than silently skipping.
 5. Append every landed field to `field_map.toml`. Anything the walk crosses but cannot classify is recorded `category = "rating-true"`, `epistemic = "unconfirmed"` — the withhold-by-default posture.
 6. **MAIN THREAD:** advance `tests/test_parse_real_save.py` (**AC9, partial**) — `player_id` unique per snapshot; **Boston's exact per-list counts from the USER-RUN table below — 26 / 30 / 7 / 33, 96 rows over 34 distinct players.** *(Amended 2026-08-17: this was `≥ 26`, hedged on the guess that "a set 26 probably does not exist yet" in spring training. The operator's `OOTP-AI` screenshot reads 26/26 and 30/40, so the guess was wrong and the inequality is retired — it would have passed on a walk that found 27.)* **AC9's `zero roster rows carry a null or blank display name` clause does NOT belong here** — no display name exists until Phase 7 resolves the join, so asserting it now would fail on a correct parse. It moves to Phase 7, per the MERGE-03 correction. Extend `test_sequential_walk.py` with a player-shaped synthetic record (1-year vs 10-year contract array) asserting `historical_id`, which sits after the variable region, reads identically. Add the parser-determinism half of `test_snapshot_semantics.py` (**AC10**): parsing the same snapshot twice is byte-identical.
 
-**Acceptance.** AC9's in-phase clauses green (the display-name clause belongs to Phase 7); AC12 green at both tiers with the residual recorded; **`tests/test_cross_mode_format.py` extended to `players.dat`** — same record shape and stride across both test saves (§2.5); the three `list_id` invariants above asserted against the probe (26 exactly, 40 not exceeded, list 1 is 1:1); the population claim measured; the **USER-RUN screenshot check** below; `test_read_only.py` re-run green after the largest read this project performs.
+**Acceptance — SPLIT with the phase, 2026-08-17.** *This block described the un-split phase and is now divided so neither half inherits the other's criteria.*
+
+**6a (met).** AC9's `player_id` uniqueness clause green — in `tests/test_parse_players.py`, not `test_parse_real_save.py`, because the players walk needed an offline half and that module is `gamedata` end to end; AC12 green at the diagnostic tier with the residual **recorded and bounded as a fraction of the file**, not against a mean record; **`tests/test_cross_mode_format.py` extended to `players.dat`** — identical record counts and id lists across both test saves, with the seven fields that cannot legitimately differ asserted equal on all 18,077 (§2.5); the population claim **measured and the plan corrected** (18,077, not 18,072); `test_read_only.py` re-run green after the largest read this project performs.
+
+**6b (outstanding).** The three `list_id` invariants against the standard-mode export (26 exactly, 40 not exceeded, list 1 is 1:1) and Boston's exact counts against `OOTP-AI.lg` — **both need `parser/rosters.py`, which does not exist yet**; `historical_id` landed, without which **AC8 cannot be attempted at all**; `position`, `bats`/`throws` and the team/organisation assignment out of the drop-zero region; and the **USER-RUN screenshot check** below, which is a check *of the roster grain* and so has nothing to verify until 6b lands it.
 
 **USER-RUN — ask for the Boston organization screenshot FIRST, before writing the walker.**
 *Amended 2026-08-17: this replaces "an early operator spot-check of ~5 Boston players", which
@@ -870,7 +912,7 @@ Ordered by expected cost, not by likelihood.
 
 10. **Strict byte accounting on `teams.dat` is asserted by the scope, not evidenced.** The only `verified` teams.dat knowledge is the 5-string signature and ARGB colors; `docs/data-access.md:228` covers the rest of a 5.3 MB file as `unconfirmed`. **Mitigation:** the demotion is pre-registered in Phase 0 — do not let a research task gate the request's observable signal.
 
-11. **The `players.dat` population is an inference presented as fact.** AC12's record-count assertion and Phase 11's coverage statements both rest on it. Measure it in Phase 6.
+11. ~~**The `players.dat` population is an inference presented as fact.**~~ **Measured 2026-08-17 in Phase 6a, and the inference was wrong.** The file holds **18,077** records against the export's **18,072**; five records exist that the export does not carry at all. The risk was real and it fired — AC12 and Phase 11 must use the file's count, not the export's, or a correct parse goes red. Both numbers are now pinned separately in `tests/test_byte_accounting.py`. A second premise fell with it: `players.dat` declares `0xFFFFFFFF` where `teams.dat` declares a record count, so this walk has no in-file oracle at all.
 
 12. **`list_id` value semantics are undocumented and sit on the headline report's critical path.** A wrong human label produces a confidently wrong roster with nothing throwing. Pre-registered opaque-integer fallback.
 

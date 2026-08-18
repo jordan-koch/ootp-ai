@@ -22,10 +22,11 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > **Phase 1 — the parser is real.** The managed club exists — Boston Red Sox,
 > Challenge Mode, from 2024-03-07 — and the code that reads its save does too:
 > a forward-only cursor, a header and version guard, an immutable snapshot layer,
-> and working walkers for four of the save's binaries. Every team record of the
-> validation save matches the game's own export field-by-field, and so does every
-> entry of the league calendar. No warehouse and no reports yet, so the GM still
-> cannot see its own club.
+> and working walkers for five of the save's binaries. Every team record of the
+> validation save matches the game's own export field-by-field, so does every
+> entry of the league calendar, and so does every biographical field of all
+> 18,072 players the export knows about — plus five it does not. No warehouse and
+> no reports yet, so the GM still cannot see its own club.
 
 ## Why it's interesting
 
@@ -135,14 +136,26 @@ with the phases that need them.
 
 Phase 0 landed the conventions, the format investigation, and the managed league,
 plus a one-time ground-truth export captured from a disposable standard-mode save
-and loaded into MySQL. The parser is now real through **Phase 5b** of feature
+and loaded into MySQL. The parser is now real through **Phase 6a** of feature
 request #1: the spine, an immutable snapshot layer, and walkers for
-`saved_games.dat`, `human_managers.dat`, `teams.dat` and `world.dat`.
+`saved_games.dat`, `human_managers.dat`, `teams.dat`, `world.dat` and
+`players.dat`.
 
-Next is `players.dat` and the roster grain, then resolving names against
-`names.dat` — the step that turns a roster of integers into people — and then
-bronze landing. The first genuinely useful job is telling the GM who is on its
-roster, which is the thing this still cannot say at all.
+The `players.dat` walk frames all 18,077 player records in each save and lands a
+deliberately minimal biographical head — id, birth date, age, nationality, birth
+city, height, weight, uniform number, service time — with every one of those
+fields checked against **every** row of the ground-truth export rather than a
+sample. It stops there on purpose: the rest of the record uses a drop-zero
+encoding where a falsy field is simply not written, so a player's team, position
+and handedness sit at an offset that moves from record to record. Reading them at
+a fixed offset happens to be right about 87% of the time, which is exactly the
+kind of nearly-correct that this project treats as worse than an error.
+
+Next is finishing that region — team, position, handedness and the Lahman ID —
+together with the roster grain, then resolving names against `names.dat`, the
+step that turns a roster of integers into people, and then bronze landing. **The
+first genuinely useful job is telling the GM who is on its roster, and that is
+still the thing this cannot say.**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

@@ -188,6 +188,131 @@ def make_calendar(events: tuple[bytes, ...], *, declared_count: int | None = Non
     return struct.pack("<I", count) + b"".join(events)
 
 
+# ── players.dat, measured ────────────────────────────────────────────────────
+# The 37-byte fixed head is `measured` 2026-08-17: every field below was scored against
+# EVERY `retired = 0` row of `ootp_truth_real.players` (18,072 of them) and matched
+# exactly. Like the calendar builder above and unlike a hand-built team record, this
+# fixture pins a finding rather than a hypothesis.
+#
+# The gaps are bytes the walk crosses and does not interpret. They are filled with a
+# non-zero sentinel by default for the same reason the calendar pad is: a decoder that
+# quietly starts depending on them goes red here rather than in a save that pads
+# differently. They must NOT be zero in the fixture — real records carry zeros there, and
+# a fixture that copied that would let a zero-scanning bug pass.
+PLAYER_GAP_FILL = 0xCD
+
+#: What `players.dat` carries where `teams.dat` carries a record count.
+PLAYER_NO_DECLARED_COUNT = 0xFFFFFFFF
+
+#: The preamble between the header tail and the first record: a zero run, this constant,
+#: then a length-prefixed 64-character hex digest. Measured identical in all three saves.
+PLAYER_PREAMBLE_CONSTANT = 1234
+PLAYER_DIGEST_LEN = 64
+
+#: Zero padding before every record start except the first. Measured: 26 bytes in the
+#: real files, and never fewer than 24 across all 18,071 gaps.
+PLAYER_PAD = b"\x00" * 26
+
+
+def player_age_on(birth: tuple[int, int, int], sim_date: tuple[int, int, int]) -> int:
+    """Whole years between a birth date and a sim date, both `(day, month, year)`.
+
+    The walk's framing depends on the age byte agreeing with this exactly — `measured`,
+    it does for all 18,072 records — so the builder computes it rather than letting a
+    caller supply an inconsistent default by accident.
+    """
+    b_day, b_month, b_year = birth
+    s_day, s_month, s_year = sim_date
+    return s_year - b_year - ((s_month, s_day) < (b_month, b_day))
+
+
+def make_player_head(
+    *,
+    player_id: int = 47035,
+    name_indices: tuple[int, int] = (12143, 76945),
+    birth: tuple[int, int, int] = (26, 6, 1996),
+    sim_date: tuple[int, int, int] = (18, 3, 2024),
+    age: int | None = None,
+    nation_id: int = 206,
+    city_of_birth_id: int = 38609,
+    weight: int = 187,
+    height: int = 188,
+    uniform_number: int = 34,
+    experience: int = 5,
+    gap_fill: int = PLAYER_GAP_FILL,
+) -> bytes:
+    """One player record's 37-byte fixed head, in the order the bytes give it.
+
+    `age` defaults to the value consistent with `birth` and `sim_date`, because that
+    agreement is what the walk frames on. Passing it explicitly is how a test builds the
+    **impostor** that broke the first version of the walker: a run of bytes that has an
+    ascending id and a parseable date but an age that cannot belong to it.
+    """
+    day, month, year = birth
+    stated_age = player_age_on(birth, sim_date) if age is None else age
+    gap = bytes([gap_fill])
+    return (
+        struct.pack("<I", player_id)
+        + struct.pack("<I", name_indices[0])
+        + struct.pack("<I", name_indices[1])
+        + make_date(day, month, year)
+        + gap * 3
+        + struct.pack("<B", stated_age)
+        + gap
+        + struct.pack("<B", nation_id)
+        + gap * 5
+        + struct.pack("<I", city_of_birth_id)
+        + struct.pack("<H", weight)
+        + struct.pack("<B", height)
+        + gap
+        + struct.pack("<B", uniform_number)
+        + struct.pack("<B", experience)
+    )
+
+
+def make_players_file(
+    heads: tuple[bytes, ...],
+    *,
+    sim_date: tuple[int, int, int] = (18, 3, 2024),
+    body: bytes = b"\xab" * 64,
+    bodies: tuple[bytes, ...] | None = None,
+    digest: str | None = None,
+    preamble_constant: int = PLAYER_PREAMBLE_CONSTANT,
+    declared_count: int = PLAYER_NO_DECLARED_COUNT,
+    pad: bytes = PLAYER_PAD,
+    lead_zeros: int = 46,
+) -> bytes:
+    """A whole synthetic `players.dat`: header, tail, preamble, then padded records.
+
+    The **first** record follows the preamble with no padding in front of it, which is
+    how the real file is laid out and the reason the walker cannot simply search for a
+    pad run to find record one.
+
+    `body` is the undecoded remainder each record carries. It is deliberately non-zero:
+    a body of zeros would merge with the next record's padding and let a walker that
+    mis-locates the boundary pass anyway.
+
+    **`bodies` gives each record its own length, and a test that does not use it is
+    weaker than it looks.** With a single `body`, every record in the fixture is the same
+    width — so a fixed-stride reimplementation of the walker passes. Real records run
+    1,018 to 9,229 bytes, and variable length is the entire reason this parser may not
+    seek. Pass `bodies` to exercise that; `body` remains the default for tests where the
+    record shape is not what is under test.
+    """
+    if bodies is not None and len(bodies) != len(heads):
+        raise ValueError(f"got {len(bodies)} bodies for {len(heads)} heads")
+    per_record = tuple(body for _ in heads) if bodies is None else bodies
+
+    text = "A1" * (PLAYER_DIGEST_LEN // 2) if digest is None else digest
+    preamble = b"\x00" * lead_zeros + struct.pack("<I", preamble_constant) + make_string(text)
+    tail = struct.pack("<IIIIII", 21, 21, 12, 144, declared_count, 3_289_089)
+    records = b"".join(
+        (b"" if index == 0 else pad) + head + tail_bytes
+        for index, (head, tail_bytes) in enumerate(zip(heads, per_record, strict=True))
+    )
+    return make_header(filename="players.dat", sim_date=sim_date) + tail + preamble + records
+
+
 def make_record(
     *,
     player_id: int = 47035,

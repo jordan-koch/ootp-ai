@@ -39,6 +39,8 @@ from dataclasses import dataclass
 import pytest
 
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
+from ootp_ai.parser.players import BYTE_ACCOUNTING_TIER as PLAYERS_TIER
+from ootp_ai.parser.players import PLAYERS_FILE, PlayersFile, read_players
 from ootp_ai.parser.teams import BYTE_ACCOUNTING_TIER, TEAMS_FILE, TeamsFile, read_teams
 from ootp_ai.parser.world import BYTE_ACCOUNTING_TIER as WORLD_TIER
 from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
@@ -52,6 +54,16 @@ TRUTH_TEAM_COUNT = 259
 #: The top league holds 30 clubs plus four All-Star sides. Any league file holding
 #: fewer records than the clubs of its own top division is short, whatever else is true.
 MINIMUM_PLAUSIBLE_TEAMS = 30
+
+#: `measured` 2026-08-17 on the standard-mode save. 18,072 is the export's `retired = 0`
+#: count; the file carries five more records that the export does not know about at all,
+#: so the file total and the export total are deliberately two different constants.
+TRUTH_ACTIVE_PLAYERS = 18_072
+TRUTH_PLAYER_RECORDS = 18_077
+
+#: Thirty clubs at 26 active apiece is 780 before a single affiliate. A file returning
+#: fewer records than that is short however plausible the ones it did return look.
+MINIMUM_PLAUSIBLE_PLAYERS = 780
 
 
 @dataclass(frozen=True, slots=True)
@@ -323,6 +335,122 @@ def test_the_un_walked_prefix_and_suffix_are_recorded_rather_than_waved_at() -> 
             "of high schools and colleges does — a zero suffix means the last region's "
             "length is being computed as 'everything left', which accounts for nothing."
         )
+
+
+# ── players.dat, whose accounting is weaker and has to say so ────────────────
+
+
+@dataclass(frozen=True, slots=True)
+class WalkedPlayers:
+    """One save's player walk, with the file size the residual is judged against."""
+
+    league: str
+    parsed: PlayersFile
+    file_bytes: int
+
+    @property
+    def mean_record_bytes(self) -> float:
+        return (self.file_bytes - self.parsed.residual_bytes) / len(self.parsed.players)
+
+
+def _walk_players(save: SaveRef) -> WalkedPlayers:
+    path = save.path / PLAYERS_FILE
+    if not path.is_file():
+        pytest.skip(f"{save.league} has no {PLAYERS_FILE} — nothing to account for")
+    payload = path.read_bytes()
+    return WalkedPlayers(league=save.league, parsed=read_players(payload), file_bytes=len(payload))
+
+
+def _every_player_walk(settings: Settings) -> list[WalkedPlayers]:
+    present = [ref for ref in (settings.managed, settings.probe_save, settings.truth_save) if ref]
+    if len(present) < 2:
+        pytest.skip("fewer than two saves are configured")
+    return [_walk_players(ref) for ref in present]
+
+
+def test_the_player_walk_consumes_essentially_the_whole_file() -> None:
+    """The diagnostic tier's real assertion for this file, bounded as a *fraction*.
+
+    **An earlier version compared the residual against the MEAN record and it was wrong
+    in both directions.** Measured: the residual is 1,045 bytes against a 1,543-byte mean
+    — but records run to 9,229 bytes, so a save whose *last* record happens to be a long
+    one leaves more than the mean behind on a completely correct walk and goes red. And
+    in the other direction, a walk that truncated near the end of the file leaves less
+    than one mean record and passes. A bound that can fail on correct data and pass on
+    broken data is worse than no bound.
+
+    A fraction of the file has neither failure. The measured residuals are ~0.004% of
+    their files; a walk that stopped anywhere but the end leaves whole percentage points.
+    The threshold below is three orders of magnitude above what is observed and still
+    catches a walk that quit halfway, which is the failure that matters when — as here —
+    there is no declared record count to check against.
+    """
+    for walked in _every_player_walk(_settings()):
+        assert walked.parsed.players, f"{walked.league}: the walk returned no players"
+        unread = walked.parsed.residual_bytes / walked.file_bytes
+        assert unread < 0.001, (
+            f"{walked.league}: {walked.parsed.residual_bytes:,} bytes remain unread of "
+            f"{walked.file_bytes:,} ({unread:.3%}). The walk stopped short of the end of "
+            "the file, so it is returning fewer players than the file holds — and this "
+            "file declares no record count, so nothing else would catch it."
+        )
+
+
+def test_the_player_walk_declares_the_weaker_tier_honestly() -> None:
+    """`diagnostic`, and it must not be an under-claim any more than the teams walk is."""
+    assert PLAYERS_TIER == "diagnostic"
+    residuals = {w.league: w.parsed.residual_bytes for w in _every_player_walk(_settings())}
+    assert any(value > 0 for value in residuals.values()), (
+        f"every save walked to zero residual ({residuals}) while the module still "
+        "declares the diagnostic tier. Promote it and delete the rationale."
+    )
+
+
+def test_no_save_gives_the_player_walk_an_in_file_record_count() -> None:
+    """Why this file's accounting is weaker than `teams.dat`'s, asserted rather than said.
+
+    `teams.dat` declares its record count and the walk uses it as a loop bound, so a
+    mis-framed file runs out of records and raises. `players.dat` declares `0xFFFFFFFF`.
+    The moment that changes, this walk can be given a real oracle and the rationale is
+    out of date — so the absence is pinned rather than assumed.
+    """
+    for walked in _every_player_walk(_settings()):
+        assert walked.parsed.declared_record_count is None, (
+            f"{walked.league}: {PLAYERS_FILE} now declares "
+            f"{walked.parsed.declared_record_count} records. The walk has gained an "
+            "in-file count it has never had; use it as a loop bound and revisit "
+            "TIER_RATIONALE."
+        )
+
+
+def test_the_player_count_matches_the_export_where_one_exists() -> None:
+    """The independent count, and the five records the export does not carry.
+
+    `18,072` is the export's `retired = 0` population and `18,077` is what the file
+    holds. The gap is not slack in the walk — the five extras are real records — so the
+    assertion is on the exact total rather than on a tolerance.
+    """
+    settings = _settings()
+    if settings.truth_save is None:
+        pytest.skip("no standard-mode save configured; there is no export to compare to")
+    walked = _walk_players(settings.truth_save)
+    assert len(walked.parsed.players) == TRUTH_PLAYER_RECORDS, (
+        f"{walked.league}: framed {len(walked.parsed.players)} records against the "
+        f"measured {TRUTH_PLAYER_RECORDS} ({TRUTH_ACTIVE_PLAYERS} exported plus "
+        f"{TRUTH_PLAYER_RECORDS - TRUTH_ACTIVE_PLAYERS} the export omits)"
+    )
+
+
+def test_the_managed_player_walk_degrades_honestly_without_an_export() -> None:
+    """No export, no oracle — so the assertion is a floor, and it says why."""
+    settings = _settings()
+    walked = _walk_players(settings.managed)
+    assert len(walked.parsed.players) > MINIMUM_PLAUSIBLE_PLAYERS, (
+        f"{walked.league}: {len(walked.parsed.players)} records is fewer than a league "
+        "of 30 clubs can field. There is no export for this save, so this floor and the "
+        "record-boundary check are the only things standing between a short walk and a "
+        "warehouse that quietly holds half a league."
+    )
 
 
 # ── the premise byte accounting exists to protect ────────────────────────────

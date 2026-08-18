@@ -75,6 +75,7 @@ requests/           Intake — feature-requests / bugfix-requests / data-inciden
 .claude/skills/     Pipeline stages + /commit
 .claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading
+  contracts/          TRACKED field + grain declarations — derived schema, ours to keep
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
 var/                GITIGNORED — save snapshots, warehouse files, scratch
