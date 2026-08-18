@@ -10,11 +10,11 @@
   "ok": true,
   "onboarding_files": [
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
       "why": "The decided upstream artifact. Read the Verdict, the Evidence block (points at tests/test_no_leaks.py:31-48), the measured table under 'The idiom that does work', and the tiered Fix posture. Its recommendation — direction (a) now, (d) as an ordering note, (b) refused, (c) to the feature track — is DECIDED; do not re-open it."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
       "why": "Context only. Its 'Affected Area & Pointers' (:109-123) names the three files to open in order and records that ci.yml's git ls-files dependency is deliberate."
     },
     {
@@ -186,7 +186,7 @@
       "change": "PHASE 3 only, and only if that phase is disposed in: consider adding a bare `*.lg` beside `*.lg/` at :25 — measured, `foo.lg` as a plain FILE is not ignored today. Strictly a tightening. If changed, this triggers the full `/update-docs` sweep because CLAUDE.md describes these rules."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
       "change": "This plan itself. Opens at `> **Status:** planned · created 2026-08-17 · decided · next: implement`, and moves to `fixed` in Phase 5 along with its two siblings."
     },
     {
@@ -339,11 +339,11 @@
   "ok": true,
   "onboarding_files": [
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
       "why": "The decided upstream artifact. Verdict confirmed-bug; cause at its `Evidence` section; the tiered fix posture and the gated direction decision (a)+(d) yes, (b) no, (c) feature-track. Consume it — do not re-open the verdict."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
       "why": "Context only. Its `Affected Area & Pointers` (:109-123) is the read order; its Open Questions 1-3 were all disposed by the RCA."
     },
     {
@@ -400,13 +400,13 @@
         "Measure the untracked case without hand-writing a probe: it is already covered by the repro at tests/test_leak_guard_scope.py:70-75, which will flip in Phase 1. Note it as covered-by-test rather than measuring it twice.",
         "Time the wide form (`Measure-Command`). Record the milliseconds. It runs on every local `pytest` invocation, so cost is a real acceptance property, not a curiosity.",
         "Record `git config --get core.quotepath`. An empty result means the default (TRUE) is in force and paths with non-ASCII characters WILL be C-quoted — this is the input to Phase 2.",
-        "Write the numbers to `requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md`. HARD RAIL: record COUNTS and property names only. Do not paste any enumerated path into that file — it becomes tracked on commit and is scanned by the very guard being fixed, and the RCA's opening blockquote explains why a report about a leak cannot quote one."
+        "Write the numbers to `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md`. HARD RAIL: record COUNTS and property names only. Do not paste any enumerated path into that file — it becomes tracked on commit and is scanned by the very guard being fixed, and the RCA's opening blockquote explains why a report about a leak cannot quote one."
       ],
       "acceptance": [
         "`uv run pytest tests/test_leak_guard_scope.py -q` prints `.F.....` and names `test_an_untracked_file_is_visible_to_the_leak_guard` as the only failure.",
         "`git status --porcelain --untracked-files=all` is empty after that run — the repro cleaned up after itself.",
         "The full offline run `uv run pytest -m \"not gamedata\"` has exactly one failure and it is the repro.",
-        "The measurement note exists at requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md and records, as numbers: both enumeration counts, the set difference, 0 entries for each of the four junk roots, `.env` absent / `.env.example` present, the elapsed milliseconds, and the `core.quotepath` setting.",
+        "The measurement note exists at requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md and records, as numbers: both enumeration counts, the set difference, 0 entries for each of the four junk roots, `.env` absent / `.env.example` present, the elapsed milliseconds, and the `core.quotepath` setting.",
         "The note contains no absolute path, no drive letter, no home directory and no email address — verify by running `uv run pytest tests/test_no_leaks.py -q` after staging it (the guard is still index-scoped at this phase, so staging is the only way to see it)."
       ],
       "commit_note": "Nothing behavioural changed; one new artifact under `reviews/`. Hand to `/commit`. Because the guard is still blind at this point, stage the note FIRST and re-run `uv run pytest tests/test_no_leaks.py -q` before answering yes — this phase is the last one where that ordering matters, which is itself the bug being fixed."
@@ -516,7 +516,7 @@
       "name": "Phase 6 — Status advance, report, and the request's terminal move",
       "goal": "Close the request the way requests/bugfix-requests/README.md:24-26 defines closure: the red repro is green, a regression test is left behind, nothing else regressed — and the record says so.",
       "steps": [
-        "Write `requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md` per the layout at requests/bugfix-requests/README.md:30-39. State which phases landed, which were dropped and why, and how the gated decisions were disposed. Same hard rail as Phase 0: it is a tracked Markdown file scanned by the guard it describes, so it cannot quote a banned string — describe, do not paste.",
+        "Write `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md` per the layout at requests/bugfix-requests/README.md:30-39. State which phases landed, which were dropped and why, and how the gated decisions were disposed. Same hard rail as Phase 0: it is a tracked Markdown file scanned by the guard it describes, so it cannot quote a banned string — describe, do not paste.",
         "Set the artifact status blockquotes to the terminal stage. The grammar is `intake → diagnosed → planned → fixed` (requests/bugfix-requests/README.md:45), and the blockquote shape is `> **Status:** <stage> · created <YYYY-MM-DD> · <open|decided> · next: <stage>` (:43).",
         "Update the Index row at requests/bugfix-requests/README.md:52 — Stage cell to `fixed` — matching the row by its `[leak-guard-blind-to-untracked-files]` link, per `.claude/skills/commit/SKILL.md:128-130`.",
         "Move the directory into `requests/bugfix-requests/_done/` and repoint the Index link, per the same table row at .claude/skills/commit/SKILL.md:129. Note the consequence: `tests/test_doc_links.py`'s `markdown_files()` at :159-171 excludes `_done/`, so the moved bodies leave the link scan — but every INBOUND link from a live document to the old path breaks and WILL go red. Grep for the old path before moving.",
@@ -587,19 +587,19 @@
       "change": "Phase 5 ONLY: one or two sentences in Step 2 (:49-79) noting that the widened guard now sees unstaged files, so run `uv run pytest tests/test_no_leaks.py -q` at the survey/stage step. HARD NON-GOAL: leave the false `gitleaks` clause at :78 exactly as it is — it belongs to requests/bugfix-requests/port-residue-sweep/."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/enumeration-measurement.md",
       "change": "NEW, Phase 0. The measured baseline: both enumeration counts, the set difference, 0 entries for each of the four junk roots, `.env` absent / `.env.example` present, elapsed ms, `core.quotepath`. Counts and property names only — never an enumerated path, because the file becomes tracked and is scanned by the guard it describes."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md",
       "change": "NEW, Phase 6. Per the layout at requests/bugfix-requests/README.md:30-39. Records which phases landed, which were dropped, and how the gated decisions (the fence exemption; whether Phase 4 was kept) were disposed. Describes banned strings, never quotes them."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
       "change": "Phase 6, status blockquote only (:1) — advance to the terminal disposition. The body is decided and is not re-opened."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
       "change": "Phase 6, status blockquote only (:1)."
     },
     {
@@ -607,7 +607,7 @@
       "change": "Phase 6: Index row at :52, Stage cell → `fixed`, and the `[leak-guard-blind-to-untracked-files]` link repointed into `_done/` when the directory moves (.claude/skills/commit/SKILL.md:128-130). Match the row by its link, not by position."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
       "change": "NEW — this plan itself, written by stage 3 before any of the above. Opens at `planned · decided · next: implement`."
     },
     {
@@ -817,11 +817,11 @@
   "ok": true,
   "onboarding_files": [
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
       "why": "The decided upstream artifact. Consume it, do not re-open it: verdict is confirmed-bug, the cause is the `git ls-files` argv, the fix posture is tiered, and its 'Gated decision' block already disposes the four candidate directions to (a)+(d). Its measured table at :101-114 is the evidence base for Phase 2 and I re-measured every row of it."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md",
       "why": "Context only. Its 'Affected Area & Pointers' at :109-123 is the fastest reading order, and its Severity section at :72-96 records the three amplifiers (no gitleaks, no hooks, CI does not run on a feature-branch push) that set how much this fix actually buys."
     },
     {
@@ -870,7 +870,7 @@
         "Re-establish the baseline: `uv run pytest -m \"not gamedata\" -q --tb=no`. Expect exactly one failure, `tests/test_leak_guard_scope.py::test_an_untracked_file_is_visible_to_the_leak_guard` (measured 2026-08-17 at edc7aea: 124 passed, 1 failed, 125 collected). Any other failure means the tree is not the one this plan was written against — stop and say so.",
         "Confirm the tree is clean: `git status --porcelain` (read-only). Then enumerate exactly what widening adds: `git ls-files --others --exclude-standard`. On a clean tree this returns zero lines; every line it returns is a file the guard is about to start reading.",
         "Apply the guard's own patterns to that added set BY HAND — the same technique the RCA records as the only thing that caught all three real leaks. From the repo root: import `PATTERNS` from `tests/test_no_leaks.py` and run each pattern over each newly-visible path's lines. Record the hits verbatim in your working notes (describe them; do not paste a matched line into any tracked file — `tests/test_no_leaks.py:25` bans a drive path in tracked text and this repo is public).",
-        "If there are hits: fix the CONTENT, not the guard. Rewrite absolute paths as repo-relative. Do NOT add anything to `EXEMPT` (:16) or `EXEMPT_PREFIXES` (:18). `requests/**/reviews/` in particular is where all three 2026-08-17 leaks lived; exempting it recreates the defect under a new name. The panel trail this very plan ships with (`requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/`) is the highest-probability source of hits — panel output routinely cites absolute paths.",
+        "If there are hits: fix the CONTENT, not the guard. Rewrite absolute paths as repo-relative. Do NOT add anything to `EXEMPT` (:16) or `EXEMPT_PREFIXES` (:18). `requests/**/reviews/` in particular is where all three 2026-08-17 leaks lived; exempting it recreates the defect under a new name. The panel trail this very plan ships with (`requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/`) is the highest-probability source of hits — panel output routinely cites absolute paths.",
         "Move any personal scratch out of the repo and into the session scratchpad directory. From Phase 2 onward, the cleanliness of the working tree becomes a test input: an untracked note with a drive path in it will turn the suite red, correctly.",
         "Read `.claude/agents/data-engineer.md:147-158` and confirm the plan's target paths (`tests/`, `.claude/skills/commit/SKILL.md`, `.github/workflows/ci.yml`) are inside the write-capable subagent's repo-level deny set. Build this on the main thread. Do not spawn the data-engineer for any phase of this plan."
       ],
@@ -954,7 +954,7 @@
       "steps": [
         "Run everything CI runs, locally: `uv run ruff check .`, `uv run ruff format --check .`, `uv run mypy`, `uv run pytest -m \"not gamedata\"`, and the node skill guards enumerated at `.github/workflows/ci.yml:70-78` (`node .claude/skills/implement-plan/tests/verify_batching_guard.mjs`, `node .claude/skills/implement-plan/tests/merge_fallback_guard.mjs`, and the three `merge_*` guards under `scope-feature` and `create-implementation-plan`). Two of those belong to the planning skills this very artifact came from, and CI added that step precisely because a guard nobody is forced to run was red for the life of a skill.",
         "Do a final honest scope check with the fixed guard itself: `uv run pytest tests/test_no_leaks.py -q` on a tree that still holds the untracked implementation report before it is staged. That run is the fix demonstrating its own value — it is the check that would have caught all three 2026-08-17 leaks.",
-        "Write `requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md`. Open it with the status blockquote grammar from `requests/bugfix-requests/README.md:41-45`. Record the before/after suite counts (124 passed + 1 failed → 125 passed), the two measured decisions (`-z`, no `--directory`), and the decision NOT to widen `test_game_data_is_not_tracked` with the `git check-ignore` evidence behind it.",
+        "Write `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md`. Open it with the status blockquote grammar from `requests/bugfix-requests/README.md:41-45`. Record the before/after suite counts (124 passed + 1 failed → 125 passed), the two measured decisions (`-z`, no `--directory`), and the decision NOT to widen `test_game_data_is_not_tracked` with the `git check-ignore` evidence behind it.",
         "Advance the status records in the SAME commit as the work, per `.claude/skills/commit/SKILL.md:120-131`: the `ROOT_CAUSE_ANALYSIS.md` and `IMPLEMENTATION_PLAN.md` status blockquotes, and the Index row at `requests/bugfix-requests/README.md:52` matched by its `[leak-guard-blind-to-untracked-files]` link, moved to `fixed`.",
         "Terminal stage means the directory moves once into `requests/bugfix-requests/_done/` with the Index link repointed (`.claude/skills/commit/SKILL.md:128-130`). Do this in the same commit and then re-run `uv run pytest tests/test_doc_links.py -q`: `markdown_files()` at `tests/test_doc_links.py:170` excludes `_done/` from scanning, but any LIVE document that links INTO this directory still has to resolve after the move. Fix any that break.",
         "STOP. Do not open the PR, do not merge, do not push `main`, do not amend — `.claude/skills/commit/SKILL.md:229-237` reserves all four for the user. Report the short SHA and the PR-creation URL and hand over.",
@@ -972,7 +972,7 @@
   ],
   "testing": "The acceptance contract is the bugfix track's, stated at `requests/bugfix-requests/README.md:25-26`: the red reproduction goes green, a regression test is left behind, and nothing else regresses. All three are measurable here.\n\nBASELINE (measured by me, 2026-08-17, branch `fix-leak-guard-untracked-blindness` at `edc7aea`, clean tree): `uv run pytest -m \"not gamedata\" -q` collects 125, passes 124, fails 1 — `tests/test_leak_guard_scope.py::test_an_untracked_file_is_visible_to_the_leak_guard`, with the RCA's exact assertion text. `uv run pytest tests/test_leak_guard_scope.py -q` prints `.F.....` — one red, six green.\n\nRED GOES GREEN. `tests/test_leak_guard_scope.py:62-75` writes a probe into the working tree via the `untracked_file` contextmanager at :38-51 and asserts it appears in `guard.tracked_text_files()`. After Phase 2 it passes. The six counterweights are the harder half and must stay green: the gitignored-file test at :78-91 (a probe under `var/tmp/` must NOT be enumerated) and the four parametrized junk-directory cases at :94-102 (`.venv`, `__pycache__`, `node_modules`, `var`). The seventh test at :54-59 asserts the runtime-assembled `LEAK` string still matches a live pattern, so the scope assertions cannot pass vacuously if `PATTERNS` at `tests/test_no_leaks.py:24-28` ever changes.\n\nREGRESSION TESTS LEFT BEHIND (Phase 3), each pinning something the committed repro does not:\n  * nested untracked directory — the actual bug shape. Measured: `git ls-files --others --exclude-standard` lists `reviews/deep/b.md` individually, while adding `--directory` collapses it to `reviews/`. Without this test, a later \"simplification\" that adds `--directory` goes green while restoring the defect.\n  * non-ASCII filename — pins `-z`. Measured: default output returns `\"caf\\303\\251.md\"` quoted, which resolves to no file and whose `.suffix` fails the `keep` test at `tests/test_no_leaks.py:39`, so the path drops silently.\n  * assertion-level firing — `pytest.raises(AssertionError)` around `guard.test_no_machine_paths_or_identifiers()` with a probe present. Every existing scope test proves enumeration; none proves the guard actually fails the build on what it enumerated.\n  * `EXEMPT_PREFIXES` covers no `requests/` path — the one-line silencing move that would recreate the defect, given all three real leaks lived in `requests/**/reviews/`.\n\nEach must be shown RED against the pre-fix argv. Prove that in a scratchpad copy of the repo, not by reverting in place; `.claude/agents/data-engineer-memory.md:99-104` records the working recipe and warns that `test_repo_structure.py` and `test_agent_contract.py` fail in such a copy as expected noise.\n\nNOTHING ELSE REGRESSES. The full offline selection must return to 0 failures at 125+ tests. Beyond pytest: `uv run ruff check .`, `uv run ruff format --check .`, and `uv run mypy` (strict over `tests/` as well as `src/`, `pyproject.toml:91-95`, so an unannotated helper is a hard failure), plus the five node skill guards at `.github/workflows/ci.yml:70-78` which CI runs and which no pytest invocation covers.\n\nWHAT CI CANNOT PROVE, and the plan must say so out loud: CI checks out a clean tree, so `--others` contributes zero paths there and a green CI run is not evidence that the widening works. The proof is local, in `tests/test_leak_guard_scope.py`, which manufactures the untracked state it needs. Additionally, per `.github/workflows/ci.yml:3-6` the workflow fires only on `pull_request` and on push to `main` — pushing this branch runs nothing.\n\nFINAL DOGFOOD. Before staging the implementation report, run `uv run pytest tests/test_no_leaks.py -q` while that report is still untracked. That single run is the fix exercising itself on exactly the artifact class that produced the bug.",
   "risks": [
-    "THE PANEL TRAIL THAT SHIPS WITH THIS PLAN IS THE MOST LIKELY FIRST CASUALTY. `requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/` does not exist yet (measured: the directory holds only the two `.md` artifacts today) but stage 3 writes `plan-proposals.md` and `plan-adversarial.md` into it, and panel output routinely carries absolute paths. The moment Phase 2 lands, those files are in scope. That is the guard working, not a bug — but an implementer who meets a red suite mid-fix may conclude the widening is wrong. Phase 1 exists to discover this as data first. Mitigation: fix the content; never exempt `reviews/`.",
+    "THE PANEL TRAIL THAT SHIPS WITH THIS PLAN IS THE MOST LIKELY FIRST CASUALTY. `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/` does not exist yet (measured: the directory holds only the two `.md` artifacts today) but stage 3 writes `plan-proposals.md` and `plan-adversarial.md` into it, and panel output routinely carries absolute paths. The moment Phase 2 lands, those files are in scope. That is the guard working, not a bug — but an implementer who meets a red suite mid-fix may conclude the widening is wrong. Phase 1 exists to discover this as data first. Mitigation: fix the content; never exempt `reviews/`.",
     "THE ONE-LINE FIX THAT SILENTLY DOES NOTHING. Adding `--directory` to `git ls-files --others` looks like a tidy way to keep output short and is measurably catastrophic: it collapses an untracked tree to its top directory, so `reviews/deep/b.md` is never listed — and every one of the three real leaks was nested. The red repro's probe sits at the repo ROOT, so it would still pass. Mitigation: the Phase 3 nested-directory test, plus an explicit comment in the argv.",
     "THE FIX REINTRODUCING ITS OWN BUG CLASS THROUGH ENCODING. Measured: without `-z`, git quotes a non-ASCII filename as `\"caf\\303\\251.md\"`; that string resolves to no file and its suffix is `.md\\\"`, so it fails the `keep` membership test at `tests/test_no_leaks.py:39` and is dropped from the candidate set with no error raised. A guard that widens its scope and then silently drops the files with unusual names has traded one blind spot for a subtler one.",
     "DELEGATING THIS TO THE WRITE-CAPABLE SUBAGENT. `.claude/agents/data-engineer.md:147-158` denies it `tests/`, `.github/` and `.claude/` at repo level — which is every path this fix touches — with the rationale at :160-162 that an agent able to edit the guards that catch it and then report green is the worst available failure mode. The subagent's own rulebook requires it to stop and report if the spec's targets land in the deny set, so delegating produces a refusal at best and a rules violation at worst. Build on the main thread.",
@@ -1009,11 +1009,11 @@
       "change": "Possible one-word touch at :121 ('No machine-specific paths in tracked files') if the sweep finds it now under-describes the guard's scope. Check; change only if needed."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_PLAN.md",
       "change": "NEW — this stage's deliverable. Opens `> **Status:** planned · created <today> · decided · next: implement`. Write every `file:line` as a code span, never as a Markdown link target, and never write an absolute or drive-letter path into it: `tests/test_no_leaks.py:25` bans one in tracked text and — after this very fix lands — will ban one in the untracked draft too."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/IMPLEMENTATION_REPORT.md",
       "change": "NEW at Phase 5. Records the before/after suite counts (124 passed + 1 failed → 125 passed), the two measured argv decisions, and the reasoned decision not to widen `test_game_data_is_not_tracked`."
     },
     {
@@ -1021,7 +1021,7 @@
       "change": "Index row at :52 matched by its `[leak-guard-blind-to-untracked-files]` link: Stage cell to `planned` when the plan lands, then to `fixed` at Phase 5 with the link repointed into `_done/`. Status grammar is at :45."
     },
     {
-      "path": "requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
+      "path": "requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md",
       "change": "Status blockquote at :1 only — advanced to `planned` then `fixed`. The body is DECIDED and must not be edited."
     }
   ],

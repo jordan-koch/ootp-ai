@@ -8,7 +8,7 @@
 The adaptation was uneven, and every instance found so far was found **by accident** —
 while working on something else. Nothing has ever swept for them deliberately.
 
-Six instances are known, and they were not found by one search:
+Seven instances are known, and they were not found by one search:
 
 | # | Instance | Found while |
 |---|---|---|
@@ -18,6 +18,19 @@ Six instances are known, and they were not found by one search:
 | 4 | `plan_panel.js:147`, `:164` and `scope_panel.js:125` cited `docs/data-sources.md`, which never existed here | widening a guard for #1 |
 | 5 | `diagnose-bug/SKILL.md`'s worked example cited `tests/test_extract_pagination.py` failing with *"expected 1230 games, got 1000"* — an NBA regular season, in a baseball save-file parser | reading the template |
 | 6 | `implement-plan/SKILL.md` Step 7 says to set the Index row to `implemented` on **both** tracks; the bugfix track's terminal word is `fixed` | running that skill |
+| 7 | **`gitleaks` was promised twice and exists nowhere.** `git grep -il gitleaks` over `.github/`, `ops/` and `pyproject.toml` returns nothing. **One occurrence remains**, at `update-docs/SKILL.md:25`, which lists `gitleaks` among the mechanical checks that "moved to CI, where it runs on every PR and cannot be skipped". The `commit/SKILL.md` occurrence was removed on 2026-08-17 — see the note below | fixing the leak guard |
+
+> **Instance 7 was miscounted once already, in both directions.** The intake for
+> `leak-guard-blind-to-untracked-files` said the claim appears twice; that request's
+> ROOT_CAUSE_ANALYSIS "corrected" it to once; the planning panel then measured it and the
+> original was right.
+>
+> **Then one of the two was removed by accident, on 2026-08-17.** That fix's plan said
+> explicitly not to touch either occurrence — one finding, one tracker — but its Phase 5
+> rewrote the surrounding paragraph in `commit/SKILL.md`, and the false sentence went with
+> it. The removal is kept rather than reverted, because restoring a claim known to be false
+> in order to preserve a tracker's tidiness is the wrong trade. Recorded here so this
+> request's evidence stays accurate: **one occurrence remains, not two.**
 
 Instances 1–5 are fixed (`requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/`).
 **#6 is open and unfixed** — it is the concrete starting point for this request.

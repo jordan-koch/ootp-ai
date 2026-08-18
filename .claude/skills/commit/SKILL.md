@@ -74,9 +74,21 @@ Then sanity-check what you staged:
 git diff --cached --stat
 ```
 
-Scan the staged diff for anything that looks like a credential, an account ID, a bucket name, or a
-connection string. `gitleaks` will catch it in CI, but catching it *before* it enters history is
-the difference between an edit and a history rewrite.
+Then run the leak guard:
+
+```
+uv run pytest tests/test_no_leaks.py
+```
+
+It sees untracked files, so it is worth running **before** staging too — the earlier it fires,
+the cheaper the fix. It covers machine paths, home directories and email addresses.
+
+**It does not scan for credentials, and nothing else in this repo does either.** So read the
+staged diff yourself for anything resembling a token, an account ID, a bucket name, or a
+connection string — catching one *before* it enters history is the difference between an edit
+and a history rewrite. A credential scanner is filed as
+`requests/feature-requests/secret-scanning/`; until it lands, that read is the only thing
+standing between a pasted secret and a public repo.
 
 ## Step 3 — Doc drift, proportional to the change
 

@@ -158,7 +158,7 @@ pushes the branch. Opening the PR stays the operator's.
 
 **What this does NOT close:**
 
-- **`requests/bugfix-requests/leak-guard-blind-to-untracked-files/`** is untouched at
+- **`requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/`** is untouched at
   `intake`. It bit twice during this work: 27 absolute machine paths reached an untracked
   trail file and were caught only by a manual scan. That request has earned priority.
 - **`requests/bugfix-requests/port-residue-sweep/`** was filed here per D5, carrying six
