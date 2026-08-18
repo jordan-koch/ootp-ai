@@ -87,6 +87,17 @@ def read_rating(buf, position):
     return struct.unpack_from("<H", buf, position)[0]
 """
 
+#: The SAME defect as OFFENDING, spelled as a subscript instead of a call. This is the
+#: spelling this parser's style makes likeliest, because it passes `bytes` around rather
+#: than file handles — `players.py`, `teams.py` and `world.py` all read `data[...]`
+#: directly. Reading `team_id` at a constant offset from a record start is the exact
+#: failure the ban exists to prevent: measured, it is correct for 86.9% of players and
+#: silently wrong for the rest, because `last_team_id` is elided when zero.
+SUBSCRIPT_OFFENDER = """
+def read_team_id(data, record_start):
+    return int.from_bytes(data[record_start + 58 : record_start + 62], "little")
+"""
+
 
 def test_the_scanner_flags_a_synthetic_offender() -> None:
     """A guard never seen to fail is not a guard."""
@@ -99,6 +110,21 @@ def test_the_scanner_flags_a_synthetic_offender() -> None:
 def test_the_scanner_does_not_cry_wolf() -> None:
     """`seek(0)`, a named offset, and the word 'seek' in a comment are all legal."""
     assert scan_source(INNOCENT, "innocent.py") == []
+
+
+def test_the_scanner_flags_a_record_relative_subscript() -> None:
+    """The same defect, spelled as a slice, must not pass because of its syntax.
+
+    `unpack_from("<I", data, 58)` is caught and `data[start + 58 : start + 62]` is not,
+    though they are the same wrong read. A ban that depends on which spelling an author
+    reached for is not a ban — and the uncaught spelling is the one this codebase's own
+    style produces, since every walker holds `bytes` rather than a file handle.
+    """
+    violations = scan_source(SUBSCRIPT_OFFENDER, "subscript.py")
+    assert violations, (
+        "a record-relative read at a constant offset passed the guard because it was "
+        "written as a subscript rather than a call"
+    )
 
 
 def test_prose_about_seeking_does_not_trip_the_scanner() -> None:
