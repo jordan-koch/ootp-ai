@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-16 · open · next: root-cause
+> **Status:** diagnosed · created 2026-08-16 · decided · next: plan
 
 # Bug Report — The leak guard cannot see a file until it is staged, so it fires only after a leak can enter history
 
