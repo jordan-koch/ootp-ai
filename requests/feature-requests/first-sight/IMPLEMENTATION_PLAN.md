@@ -156,6 +156,17 @@ So it becomes a test. The two test saves sit at the **same sim date (2024-03-18)
 **Scope boundary, stated so it is not crossed by accident.** The operator *reading* a screen or a custom in-game report and confirming values by hand is a **USER-RUN check with no code**, and is in scope. **Any code that parses `news/html/` is out of scope** — the scope rules out the in-game HTML report path explicitly, and building a test that reads a generated report would cross that line and needs a scope amendment first, not a pull request.
 
 > **Amendments applied after the first commit of this plan** (`acc5575`), each at the operator's direction: `ingest_seq` added to every bronze key and `snapshot_date` renamed to `sim_date` (§2.3(d)); this §2.5 and the cross-mode equivalence test; a separate `ootp_dev` landing schema for development (Phase 1); a written spawn contract for handing the GM its reports (Phase 11); and the operator's in-game spot-check recognised as a fourth validation channel (§2.5, Phase 13 step 5). A world-state or "situation" artifact was **considered and deliberately rejected** — it would be a third report, which the scope rules out as a non-goal, and the thin-sight tension is the thing the experiment is testing.
+>
+> **Amended again 2026-08-17, ahead of Phase 6 starting.** The operator settled the `list_id`
+> enum by reading the game and supplying a full-organization screenshot, so Phase 6's research
+> step is closed before the phase begins and the roster report may print human labels. Two things
+> that came back are wider than the plan assumed and are recorded at the head of Phase 6: the
+> roster fan-out is **cross-team**, not merely cross-list, so *"who is on Boston's roster"* has
+> three correct answers; and the **60-day IL drops a player from the 40-man**, so the 40-man
+> cannot be derived from the other lists. Phase 6's user-run check is now **one screenshot asked
+> for at the START of the phase** rather than a five-player spot-check at its acceptance — the
+> Dodgers image settled the enum in a single pass and surfaced two league-wide invariants nobody
+> had proposed. Evidence: `requests/feature-requests/first-sight/reviews/list-id-semantics.md`.
 
 ---
 
@@ -375,7 +386,32 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 
 ### Phase 6 — `players.dat` walk and roster-list extraction
 
-**Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously.
+> **AMENDED 2026-08-17 — `list_id` is SETTLED, and the fan-out is wider than this phase assumed.**
+> The operator read the Dodgers organization screen in the standard-mode probe and supplied a
+> full-organization screenshot. Step 2's research task is therefore **done before the phase
+> starts**; do not re-derive it. Full evidence, method and the falsifiable cross-checks are in
+> `requests/feature-requests/first-sight/reviews/list-id-semantics.md`.
+>
+> | `list_id` | Meaning | Scope |
+> |---|---|---|
+> | 1 | **Current team assignment** | every player, exactly once |
+> | 2 | **Active roster** of the club he is assigned to | any level |
+> | 3 | **Secondary (40-man) roster** | **MLB level only** |
+> | 4 | **Injured list** | any level |
+>
+> **The fan-out is cross-team, not just cross-list.** This phase's Goal below says a player sits
+> on the active list *and* the 40-man. True, and incomplete: a prospect on the parent club's
+> 40-man but assigned to Triple-A holds `list_id = 3` under the **MLB club** and `1, 2` under the
+> **affiliate** — three rows, two `team_id`s, one player. Measured on the Dodgers: 103 roster rows
+> over 39 distinct players. A naive join from `teams` double-counts prospects, and *"who is on
+> Boston's roster"* has three different correct answers.
+>
+> **The 60-day IL drops a player from the 40-man**, which is why some injured players carry
+> `1 + 4` and others `1 + 3 + 4`. Consequence: the 40-man must be counted from `list_id = 3`
+> directly — deriving it as active + injured + prospects over-counts by the 60-day population
+> (58 players league-wide).
+
+**Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously — and, as the amendment above records, under two different clubs at once.
 
 **Steps.**
 1. `parser/players.py` — a deliberately minimal field set: `player_id`, team/organization assignment, position, uniform number, date of birth, bats/throws, the name indices, and `historical_id` (the Lahman/BBRef string, `verified` at `docs/data-access.md:99-102`, ~1,712 unique values). **No ratings, whatever the Phase 2 verdict returned.** Resist widening: every landed field is a field somebody re-validates after a game patch. The field set is a maintenance liability, not a free win.
@@ -384,14 +420,57 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
    **Resolve `list_id` by asking the operator to read the roster screen — do this FIRST, before any empirical derivation.** *Amended; the first draft sent this straight to open-ended research and put an unbounded tail on the critical path of the headline report.* The game shows, directly and unambiguously, which players sit on the active roster, which on the 40-man, and which in each minor-league tier. The operator reads it; the enum is settled in minutes and lands at `verified` rather than `inferred`. Bound the ask so it is cheap to answer: hand over a handful of `player_id`s per observed `list_id` value and ask which list the game shows each on. Cross-tabbing against the export's counts (`{1: 7370, 2: 7037, 3: 935, 4: 330}`) then becomes a *confirmation* of a known answer rather than an attempt to infer one from four integers.
 
    This is channel 4 from §2.5, and it is squarely inside the safe class — roster membership is neither scale-converted nor scout-filtered. Keep Phase 0's opaque-integer fallback registered in case the operator is unavailable, but it should now be the unlikely branch rather than the expected one. The reason the fallback exists at all is unchanged: **a wrong human label produces a confidently wrong roster with nothing throwing**, so the report prints no human label for any mapping below `inferred`.
+
+   **This step is CLOSED as of 2026-08-17** — see the amendment at the head of this phase. The
+   mapping is `verified`, so **Phase 0's opaque-integer fallback is retired for this field** and
+   the roster report **may print human labels**. Do not spend a step re-deriving it. What the
+   read left behind, and what this phase should assert instead:
+
+   - **Every one of the 30 MLB clubs has exactly 26 rows at `list_id = 2`.** Zero exceptions
+     across the probe export. This is the sharpest assertion available on the roster grain — a
+     walker that transposed two list values would not land on 26 thirty times — and it is a
+     league *rule*, so it should hold in the managed save too.
+   - **No MLB club exceeds 40 rows at `list_id = 3`** (probe: min 27, max 37, mean 31.2).
+   - **`list_id = 1` is 1:1 with players** — 7,370 rows over 7,370 distinct players, which is
+     also the total distinct players in `team_roster`. A second list-1 row for any player means
+     the walk has mis-framed a record.
+   - Do **not** assert the probe's 58/118 short-vs-60-day IL split against `OOTP-AI.lg`; that is
+     a state of one universe on one date, not a rule.
 3. **Verify, do not assume, the `players.dat` population.** The plan (and AC12's diagnostic tier, and Phase 11's coverage statements) assumes `players.dat` holds the export's `retired = 0` set of 18,072 and `retired.dat` holds the rest. That is an **inference from filenames, not a measurement.** Confirm it by record count against the export before treating it as fact.
 4. Byte accounting at the **diagnostic** tier for `players.dat` (blocker F3): assert the walk terminates on a record boundary and reaches a record count matching the independent count, and **record** the residual byte count rather than asserting it is zero. Full byte accounting on a 32 MB `players.dat` is a research task, not a counter — say so in the tier rationale so a later reader does not mistake the weaker assertion for sloppiness. On `OOTP-AI.lg` there is no export, so the check degrades to boundary termination plus Phase 9's Boston sanity check; encode that degradation explicitly rather than silently skipping.
 5. Append every landed field to `field_map.toml`. Anything the walk crosses but cannot classify is recorded `category = "rating-true"`, `epistemic = "unconfirmed"` — the withhold-by-default posture.
 6. **MAIN THREAD:** advance `tests/test_parse_real_save.py` (**AC9, partial**) — `player_id` unique per snapshot; Boston's roster rows **≥ 26**, not `== 26` (the club is in spring training at 2024-03-07 and a set 26 probably does not exist yet). **AC9's `zero roster rows carry a null or blank display name` clause does NOT belong here** — no display name exists until Phase 7 resolves the join, so asserting it now would fail on a correct parse. It moves to Phase 7, per the MERGE-03 correction. Extend `test_sequential_walk.py` with a player-shaped synthetic record (1-year vs 10-year contract array) asserting `historical_id`, which sits after the variable region, reads identically. Add the parser-determinism half of `test_snapshot_semantics.py` (**AC10**): parsing the same snapshot twice is byte-identical.
 
-**Acceptance.** AC9's in-phase clauses green (the display-name clause belongs to Phase 7); AC12 green at both tiers with the residual recorded; **`tests/test_cross_mode_format.py` extended to `players.dat`** — same record shape and stride across both test saves (§2.5); the `list_id` label at `verified` from the operator's roster-screen read, or at `inferred` from the count cross-tab, or the opaque-integer fallback in force; the population claim measured; **an early operator spot-check of ~5 Boston players against the in-game roster screen** — name, position, uniform number, DOB, roster list — because a mis-mapped field found here is cheap and the same field found in Phase 13 has had five phases built on top of it (§2.5 channel 4); `test_read_only.py` re-run green after the largest read this project performs.
+**Acceptance.** AC9's in-phase clauses green (the display-name clause belongs to Phase 7); AC12 green at both tiers with the residual recorded; **`tests/test_cross_mode_format.py` extended to `players.dat`** — same record shape and stride across both test saves (§2.5); the three `list_id` invariants above asserted against the probe (26 exactly, 40 not exceeded, list 1 is 1:1); the population claim measured; the **USER-RUN screenshot check** below; `test_read_only.py` re-run green after the largest read this project performs.
 
-**Commit note.** *"players.dat minimal field set + team_roster membership grain with list_id derivation."* Surface the `list_id` disposition to the operator here — whether the roster report prints human list names or raw integers is a visible product decision, cheaper to settle now than to rework in Phase 10.
+**USER-RUN — ask for the Boston organization screenshot FIRST, before writing the walker.**
+*Amended 2026-08-17: this replaces "an early operator spot-check of ~5 Boston players", which
+was the right instinct and the wrong instrument.* One screenshot of the **Organization →
+Overview** page for the managed club is strictly better than a per-player read, and it is
+cheaper for the operator — one screen, one image, no transcription:
+
+- It carries **panel headers that are countable claims**. On the Dodgers those read
+  *Active Roster (26/26)*, *Secondary (40-man) Roster (35/40)* and an Injured List, and all
+  three reconciled exactly against the export by arithmetic — a far stronger check than eight
+  players looking plausible.
+- It shows **every affiliate at once** (AAA/AA/A+/A/R and the DSL clubs), which is where the
+  cross-team fan-out is visible. A single-club read cannot show it.
+- It shows the **Injured List with an `IL Time Left` column**, which is what distinguishes the
+  60-day population from the short IL.
+- It shows name, position, age and uniform number for the whole org, so the field-level
+  spot-check the old criterion wanted falls out of the same image.
+
+**Ask for it at the START of the phase, not at its acceptance.** The Dodgers image settled
+`list_id` in one pass and surfaced two invariants nobody had proposed; the equivalent Boston
+image is the cheapest available insurance against a mis-mapped field, and a field found wrong
+here costs one phase rather than the five it would cost at Phase 13 (§2.5 channel 4).
+
+**Ratings are not part of this check and never will be** (§2.5). The screen shows rating
+columns; they are scale-converted and scout-filtered, and matching one to a byte identifies the
+wrong field with no error surfaced. Read names, numbers, positions, ages and roster membership
+from it — nothing else.
+
+**Commit note.** *"players.dat minimal field set + team_roster membership grain with list_id derivation."* ~~Surface the `list_id` disposition to the operator here~~ — **settled 2026-08-17**: the report prints human labels, because the mapping is `verified`. What still needs surfacing at this checkpoint is the *cross-team* fan-out, since it changes what the roster report can honestly claim: Phase 10 must say **which** roster it is showing (assignment, active, or 40-man) rather than implying a canonical one exists.
 
 ---
 
