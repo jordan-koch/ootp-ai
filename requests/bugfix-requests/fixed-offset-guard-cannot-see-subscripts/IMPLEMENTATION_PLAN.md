@@ -91,10 +91,18 @@ is completable**, and discovering that at Phase 2 wastes the migration.
 1. Run `uv run pytest -m gamedata -rs` — **without `-q`**, so skips are visible.
 2. Record the **passed count** and the **skip count**.
 
-**Acceptance.** The passed count is greater than zero and the skip count is zero. **If the
-run reports skips instead of passes, STOP and hand back to the operator** — the saves are
-unavailable and this plan cannot be verified. *(Measured 2026-08-18: the saves are present
-on this machine, so this is a guard against a different machine, not an expected stop.)*
+**Acceptance.** The passed count is greater than zero, and the only skip is the **one known
+permanent conditional** — `test_byte_accounting.py`'s strict-tier test, which skips because
+the teams walk is declared `diagnostic`. **If the run reports skips *instead of* passes,
+STOP and hand back to the operator** — the saves are unavailable and this plan cannot be
+verified.
+
+> **Corrected at the Phase 0 gate, 2026-08-18.** This criterion originally read "the skip
+> count is zero", which can never be satisfied: that strict-tier skip is permanent by
+> design and unrelated to save availability. **Measured baseline on this machine: 81
+> passed, 1 skipped.** Later phases compare against the *passed count*, so the distinction
+> matters — a criterion nobody can meet gets ignored, and an ignored criterion is worse
+> than none.
 
 **Commit note.** No commit. This is a precondition check.
 
