@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-18 · open · next: root-cause
+> **Status:** diagnosed · created 2026-08-18 · decided · next: plan
 
 # Bug Report — The fixed-offset guard cannot see a subscript, and the docs say it can
 
@@ -90,7 +90,9 @@ tempting to write.
    mechanism, and `visit_Subscript` is what does not exist.
 2. `CLAUDE.md:103` — the "CI enforces it" claim.
 3. `.claude/agents/data-engineer.md` — the rulebook's parsing section, which owns the ban.
-4. `src/ootp_ai/parser/players.py:445` and `:449` — the two instances that prompted this.
+4. `src/ootp_ai/parser/players.py:553` and `:557` — the two instances that prompted this.
+   *(Re-grounded 2026-08-18: these read `:445` and `:449` when filed. The module grew when
+   the club-assignment decode landed in the same PR; the lines themselves are unchanged.)*
 
 **A survey of every current instance, because the fix depends on telling them apart.**
 Measured 2026-08-18 across `src/ootp_ai/parser/`:
