@@ -475,6 +475,50 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 > it — Phase 0's opaque-integer fallback covered a wrong *label*, not an undecodable *array*, so it
 > does not apply. **`measured` / `inferred` as labelled above; nothing here is `verified`.**
 
+> **PHASE 6b RECONNAISSANCE, 2026-08-18 — the drop-zero region is a presence bitmask, and
+> half of it is now decoded.** Recorded here rather than left in scratch because it cost
+> real effort and none of it is in code yet.
+>
+> **The rule.** After the fixed 37-byte head the record carries a byte at **record+55**
+> that is a **presence bitmask over six `u32` fields**, written in bit order, absent ones
+> simply skipped. Interleaved as current/last pairs:
+>
+> | bit | field | | bit | field |
+> |---|---|---|---|---|
+> | 0 | `team_id` | | 3 | `last_organization_id` |
+> | 1 | `last_team_id` | | 4 | `league_id` |
+> | 2 | `organization_id` | | 5 | `last_league_id` |
+>
+> **`verified` against every `retired = 0` export row (18,072).** Five of the six match
+> exactly; `league_id` matches in magnitude on all of them. The mask takes the same six
+> values — `0x00, 0x14, 0x15, 0x2a, 0x37, 0x3f` — in all three saves, and each value maps
+> to exactly one zero-ness signature with no exceptions. The run therefore ends at
+> `record+58 + 4 × popcount(mask)`.
+>
+> **A second mask sits at record+56**, of which **bit 0 = `free_agent`** is `verified`
+> 18,072/18,072. Its other bits are not decoded. `record+57` is not a mask — it takes
+> values 2, 6, 34, 38 and is `unconfirmed`.
+>
+> **The export writes `league_id` NEGATIVE on exactly 176 records, and the save does not.**
+> The save stores `203`; the export renders `-203`. Do not "fix" the parser to agree — the
+> bytes are what they are. **And this closes an open question from 6a**: those 176 are
+> precisely the players whose `team_id > 0` but who hold **no `list_id = 1` row** in
+> `team_roster` (7,546 vs 7,370). A negative `league_id` marks a player attached to a club
+> but not on its roster; `inferred`.
+>
+> **A near-miss worth keeping.** `u32` at **record+51** reads `203` for all 18,077 records
+> in **both** test saves and looks exactly like a format constant. It is not: the managed
+> league carries **six distinct values** there. Asserting it as a constant would have
+> passed every test available and broken on the only save that matters — the same trap
+> `tests/fixtures/synthetic.py` already records about a "constant" that was really a sim
+> date. **Vary the save before believing a constant.**
+>
+> **Still not decoded:** `position`, `role`, `bats`, `throws` and `historical_id`. None is
+> ever zero, so drop-zero cannot govern them; they are written unconditionally somewhere
+> past further variable content that neither mask explains. Brute-force scoring against the
+> full answer key from both the run end and the `historical_id` string anchor peaked at
+> ~48%, so a third variable region sits between. **AC8 still cannot be attempted.**
+
 **Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously — and, as the amendment above records, under two different clubs at once.
 
 **Steps.**
