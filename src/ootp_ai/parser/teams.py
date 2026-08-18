@@ -106,6 +106,12 @@ from dataclasses import dataclass
 
 from ootp_ai.parser.errors import SaveFormatError
 from ootp_ai.parser.header import read_header_from
+from ootp_ai.parser.lookahead import (
+    U8_WIDTH,
+    peek_length_prefixed_ascii,
+    peek_u8,
+    peek_u32,
+)
 from ootp_ai.parser.primitives import Cursor, SaveDate
 
 __all__ = [
@@ -181,7 +187,7 @@ _MAX_SHORT_STRING = 8
 
 #: The drop-zero `u8` run between the organisation links and `historical_id`. `measured`:
 #: 0 to 4 bytes, and every byte written is `0x01`.
-_FLAG_BYTE = b"\x01"
+_FLAG_VALUE = 0x01
 _MAX_FLAGS = 8
 
 #: One club's organisation links: 6 or 7 affiliates on a top-level club, one parent on an
@@ -372,7 +378,7 @@ def read_teams(data: bytes) -> TeamsFile:
             )
         cursor.skip(frame + len(_RECORD_FRAME) - cursor.position)
 
-        candidate = _peek_u32(data, cursor.position)
+        candidate = peek_u32(data, cursor.position)
         if candidate is None or not previous_id < candidate <= declared:
             # The frame bytes occur inside record bodies too. A candidate that is not the
             # next ascending team id is one of those, so keep searching from after it.
@@ -506,7 +512,7 @@ def _scan_shape(data: bytes, start: int, declared: int) -> _Shape:
     position = after_colors + 4  # level
     link_count = 0
     while True:
-        value = _peek_u32(data, position)
+        value = peek_u32(data, position)
         if value is None or not 0 < value <= declared:
             break
         link_count += 1
@@ -519,11 +525,11 @@ def _scan_shape(data: bytes, start: int, declared: int) -> _Shape:
             )
 
     flag_count = 0
-    while flag_count < _MAX_FLAGS and data[position : position + 1] == _FLAG_BYTE:
+    while flag_count < _MAX_FLAGS and peek_u8(data, position) == _FLAG_VALUE:
         flag_count += 1
-        position += 1
+        position += U8_WIDTH
 
-    if _scan_string(data, position, _MAX_SHORT_STRING) is None:
+    if peek_length_prefixed_ascii(data, position, _MAX_SHORT_STRING) is None:
         raise TeamRecordLayout(
             f"{TEAMS_FILE}: the record at {start} does not carry a franchise code where "
             f"one is expected — after {link_count} organisation links and {flag_count} "
@@ -549,14 +555,14 @@ def _scan_signature(data: bytes, position: int, count: int) -> tuple[int, int, i
     """
     cursor = position
     for _ in range(count):
-        read = _scan_string(data, cursor, _MAX_STRING)
+        read = peek_length_prefixed_ascii(data, cursor, _MAX_STRING)
         if read is None or read[0] == 0:
             return None
         cursor = read[1]
 
     run_length = 0
     while True:
-        value = _peek_u32(data, cursor)
+        value = peek_u32(data, cursor)
         if value is None:
             return None
         if value >> 24 == _ALPHA:
@@ -568,7 +574,7 @@ def _scan_signature(data: bytes, position: int, count: int) -> tuple[int, int, i
 
     colors = 0
     while True:
-        value = _peek_u32(data, cursor)
+        value = peek_u32(data, cursor)
         if value is None or value >> 24 != _ALPHA:
             break
         colors += 1
@@ -578,31 +584,10 @@ def _scan_signature(data: bytes, position: int, count: int) -> tuple[int, int, i
     return count, run_length, cursor
 
 
-def _scan_string(data: bytes, position: int, limit: int) -> tuple[int, int] | None:
-    """`(length, end)` for a length-prefixed printable ASCII string, or `None`.
-
-    Printability is the filter that keeps this from firing on integer data: the low bytes
-    of a team id run are nulls, and a null is not a character a club name contains.
-    """
-    length = _peek_u32(data, position)
-    if length is None or length > limit or position + 4 + length > len(data):
-        return None
-    payload = data[position + 4 : position + 4 + length]
-    if any(byte < 0x20 or byte > 0x7E for byte in payload):
-        return None
-    return length, position + 4 + length
-
-
-def _peek_u32(data: bytes, position: int) -> int | None:
-    """The `u32` at `position` without consuming it, or `None` past the end.
-
-    A lookahead at the cursor's *own* position, never at a constant. The cursor stays
-    forward-only and every width the cursor is then asked to advance by was computed from
-    these bytes.
-    """
-    if position + 4 > len(data):
-        return None
-    return int.from_bytes(data[position : position + 4], "little")
+# `_scan_string` and `_peek_u32` used to live here. Both moved to `parser/lookahead.py`
+# as `peek_length_prefixed_ascii` and `peek_u32` — this module's copies were byte-identical
+# in behaviour to `world.py`'s, and the duplication is what let the "never at a constant"
+# rule those docstrings asserted go unchecked for the life of the parser.
 
 
 # ── the drop-zero inverse ────────────────────────────────────────────────────
