@@ -8,9 +8,15 @@ in one save and 107 in another, with a byte-identical internal layout.
 
 Every reader here advances the cursor and only advances it. The class exposes no
 `seek`, no `position` setter, and no absolute read — the ban is **structural rather
-than a convention**, so it survives the next agent who has a good reason. That is
-also what lets the AST guard over `src/ootp_ai/` run with zero exemptions: there is
-no legitimate seek anywhere for it to have to allow.
+than a convention**, so it survives the next agent who has a good reason. This is the
+half of the ban that cannot be argued with: there is no legitimate seek anywhere,
+so the AST guard over `src/ootp_ai/` never has to allow one.
+
+Reading a buffer *without* the cursor is a separate question, and there the guard
+does keep a short allowlist — **this module is on it**, because `take` below indexes
+the buffer the cursor owns. Two modules, a stricter rule inside them, and a named
+list of what the scan cannot see: `tests/test_no_fixed_offsets.py` and
+[ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md).
 
 Buffers are read whole (`Path.read_bytes()`) rather than streamed. The largest file
 this project reads is ~32 MB, so the memory is free and it keeps the cursor a pure

@@ -100,7 +100,11 @@ Verified 2026-08-15; detail and epistemic labels in
 
 - **`players.csv` ships with the game and is the Rosetta Stone** — raw, unfiltered.
 - **Records contain variable-length regions** — field *order* is stable, offsets
-  are not. The fixed-offset ban is the rulebook's, and CI enforces it.
+  are not. The fixed-offset ban is the rulebook's. Enforcement is **structural
+  first** — `Cursor` exposes no seek — with an AST scan behind it that lets exactly
+  one sanctioned module index a save buffer
+  ([ADR 0020](docs/decisions/0020-sanctioned-lookahead-seam.md)). The scan names
+  what it cannot see; it does not claim to see everything.
 - **Names are indirected** into `names.dat`; `players.dat` holds indices.
 - **Real players carry their Lahman/BBRef ID** — a join key to public baseball data.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.

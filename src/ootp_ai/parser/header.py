@@ -2,10 +2,18 @@
 
 Every OOTP record file opens with the same prefix. This module reads it **through the
 ordinary cursor**, one field at a time, rather than indexing offsets 1, 5 and 25 with
-literals. That is not stylistic tidiness: the AST guard over `src/ootp_ai/` runs with
-**zero exemptions**, and a header reader full of constant offsets would need the first
-one. An exemption list is how a guard stops being a guard, and this is the guard the
-whole parser rests on.
+literals. That is not stylistic tidiness: the AST guard over `src/ootp_ai/` allows
+exactly two modules to index a save buffer — `lookahead.py`, the sanctioned seam, and
+`primitives.py`, which owns the cursor — and **this is not one of them**. A header
+reader full of constant offsets would have to argue for a third entry, and an
+allowlist that grows on request is how a guard stops being a guard.
+
+The classifier below is the reason that matters here rather than in the abstract. It
+read `data[0] == LEADING_NULL and data[1:_MAGIC_PREFIX_LEN] == MAGIC` until 2026-08-18
+— two literal offsets, in the module whose docstring claimed it avoided exactly that —
+and the guard could not see them, because it inspected calls and never subscripts.
+`data.startswith(MAGIC_PREFIX)` is equivalent given the length guard it replaced, and
+the single constant makes both of the traps below impossible to write by accident.
 
 The trap the header sets, measured and recorded in the format catalog, is symmetric —
 both naive readings fail on the first file opened:

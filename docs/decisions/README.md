@@ -27,6 +27,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0017](0017-gm-is-a-subagent.md) | The GM is a subagent; the main thread and operator are umpires | Accepted |
 | [0018](0018-retention-is-infrastructure.md) | Retention is infrastructure; analysis over history is commissioned | Accepted |
 | [0019](0019-reading-costs-an-action.md) | Reading costs an action; a report is built once and read for free | Accepted |
+| [0020](0020-sanctioned-lookahead-seam.md) | One sanctioned seam may index a save buffer; everywhere else walks | Accepted |
 
 ## Format
 

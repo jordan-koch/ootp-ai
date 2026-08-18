@@ -72,6 +72,13 @@ Two self-contained sections. Read the one your task is in; read both if it spans
   player with a different-shaped record. **Walk records sequentially.** Code that seeks is a
   blocker, not a style note. Evidence: the same player's ratings block sat 43 bytes from one
   anchor in one save and 107 in another, with byte-identical internal layout.
+  **The mechanism, so you know what will actually stop you:** `Cursor` exposes no `seek` and
+  no position setter, so the seek itself is structurally impossible. Reading a buffer without
+  the cursor is caught by `tests/test_no_fixed_offsets.py`, which allows exactly two modules
+  to index one and judges the position handed to a lookahead besides
+  ([ADR 0020](../../docs/decisions/0020-sanctioned-lookahead-seam.md)). It is a real check,
+  not a formality — and its docstring names six things it *cannot* see, so treat a green
+  build as evidence rather than proof.
 - **Ground truth is `players.csv`, never an in-game display.** Displayed ratings are
   scale-converted (20–80 on the player page, 1–100 in reports, ~1–1000 in storage) *and*
   possibly scout-filtered. Matching a screenshot value to a byte identifies the wrong field
