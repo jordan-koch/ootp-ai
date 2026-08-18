@@ -94,7 +94,7 @@ what you tried and close it; don't fabricate a red repro.
 Render the **verdict**, then write `requests/bugfix-requests/<slug>/ROOT_CAUSE_ANALYSIS.md` from the template.
 The verdict drives the Status blockquote and what happens next:
 
-- **`confirmed-bug`** → `root-cause · … · decided · next: plan` (needs the full track) **or**
+- **`confirmed-bug`** → `diagnosed · … · decided · next: plan` (needs the full track) **or**
   `… · next: fix` (a true one-liner you'll fix in Step 5).
 - **`works-as-intended`** → `closed-works-as-intended · … · next: none` (the code is right; record *why*
   the expectation was off).
@@ -104,7 +104,7 @@ The verdict drives the Status blockquote and what happens next:
   `/make-feature-request` (this is a capability gap, not a defect).
 
 ```markdown
-> **Status:** root-cause · created <YYYY-MM-DD> · decided · next: <plan | fix | none | <feature-slug>>
+> **Status:** diagnosed · created <YYYY-MM-DD> · decided · next: <plan | fix | none | <feature-slug>>
 
 # Root Cause Analysis — <Title>
 
@@ -114,8 +114,10 @@ for this bug + which downstream path it takes.>
 
 ## Reproduction (red)
 <pointer to the failing reproduction: the exact test/fixture + how to run it + the RED output it
-currently produces. e.g. `tests/test_extract_pagination.py::test_all_pages_landed` via
-`uv run pytest` (fails: expected 1230 games, got 1000). Note whether it is already committed.
+currently produces. e.g.
+`tests/test_parse_world.py::test_a_count_prefixed_calendar_decodes_and_consumes_its_region_exactly`
+via `uv run pytest` (fails: expected 3058 calendar entries, got 2600). Note whether it is
+already committed.
 (Omit only for cannot-reproduce / works-as-intended, with a note why.)>
 
 ## Evidence (the cause)
@@ -147,7 +149,8 @@ Register the bug and advance status (in-place edits; **don't run git** — `/com
 
 - Update the `BUGFIX_REQUEST.md` Status blockquote and the **Index** row in
   [`requests/bugfix-requests/README.md`](../../../requests/bugfix-requests/README.md) (match by the `| Bug | Stage | Notes |`
-  header) to `root-cause` (or the terminal stage word).
+  header) to `diagnosed` (or the terminal stage word) — the track README's grammar at
+  `requests/bugfix-requests/README.md` is the contract, per `requests/README.md`.
 
 Then exit by verdict:
 
@@ -173,7 +176,7 @@ merge. `/commit` pushes the branch itself; opening the PR stays the user's. End 
 ## What good looks like
 
 - **Every relative link and bare `requests/...` token you write must resolve on disk.** A live
-  (non-`_done/`) artifact body is scanned by `tests/test_request_links.py`, a blocking CI
+  (non-`_done/`) artifact body is scanned by `tests/test_doc_links.py`, a blocking CI
   check, so a dead pointer here fails the build rather than quietly misleading the next stage. Two
   shapes to watch: a **forward reference** to a file a later stage creates, and a deliberately
   **broken example path**. Put either inside a fenced code block (``` or ~~~, blockquoted is fine) —

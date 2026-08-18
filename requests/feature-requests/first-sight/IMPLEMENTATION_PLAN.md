@@ -735,7 +735,13 @@ Ordered by expected cost, not by likelihood.
 - [ ] `docs/data-access.md` · `docs/league-rules.md` · `docs/decisions/0004-mysql-warehouse.md` — **via `/update-docs` only**
 - [ ] `gm/standing-orders.md` — the engineering-owned report kind + two entries (umpire edit)
 - [ ] `README.md` · `CLAUDE.md` · `gm/charter.md` — status text, false on delivery
-- [ ] `requests/feature-requests/first-sight/IMPLEMENTATION_REPORT.md` + the track Index row
+- [ ] this request's `IMPLEMENTATION_REPORT.md` + the track Index row — the stage-4
+      artifact, fenced here because it does not exist until Phase 12 writes it and
+      `tests/test_doc_links.py` now resolves bare `requests/...` tokens:
+
+      ```
+      requests/feature-requests/first-sight/IMPLEMENTATION_REPORT.md
+      ```
 
 ## 8. Conventions (bake these in)
 

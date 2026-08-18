@@ -151,8 +151,10 @@ is the one you are already following.
 - **2026-08-15** · `measured` · The ported panel guard
   `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` fails on arrival, and fails
   **identically** in the `nba2k-rpg` repo it came from — a pre-existing upstream defect, not
-  a porting error. Six dedupe/coverage assertions. · evidence: `CLAUDE.md` Outstanding
-  scaffolding work · tag: harness
+  a porting error. Six dedupe/coverage assertions. **The measurement stands; the reading does
+  not — see the 2026-08-17 correction at the end of this file.** · evidence:
+  `requests/bugfix-requests/verify-batching-guard-red-on-arrival/BUGFIX_REQUEST.md` (the
+  originally cited `CLAUDE.md` section was removed in commit 1c47c2d) · tag: harness
 - **2026-08-16** · `verified` · **"It varies across saves" is not "it is the field."** A `u32`
   in `saved_games.dat` reads 2/2/1 across the three saves, which satisfies an
   anti-hardcoding test outright — but the clubs are 4/4/6 and the split falls along
@@ -287,3 +289,27 @@ is the one you are already following.
   and the Challenge probe — two independently created universes — and at 5,547,958 in the
   standard probe. An offset that agrees in two of three saves is the most dangerous kind of
   near-constant. · evidence: `var/spike5/p1_landmarks.py` (gitignored) · tag: harness
+- **2026-08-17** · `verified` · **The 2026-08-15 entry above read the batching guard's failure
+  backwards.** Its cause is local: two fixture keys in
+  `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` named a sibling repo's
+  lenses, `FINDINGS_BY_LENS[lensKey] || []` swallowed them, and 3 of 11 findings vanished
+  before dedupe — all six assertions cascade from that. Re-keying two words turns it green
+  with `acceptance_panel.js` byte-untouched. The earlier entry's *measurement* (it fails
+  identically in `nba2k-rpg`) stands and was not re-tested here; what is refuted is its
+  reading of that as "a pre-existing upstream defect, not a porting error" — two
+  separately-adapted copies failing identically is exactly what a porting error in the
+  shared inherited part looks like. · evidence:
+  `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` ·
+  tag: harness
+- **2026-08-17** · `measured` · **A guard that names a repo path only checks the paths someone
+  thought to scan.** `tests/test_skill_references.py` globbed `*.md` under `.claude/skills/`
+  and was therefore blind to the panel `.js` files — which is where three references to a
+  `docs/data-sources.md` that never existed here sat, inside the prompt three planning agents
+  ground themselves in. Widening the glob found all three in one run. · evidence:
+  `tests/test_skill_references.py` `skill_documents` · tag: harness
+- **2026-08-17** · `measured` · **Backticks inside a JS template literal terminate it, and
+  panel prose lives in template literals.** Editing a mandate string in `plan_panel.js` to add
+  a backticked term broke three sibling `.mjs` guards at once with `Illegal return statement`.
+  The guards caught it in seconds; nothing in CI would have. Prefer plain words in panel
+  prose, and run the `.mjs` guards after any panel edit. · evidence:
+  `.claude/skills/create-implementation-plan/plan_panel.js` · tag: tooling

@@ -53,7 +53,7 @@ grain audit; a new dataset needs it most.
 **Then run the one mechanical check this skill owns**, because it is about docs rather than code:
 
 ```
-uv run pytest tests/test_request_links.py -q
+uv run pytest tests/test_doc_links.py -q
 ```
 
 Dead relative links in process artifacts are a doc-drift failure that happens to be mechanizable.

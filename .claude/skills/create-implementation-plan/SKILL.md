@@ -53,7 +53,7 @@ The panel plans from a specific **decided upstream artifact** — a `PROJECT_SCO
 - If the user named a slug/path, use it — `<work-dir>/PROJECT_SCOPE.md` (+ the sibling `FEATURE_REQUEST.md`)
   for a feature, or `<work-dir>/ROOT_CAUSE_ANALYSIS.md` (+ the sibling `BUGFIX_REQUEST.md`) for a bug.
 - Otherwise check the **Index** in the relevant track README ([`requests/feature-requests/README.md`](../../../requests/feature-requests/README.md)
-  for a feature at `scoped`, or `requests/bugfix-requests/README.md` for a confirmed-bug RCA at `root-cause`), or
+  for a feature at `scoped`, or `requests/bugfix-requests/README.md` for a confirmed-bug RCA at `diagnosed`), or
   infer from the conversation. The Index Stage cell can lag — cross-check against the artifact's own
   Status blockquote (the source of truth), not the cell alone. **If you inferred the slug, echo back the
   exact path + title and get a yes before launching** — the panel is the pipeline's heaviest.
@@ -62,7 +62,7 @@ The panel plans from a specific **decided upstream artifact** — a `PROJECT_SCO
 
 **Disposition gate.** The Status blockquote has four fields: `<stage> · created <date> · <open|decided>
 · next:`. Gate on the **3rd field (the disposition), not the stage word** — a ready scope correctly
-reads `scoped · … · decided · next: plan` and a ready bugfix RCA reads `root-cause · … · decided · next:
+reads `scoped · … · decided · next: plan` and a ready bugfix RCA reads `diagnosed · … · decided · next:
 plan`, so the stage word appearing is *expected*, not a problem.
 If the disposition is `decided`, proceed. If it's `open` (gated decisions undisposed), **warn loudly**
 that you'd be planning on top of unmade decisions, and offer to proceed or send the user back to finish
@@ -169,11 +169,11 @@ Then advance status (the file edits are expected — the read-only rule means **
 
 - In the **track README** — `requests/feature-requests/README.md` for a feature, `requests/bugfix-requests/README.md` for a
   bug (the one matching the resolved track, **never** the other) — set this item's **Index** row Stage
-  cell to `plan` (match the row by its `[<slug>]` link).
-- The new `IMPLEMENTATION_PLAN.md` opens at stage `plan`, `next: implement`, `created` = today.
+  cell to `planned` (match the row by its `[<slug>]` link).
+- The new `IMPLEMENTATION_PLAN.md` opens at stage `planned`, `next: implement`, `created` = today.
 
 ```markdown
-> **Status:** plan · created <YYYY-MM-DD> · decided · next: implement
+> **Status:** planned · created <YYYY-MM-DD> · decided · next: implement
 <!-- Use this README status grammar (<stage> · created · <open|decided> · next:). The two gold plans
 predate it and use a freer "Status: Approved/Draft — …" line; follow this form, not theirs. -->
 
@@ -248,7 +248,7 @@ user there. Per project convention, **agents commit only through `/commit`** —
 ## What good looks like
 
 - **Every relative link and bare `requests/...` token you write must resolve on disk.** A live
-  (non-`_done/`) artifact body is scanned by `tests/test_request_links.py`, a blocking CI
+  (non-`_done/`) artifact body is scanned by `tests/test_doc_links.py`, a blocking CI
   check, so a dead pointer here fails the build rather than quietly misleading the next stage. Two
   shapes to watch: a **forward reference** to a file a later stage creates, and a deliberately
   **broken example path**. Put either inside a fenced code block (``` or ~~~, blockquoted is fine) —

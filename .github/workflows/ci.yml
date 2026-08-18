@@ -28,6 +28,14 @@ jobs:
         with:
           enable-cache: true
 
+      # Pinned rather than relying on the runner image shipping node. The claim that
+      # ubuntu-latest does was never measured, and pinning removes it from the chain
+      # entirely instead of confirming it.
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Set up Python
         run: uv python install 3.12
 
@@ -47,3 +55,24 @@ jobs:
         # -m "not gamedata" — the gamedata marker needs a local OOTP install,
         # which CI does not and must not have (ADR 0006).
         run: uv run pytest -m "not gamedata"
+
+      # The skills' own guards. They read only tracked files under .claude/skills/ —
+      # no network, no uv, no warehouse, no OOTP install — so nothing here belongs
+      # behind the gamedata marker.
+      #
+      # Listed by explicit path, never a glob: a glob that matches nothing shrinks to
+      # zero commands and the step passes vacuously, which is the failure mode these
+      # guards exist to catch. `set -e` makes the first non-zero exit fail the step.
+      #
+      # This step exists because verify_batching_guard.mjs was RED from the day it
+      # landed and nothing noticed for the life of the skill. A check nobody is forced
+      # to run is how that happens.
+      - name: Skill guards (node)
+        run: |
+          set -euo pipefail
+          node --version
+          node .claude/skills/implement-plan/tests/verify_batching_guard.mjs
+          node .claude/skills/implement-plan/tests/merge_fallback_guard.mjs
+          node .claude/skills/scope-feature/tests/merge_fallback_guard.mjs
+          node .claude/skills/create-implementation-plan/tests/merge_fallback_guard.mjs
+          node .claude/skills/create-implementation-plan/tests/merge_failure_repro.mjs

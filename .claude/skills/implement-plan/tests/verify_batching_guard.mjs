@@ -5,10 +5,12 @@
 // now DEDUPES the findings, groups them by location, and packs them into at most VERIFY_CAP batch
 // agents (+ the standalone ledger verifier, which stays outside the cap).
 //
-// The savings are worthless if the batching quietly loses findings, so this guard pins the four
+// The savings are worthless if the batching quietly loses findings, so this guard pins the five
 // properties that make it safe to trade agents for batches:
 //
-//   1. CAP + DEDUPE + COVERAGE — N findings across 7 lenses collapse to <= cap batch agents, the
+//   1. CAP + DEDUPE + COVERAGE — N findings raised across the 6 finding-emitting lenses of this
+//      run's 7-lens roster (the 7th, `acceptance`, answers a different schema and emits none)
+//      collapse to <= cap batch agents, the
 //      cross-lens duplicates merge (carrying BOTH raising reviewers), same-location findings land
 //      in the SAME batch, and EVERY surviving finding still gets its own verdict. Reviewer ids
 //      collide across lenses on purpose (every lens emits 'f1') — the panel's own vid stamping is
@@ -20,6 +22,11 @@
 //      specific degeneration (adjudicating the bucket as a set instead of per finding). It must be
 //      caught by the stub guard, retried once, and then counted as a FAILED lens — not accepted.
 //   4. verifyCap — the cap is overridable per run via args.
+//   5. FIXTURE/ROSTER AGREEMENT — every lens this file's fixture is keyed by must be a lens the panel
+//      actually requests. An unrequested key contributes nothing (reviewFor resolves it to []), so its
+//      findings vanish before dedupe and every count below reads as a defect in the code under test.
+//      This guard shipped red from day one for exactly that reason: two fixture keys named a sibling
+//      repo's specialists. Checked first, and it exits before the counting assertions can cascade.
 //
 // Exits non-zero if any scenario fails.
 //
@@ -51,11 +58,11 @@ const FINDINGS_BY_LENS = {
     { loc: 'transform/models/silver/dim_player.sql:31', title: 'a mid-season trade produces two open SCD2 intervals' },   // same file, different bug
     { loc: 'tests/test_extract_client.py:9', title: 'the test hits the live API instead of a committed fixture' },
   ],
-  'data-contract': [
+  warehouse: [
     { loc: 'transform/models/silver/fact_player_game.sql:88', title: 'declared grain has no uniqueness test' },           // dup of fidelity[1]
     { loc: 'transform/models/bronze/schema.yml:12', title: 'the new source is unregistered in sources.yml' },
   ],
-  extraction: [
+  parser: [
     { loc: 'src/ootp_ai/land/writer.py:60', title: 'no checkpoint, so a failed backfill restarts from zero' },       // same file, different bug
   ],
   'skill-quality': [
@@ -147,7 +154,7 @@ function makeArgs(extra) {
     planPath: 'requests/feature-requests/synthetic-batching/IMPLEMENTATION_PLAN.md',
     scopePath: 'requests/feature-requests/synthetic-batching/PROJECT_SCOPE.md',
     slug: 'synthetic-batching',
-    touchedAreas: ['transform', 'src', 'skills'],   // -> data-contract + extraction + skill-quality specialists
+    touchedAreas: ['transform', 'src', 'skills'],   // -> warehouse + parser + skill-quality specialists
     ...extra,
   }
 }
@@ -181,11 +188,45 @@ function makeAgent(calls, override) {
 const fails = []
 const CAP = 4   // the panel's default
 
+// One RED path, called from the fixture check below and from the tail of the file. Two places that
+// format failures would drift, and this file is here because comment/fixture drift went unnoticed.
+function reportRedAndExit() {
+  console.log('\nRED: acceptance verify-batching guard FAILED:')
+  for (const f of fails) console.log(`  - ${f}`)
+  process.exit(1)
+}
+
 // ── Scenario 1: CAP + DEDUPE + COVERAGE ─────────────────────────────────────────
 {
   const calls = []
   const r = await runPanel(makeAgent(calls), makeArgs())
   const s = (r && r.stats) || {}
+  // FIXTURE/ROSTER AGREEMENT — checked FIRST, because an orphaned lens invalidates every count below.
+  // `reviewFor` resolves an unknown key to [] (it must: the panel legitimately requests lenses this
+  // fixture does not stock). So a fixture key the panel never asks for contributes nothing and is
+  // invisible — which is exactly how this guard shipped red for its whole life, reporting the missing
+  // findings as a dedupe miscount in acceptance_panel.js, which turned out to be correct all along.
+  // Note this cannot live inside `reviewFor`: acceptance_panel.js's safeAgent catches every throw from
+  // the stub and degrades the lens, so the guard would report the wrong thing. It belongs here.
+  const requestedLenses = new Set(
+    calls.filter(c => c.label.startsWith('review:')).map(c => c.label.slice('review:'.length)),
+  )
+  if (requestedLenses.size === 0) {
+    fails.push('fixture: the panel requested NO review lenses — the harness is broken, not the fixture')
+  } else {
+    for (const key of Object.keys(FINDINGS_BY_LENS)) {
+      if (!requestedLenses.has(key)) {
+        fails.push(
+          `fixture: FINDINGS_BY_LENS has an orphaned lens '${key}' that the panel never requests — ` +
+          `its findings are silently dropped. The panel asked for: ${[...requestedLenses].sort().join(', ')}`,
+        )
+      }
+    }
+  }
+  // Bail before the counting assertions: they would all cascade off the dropped findings and bury
+  // the one line that explains them.
+  if (fails.length) reportRedAndExit()
+
   const batchCalls = calls.filter(c => c.label.startsWith('verify:b'))
   const batchLabels = [...new Set(batchCalls.map(c => c.label))]
   const vf = (r && r.verified_findings) || []
@@ -283,9 +324,7 @@ const CAP = 4   // the panel's default
 }
 
 if (fails.length) {
-  console.log('\nRED: acceptance verify-batching guard FAILED:')
-  for (const f of fails) console.log(`  - ${f}`)
-  process.exit(1)
+  reportRedAndExit()
 } else {
   console.log('\nGREEN: verify batching stays under the cap, merges only true duplicates, groups by location, adjudicates every finding against its own id, and degrades honestly when a batch dies or rubber-stamps.')
   process.exit(0)
