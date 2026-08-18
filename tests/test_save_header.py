@@ -23,7 +23,7 @@ from ootp_ai.parser.errors import (
     SaveFilenameMismatch,
     UnsupportedSaveVersion,
 )
-from ootp_ai.parser.header import read_header
+from ootp_ai.parser.header import MAGIC_PREFIX, looks_like_save_file, read_header
 
 
 def test_a_valid_v25_header_parses() -> None:
@@ -125,6 +125,51 @@ def test_a_truncated_header_raises_rather_than_reading_past_the_end() -> None:
 def test_an_empty_buffer_raises() -> None:
     with pytest.raises(MalformedHeader):
         read_header(b"", expected_filename="players.dat")
+
+
+# ── looks_like_save_file — the cheap classifier, previously untested ─────────
+#
+# This had no direct coverage before 2026-08-18, which was found while rewriting it onto
+# `data.startswith(MAGIC_PREFIX)`. It is the function a caller uses to filter a `*.dat`
+# glob before handing anything to `read_header`, so a wrong answer here means either
+# refusing a real save or feeding a ZIP to the header reader.
+
+
+def test_a_real_header_looks_like_a_save_file() -> None:
+    assert looks_like_save_file(make_header(filename="teams.dat"))
+
+
+def test_the_prefix_is_the_leading_null_and_the_magic_together() -> None:
+    """Pinned as one value, because splitting it is how both classic traps are written."""
+    assert MAGIC_PREFIX == b"\x00OOTP"
+
+
+def test_magic_at_offset_zero_does_not_look_like_a_save_file() -> None:
+    """The symmetric trap: `b"OOTP"` at offset 0 is what a naive writer produces."""
+    assert not looks_like_save_file(make_header(magic_at_offset_zero=True))
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b"\x00",
+        b"\x00OOT",  # one byte short of the prefix
+        b"PK\x03\x04zipfile",  # text_data.dat really is a ZIP
+        b"plain text log",  # flag_save_completed.dat really is text
+    ],
+)
+def test_things_that_are_not_record_files_are_rejected(payload: bytes) -> None:
+    """A `*.dat` glob catches two files that were never records; this is what filters them."""
+    assert not looks_like_save_file(payload)
+
+
+def test_the_classifier_never_raises_on_a_short_buffer() -> None:
+    """It is a filter, not a guard — raising here would defeat the point of calling it."""
+    for width in range(len(MAGIC_PREFIX) + 2):
+        # Slicing past the end yields the whole prefix, so anything at or beyond the
+        # full width is a match — the point is that no width raises.
+        assert looks_like_save_file(MAGIC_PREFIX[:width]) is (width >= len(MAGIC_PREFIX))
 
 
 def test_every_header_error_shares_one_base_so_callers_can_catch_broadly() -> None:

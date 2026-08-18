@@ -76,7 +76,13 @@ FILENAME_FIELD_LEN = 50
 #: as one. `measured` — identical across all 16 shared record files in three saves.
 STABLE_PREFIX_LEN = 75
 
-_MAGIC_PREFIX_LEN = 1 + len(MAGIC)
+#: The leading null **and** the magic, as one value. Written this way because the two
+#: naive readings of this header are the traps the format catalog records — checking
+#: `data[0:4]` against `b"OOTP"` rejects every valid save — and a single prefix constant
+#: makes both impossible to write by accident.
+MAGIC_PREFIX = bytes([LEADING_NULL]) + MAGIC
+
+_MAGIC_PREFIX_LEN = len(MAGIC_PREFIX)
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,9 +115,7 @@ def looks_like_save_file(data: bytes) -> bool:
     to `read_header` gets a `MalformedHeader` on two files that were never records.
     This lets such a caller filter first instead of loosening the reader.
     """
-    if len(data) < _MAGIC_PREFIX_LEN:
-        return False
-    return data[0] == LEADING_NULL and data[1:_MAGIC_PREFIX_LEN] == MAGIC
+    return data.startswith(MAGIC_PREFIX)
 
 
 def read_header(data: bytes, expected_filename: str) -> SaveHeader:
