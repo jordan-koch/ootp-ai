@@ -24,6 +24,7 @@ from typing import Any
 import pytest
 
 from fixtures.synthetic import (
+    PLAYER_ASSIGNMENT_BITS,
     PLAYER_DIGEST_LEN,
     make_player_head,
     make_players_file,
@@ -56,6 +57,13 @@ SIM = (18, 3, 2024)
 EXTRA_BEYOND_THE_EXPORT = frozenset({42001, 49008, 50468, 50469, 132324})
 TRUTH_ACTIVE_PLAYERS = 18_072
 TRUTH_PLAYER_RECORDS = TRUTH_ACTIVE_PLAYERS + len(EXTRA_BEYOND_THE_EXPORT)
+
+#: `measured` 2026-08-18 — the export writes `league_id` negative on exactly this many
+#: records while the save stores it positive. Those records are precisely the players
+#: carrying a `team_id` with no `list_id = 1` row in `team_roster` (7,546 against 7,370),
+#: which is what makes the sign look like an attached-but-not-rostered marker
+#: (`inferred`). Pinned as an exact count, never a tolerance.
+LEAGUE_ID_NEGATED_BY_THE_EXPORT = 176
 
 
 # ── offline: the framing rules ───────────────────────────────────────────────
@@ -164,6 +172,101 @@ def test_a_body_full_of_zeros_does_not_swallow_the_next_record() -> None:
         bodies=(b"\x00" * 200, b"\xab" * 64),
     )
     assert [p.player_id for p in read_players(data).players] == [11, 12]
+
+
+def test_an_absent_assignment_field_reads_as_zero_not_as_missing() -> None:
+    """Drop-zero elides a falsy value, so absent and zero are the same statement.
+
+    A free agent has no team. That is a fact about the player, not a gap in the file, so
+    the walk must not dress it up as `None` — unlike `teams.py`'s droppable string slots,
+    where absent and empty really are indistinguishable.
+    """
+    head = make_player_head(player_id=9, sim_date=SIM)  # no assignments -> mask 0x00
+    (player,) = read_players(make_players_file((head,), sim_date=SIM)).players
+    assert player.team_id == 0
+    assert player.organization_id == 0
+    assert player.league_id == 0
+    assert player.last_team_id == 0
+    assert player.free_agent is False
+
+
+@pytest.mark.parametrize(
+    "assignments",
+    [
+        {"team_id": 4, "organization_id": 4, "league_id": 203},
+        {"organization_id": 16, "league_id": 204},
+        {"last_team_id": 172, "last_organization_id": 16, "last_league_id": 234},
+        {
+            "team_id": 4,
+            "last_team_id": 172,
+            "organization_id": 4,
+            "league_id": 203,
+            "last_league_id": 234,
+        },
+        {
+            "team_id": 16,
+            "last_team_id": 172,
+            "organization_id": 16,
+            "last_organization_id": 16,
+            "league_id": 203,
+            "last_league_id": 234,
+        },
+    ],
+)
+def test_every_mask_shape_round_trips(assignments: dict[str, int]) -> None:
+    """The five non-empty masks observed in the real saves, built and read back.
+
+    The fixture computes the mask from which values are non-zero — the same rule the
+    writer uses — so a round trip here exercises the bit ordering rather than a
+    hand-copied byte.
+    """
+    head = make_player_head(player_id=11, sim_date=SIM, assignments=assignments)
+    (player,) = read_players(make_players_file((head,), sim_date=SIM)).players
+    for field in PLAYER_ASSIGNMENT_BITS:
+        assert getattr(player, field) == assignments.get(field, 0), field
+
+
+def test_a_negative_assignment_value_survives() -> None:
+    """The reads are signed. Unsigned would turn -1 into a plausible-looking id.
+
+    `measured`: the export carries negative values in these columns, so this is not a
+    hypothetical — reading them as `u32` yields 4,294,967,295, which looks like data.
+    """
+    head = make_player_head(
+        player_id=13, sim_date=SIM, assignments={"team_id": 4, "league_id": -203}
+    )
+    (player,) = read_players(make_players_file((head,), sim_date=SIM)).players
+    assert player.league_id == -203
+    assert player.team_id == 4
+
+
+def test_the_free_agent_bit_is_read_from_the_second_mask() -> None:
+    heads = (
+        make_player_head(player_id=20, sim_date=SIM, free_agent=True),
+        make_player_head(player_id=21, sim_date=SIM, free_agent=False),
+    )
+    players = read_players(make_players_file(heads, sim_date=SIM)).players
+    assert [p.free_agent for p in players] == [True, False]
+
+
+def test_the_mask_governs_the_read_even_when_it_disagrees_with_the_values() -> None:
+    """The mask is authoritative, not the values — which is what makes framing work.
+
+    Built with a mask claiming only `team_id` while three values are supplied: the walk
+    must consume exactly one `u32` and leave the rest to the record body, because a walk
+    that inferred the count from anything else would desynchronise the next record.
+    """
+    head = make_player_head(
+        player_id=31,
+        sim_date=SIM,
+        assignments={"team_id": 7, "organization_id": 7, "league_id": 203},
+        assignment_mask=0b000001,
+    )
+    following = make_player_head(player_id=32, sim_date=SIM)
+    parsed = read_players(make_players_file((head, following), sim_date=SIM)).players
+    assert [p.player_id for p in parsed] == [31, 32]
+    assert parsed[0].team_id == 7
+    assert parsed[0].organization_id == 0, "a clear bit must not consume a value"
 
 
 def test_a_non_ascending_id_is_not_a_record() -> None:
@@ -470,6 +573,91 @@ def test_every_landed_field_matches_the_export_exactly() -> None:
 
     assert len(rows) == TRUTH_ACTIVE_PLAYERS
     assert not mismatches, "parser disagrees with the export:\n" + "\n".join(mismatches[:20])
+
+
+@_gamedata
+def test_the_club_assignment_matches_the_export_on_every_row() -> None:
+    """The mask decode, held to the whole answer key rather than a sample.
+
+    `league_id` is compared by magnitude and the sign difference is asserted to be
+    **exactly** the 176 records the export writes negative — not tolerated as slack. The
+    save stores those positive; imitating the export's rendering would be fitting the
+    parser to the artifact instead of the bytes.
+    """
+    settings = _settings()
+    if settings.truth_save is None:
+        pytest.skip("no standard-mode save configured")
+    parsed = {p.player_id: p for p in _walk(settings.truth_save).players}
+
+    with _truth_cursor(settings) as cursor:
+        cursor.execute(
+            "SELECT player_id, team_id, last_team_id, organization_id,"
+            " last_organization_id, league_id, last_league_id, free_agent"
+            " FROM players WHERE retired = 0"
+        )
+        rows = cursor.fetchall()
+
+    exact = (
+        "team_id",
+        "last_team_id",
+        "organization_id",
+        "last_organization_id",
+        "last_league_id",
+    )
+    mismatches: list[str] = []
+    negated = 0
+    for row in rows:
+        player = parsed[row["player_id"]]
+        mismatches.extend(
+            f"player {row['player_id']}: {field} parsed {getattr(player, field)!r}, "
+            f"export {row[field]!r}"
+            for field in exact
+            if getattr(player, field) != (row[field] or 0)
+        )
+        if player.free_agent != bool(row["free_agent"]):
+            mismatches.append(f"player {row['player_id']}: free_agent disagrees")
+
+        wanted_league = row["league_id"] or 0
+        if player.league_id != wanted_league:
+            if player.league_id == -wanted_league:
+                negated += 1
+            else:
+                mismatches.append(
+                    f"player {row['player_id']}: league_id parsed "
+                    f"{player.league_id!r}, export {wanted_league!r}"
+                )
+
+    assert len(rows) == TRUTH_ACTIVE_PLAYERS
+    assert not mismatches, "assignment decode disagrees with the export:\n" + "\n".join(
+        mismatches[:20]
+    )
+    assert negated == LEAGUE_ID_NEGATED_BY_THE_EXPORT, (
+        f"{negated} records differ from the export by sign, expected "
+        f"{LEAGUE_ID_NEGATED_BY_THE_EXPORT}. That population is not slack — it is the "
+        "set the export marks as attached-but-not-rostered, and a change in it is a "
+        "change in what the sign means."
+    )
+
+
+@_gamedata
+def test_a_free_agent_carries_no_club_and_a_rostered_player_does() -> None:
+    """An internal consistency check that needs no export, so it runs on every save.
+
+    This is the half that still works on `OOTP-AI.lg`, where there is nothing to compare
+    against — a decode that drifted would show up as free agents holding team ids.
+    """
+    settings = _settings()
+    for label, save in _saves(settings):
+        parsed = _walk(save)
+        contradictions = [p.player_id for p in parsed.players if p.free_agent and p.team_id != 0]
+        assert not contradictions, (
+            f"{label}: {len(contradictions)} players are flagged free agents while "
+            f"holding a team id, e.g. {contradictions[:5]}"
+        )
+        assert any(p.team_id for p in parsed.players), (
+            f"{label}: not one player carries a team id, so the mask decode is reading "
+            "nothing at all"
+        )
 
 
 @_gamedata

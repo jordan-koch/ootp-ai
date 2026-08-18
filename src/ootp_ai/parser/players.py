@@ -49,12 +49,31 @@ The proof is a clean natural experiment. `last_team_id` sits immediately before
 `team_id`. A player who has never changed clubs has `last_team_id = 0`, and for that
 player the field is **absent**, so `team_id` lands four bytes earlier. `measured`:
 `team_id` sits at record+58 for 86.9% of rostered players and record+62 for the other
-13.1%, and the split falls exactly on whether `last_team_id` is zero.
+13.1%, and the split falls exactly on whether `last_team_id` is zero. **Reading
+`team_id` at a constant offset therefore scores ~87%** — high enough to look finished
+against a spot-check and wrong for one club in eight.
 
-**This is why nothing past `experience` is landed here.** Reading `team_id` at a
-constant offset scores ~87% — high enough to look finished against a spot-check and
-wrong for one club in eight, which is precisely the failure the fixed-offset ban exists
-to prevent. Resolving the drop-zero region is real work and it is not this walk's.
+**The region is not guessed at, it is read from a presence mask.** The byte at
+record+55 is a six-bit map over six `u32` fields, written in bit order with absent ones
+skipped, each field followed by its `last_` counterpart:
+
+| bit | field | | bit | field |
+|---|---|---|---|---|
+| 0 | `team_id` | | 3 | `last_organization_id` |
+| 1 | `last_team_id` | | 4 | `league_id` |
+| 2 | `organization_id` | | 5 | `last_league_id` |
+
+`verified` — the mask takes exactly six values across all three saves (`0x00`, `0x14`,
+`0x15`, `0x2a`, `0x37`, `0x3f`), each maps to one zero-ness signature with no
+exceptions, and decoding it this way reproduces all six columns on **every** `retired = 0`
+export row. A second mask at record+56 carries `free_agent` in bit 0, also exact on all
+18,072. Its other bits are undecoded and are not guessed at.
+
+**Still out of reach: `position`, `role`, `bats`, `throws`, `historical_id`.** None of
+them is ever zero, so no drop-zero mask governs them; they are written unconditionally
+past further variable content this walk does not decode. Brute-force scoring against the
+full answer key — from the mask run's end and from the `historical_id` string anchor —
+peaked at ~48%, which is not a mapping, it is a coincidence rate.
 
 ## 3. Framing is a search for a zero run, not a separator byte
 
@@ -157,9 +176,10 @@ BYTE_ACCOUNTING_TIER = "diagnostic"
 
 TIER_RATIONALE = (
     "Reached: the header, the version guard, the six-u32 header tail, the file preamble "
-    "(a zero run, a u32 constant and a length-prefixed 64-character digest), and every "
-    "record's 37-byte fixed head, for all 18,077 records of both test saves and all "
-    "22,046 of the managed league. Not reached: the rest of each record. A record runs "
+    "(a zero run, a u32 constant and a length-prefixed 64-character digest), every "
+    "record's 37-byte fixed head, and the mask-governed club-assignment block that "
+    "follows it, for all 18,077 records of both test saves and all 22,046 of the managed "
+    "league. Not reached: the rest of each record. A record runs "
     "1,018 to 9,229 bytes and this walk decodes the first 37, crossing the remainder by "
     "searching forward for the next record's zero-run frame rather than by reading it. "
     "Calling this walk strict would be a false claim about roughly 97% of the file. "
@@ -226,6 +246,46 @@ _GAP_AFTER_AGE = 1
 _GAP_AFTER_NATION = 5
 _GAP_AFTER_HEIGHT = 1
 
+#: Between `experience` and the assignment block. Fourteen bytes of high-entropy values in
+#: the 60-200 range — personality and injury-proneness territory on the evidence of the
+#: export's column list, which makes them **rating-shaped and therefore withheld**
+#: (ADR 0012: an unclassifiable field is treated as a true rating).
+_GAP_AFTER_EXPERIENCE = 14
+
+#: A `u32` immediately before the assignment masks. **It is not a constant, and that
+#: nearly went wrong.** It reads 203 for every one of the 18,077 records in *both* test
+#: saves, which is exactly what a format constant looks like — and the managed league
+#: carries six distinct values there. Asserting 203 would have passed every test
+#: available and broken on the only save that matters. Crossed, not interpreted;
+#: `unconfirmed`. `tests/fixtures/synthetic.py` records the same lesson about a different
+#: field: vary the save before believing a constant.
+_UNCLASSIFIED_BEFORE_MASKS = 4
+
+#: The assignment presence mask, at record+55. Six bits over six `u32` fields, written in
+#: bit order with absent ones skipped. `verified` against every `retired = 0` export row:
+#: the mask takes exactly six values across all three saves — 0x00, 0x14, 0x15, 0x2a,
+#: 0x37, 0x3f — and each maps to one zero-ness signature with no exceptions.
+#:
+#: The pairing is what makes the order guessable in the first place: each field is
+#: followed by its `last_` counterpart.
+_ASSIGNMENT_BITS: tuple[str, ...] = (
+    "team_id",
+    "last_team_id",
+    "organization_id",
+    "last_organization_id",
+    "league_id",
+    "last_league_id",
+)
+
+#: A second mask at record+56. Only bit 0 is decoded — `free_agent`, `verified`
+#: 18,072/18,072. The remaining bits are **not** understood and are deliberately not
+#: guessed at; several plausible columns were scored against them and none agreed.
+_FREE_AGENT_BIT = 0
+
+#: One byte between the second mask and the assignment run. Takes 2, 6, 34 and 38 across
+#: the saves, so it is neither a mask this walk understands nor a constant. `unconfirmed`.
+_GAP_BEFORE_ASSIGNMENTS = 1
+
 
 class PlayerRecordLayout(SaveFormatError):  # noqa: N818
     """A valid version-25 `players.dat` whose records are not shaped as measured.
@@ -238,11 +298,12 @@ class PlayerRecordLayout(SaveFormatError):  # noqa: N818
 
 @dataclass(frozen=True, slots=True)
 class PlayerRecord:
-    """One player's fixed head. Deliberately minimal — see the module docstring.
+    """One player's head and club assignment. Deliberately minimal.
 
-    No ratings, by design and permanently (ADR 0012). No `team_id`, `position`, `bats`
-    or `throws` either, which is a *this walk* limit rather than a policy one: those sit
-    past the drop-zero region and cannot yet be read without guessing.
+    No ratings, by design and permanently (ADR 0012). No `position`, `role`, `bats`,
+    `throws` or `historical_id` either — a *this walk* limit rather than a policy one:
+    none of them is ever zero, so the presence masks below do not govern them, and they
+    sit past further variable content this walk does not yet decode.
     """
 
     player_id: int
@@ -258,6 +319,27 @@ class PlayerRecord:
     height: int
     uniform_number: int
     experience: int
+
+    # ── club assignment, from the presence mask at record+55 ─────────────────
+    #
+    # **Zero here means zero, not "missing".** The encoding elides a field whose value is
+    # falsy, so an absent field and a field holding 0 are the same statement: this player
+    # has no team. That is why these are plain ints rather than `int | None` — unlike the
+    # droppable *string* slots in `teams.py`, where absent and empty really are
+    # indistinguishable and `None` is the only honest reading.
+    team_id: int
+    last_team_id: int
+    organization_id: int
+    last_organization_id: int
+    #: **The save stores this positive; the export renders it negative on 176 records.**
+    #: This is what the bytes hold, not what the export prints. `inferred`: those 176 are
+    #: exactly the players carrying a `team_id` with no `list_id = 1` row in
+    #: `team_roster`, so the sign appears to mark "attached to a club but not rostered".
+    #: A consumer that needs the export's convention must apply it deliberately.
+    league_id: int
+    last_league_id: int
+    #: From bit 0 of the second mask at record+56. `verified` 18,072/18,072.
+    free_agent: bool
 
 
 @dataclass(frozen=True, slots=True)
@@ -385,6 +467,13 @@ def _read_record(cursor: Cursor) -> PlayerRecord:
     uniform_number = cursor.u8()
     experience = cursor.u8()
 
+    cursor.skip(_GAP_AFTER_EXPERIENCE)
+    cursor.skip(_UNCLASSIFIED_BEFORE_MASKS)
+    assignment_mask = cursor.u8()
+    flag_mask = cursor.u8()
+    cursor.skip(_GAP_BEFORE_ASSIGNMENTS)
+    assignments = _read_assignments(cursor, assignment_mask)
+
     return PlayerRecord(
         player_id=player_id,
         name_indices=name_indices,
@@ -396,7 +485,26 @@ def _read_record(cursor: Cursor) -> PlayerRecord:
         height=height,
         uniform_number=uniform_number,
         experience=experience,
+        free_agent=bool(flag_mask & (1 << _FREE_AGENT_BIT)),
+        **assignments,
     )
+
+
+def _read_assignments(cursor: Cursor, mask: int) -> dict[str, int]:
+    """Read the `u32`s the assignment mask says are present, in bit order.
+
+    A bit that is clear does not mean "unknown" — it means the field's value is zero and
+    the writer elided it. So the absent case yields 0 rather than `None`, which is both
+    what the export holds and what the domain means: no team.
+
+    The reads are signed. `measured`: the export carries negatives in these columns, and
+    reading them unsigned would turn a -1 into 4,294,967,295 — a plausible-looking id.
+    """
+    values = dict.fromkeys(_ASSIGNMENT_BITS, 0)
+    for bit, field in enumerate(_ASSIGNMENT_BITS):
+        if mask & (1 << bit):
+            values[field] = cursor.i32()
+    return values
 
 
 # ── framing ──────────────────────────────────────────────────────────────────

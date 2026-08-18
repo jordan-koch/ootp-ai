@@ -226,6 +226,19 @@ def player_age_on(birth: tuple[int, int, int], sim_date: tuple[int, int, int]) -
     return s_year - b_year - ((s_month, s_day) < (b_month, b_day))
 
 
+#: The assignment presence mask's bit order — each field followed by its `last_`
+#: counterpart. `verified` against every `retired = 0` export row.
+PLAYER_ASSIGNMENT_BITS = (
+    "team_id",
+    "last_team_id",
+    "organization_id",
+    "last_organization_id",
+    "league_id",
+    "last_league_id",
+)
+PLAYER_FREE_AGENT_BIT = 0
+
+
 def make_player_head(
     *,
     player_id: int = 47035,
@@ -239,18 +252,40 @@ def make_player_head(
     height: int = 188,
     uniform_number: int = 34,
     experience: int = 5,
+    assignments: dict[str, int] | None = None,
+    free_agent: bool = False,
+    assignment_mask: int | None = None,
     gap_fill: int = PLAYER_GAP_FILL,
 ) -> bytes:
-    """One player record's 37-byte fixed head, in the order the bytes give it.
+    """One player record's head, through the club-assignment block.
 
     `age` defaults to the value consistent with `birth` and `sim_date`, because that
     agreement is what the walk frames on. Passing it explicitly is how a test builds the
     **impostor** that broke the first version of the walker: a run of bytes that has an
     ascending id and a parseable date but an age that cannot belong to it.
+
+    `assignments` maps any of `PLAYER_ASSIGNMENT_BITS` to a value; **the mask is computed
+    from which values are non-zero**, exactly as the writer does it, so a fixture cannot
+    accidentally disagree with its own mask. `assignment_mask` overrides that, which is
+    how a test builds a record whose mask *lies* about what follows.
     """
     day, month, year = birth
     stated_age = player_age_on(birth, sim_date) if age is None else age
     gap = bytes([gap_fill])
+
+    values = dict.fromkeys(PLAYER_ASSIGNMENT_BITS, 0)
+    values.update(assignments or {})
+    mask = 0
+    for bit, name in enumerate(PLAYER_ASSIGNMENT_BITS):
+        if values[name]:
+            mask |= 1 << bit
+    written = b"".join(
+        struct.pack("<i", values[name])
+        for bit, name in enumerate(PLAYER_ASSIGNMENT_BITS)
+        if (assignment_mask if assignment_mask is not None else mask) & (1 << bit)
+    )
+    flags = (1 << PLAYER_FREE_AGENT_BIT) if free_agent else 0
+
     return (
         struct.pack("<I", player_id)
         + struct.pack("<I", name_indices[0])
@@ -267,6 +302,15 @@ def make_player_head(
         + gap
         + struct.pack("<B", uniform_number)
         + struct.pack("<B", experience)
+        # Rating-shaped bytes the walk crosses and withholds, then an unclassified u32
+        # that looks like a constant in the test saves and is not one in the managed
+        # league — the fixture varies it so nothing can start depending on 203.
+        + gap * 14
+        + struct.pack("<I", 203 + (player_id % 3) * 18)
+        + struct.pack("<B", assignment_mask if assignment_mask is not None else mask)
+        + struct.pack("<B", flags)
+        + gap
+        + written
     )
 
 
