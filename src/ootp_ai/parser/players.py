@@ -151,6 +151,13 @@ from dataclasses import dataclass
 
 from ootp_ai.parser.errors import SaveFormatError
 from ootp_ai.parser.header import read_header_from
+from ootp_ai.parser.lookahead import (
+    U8_WIDTH,
+    peek_date_parts,
+    peek_u8,
+    peek_u32,
+    zero_run_width,
+)
 from ootp_ai.parser.primitives import Cursor, SaveDate
 
 __all__ = [
@@ -421,8 +428,8 @@ def _read_preamble(cursor: Cursor, data: bytes) -> str:
     because the cursor exposes no lookahead by construction — it can only consume — so
     "advance while the next byte is zero" has to read the byte before deciding.
     """
-    while cursor.remaining() and data[cursor.position] == 0:
-        cursor.skip(1)
+    while peek_u8(data, cursor.position) == 0:
+        cursor.skip(U8_WIDTH)
 
     marker = cursor.u32()
     if marker != _PREAMBLE_CONSTANT:
@@ -525,9 +532,12 @@ def _next_record_start(
         if run < 0:
             return None
 
+        # Extend to the end of the maximal zero run. `zero_run_width` requires a limit —
+        # an unbounded scan over 32 MB is how a mis-framed walk becomes a hang — and
+        # `len(data) - after` is exactly the old loop's bound, so this is the same scan
+        # rather than a new cap that could leave `after` mid-run.
         after = run + len(_PAD_RUN)
-        while after < len(data) and data[after] == 0:
-            after += 1
+        after += zero_run_width(data, after, limit=len(data) - after)
 
         for candidate in range(after - _ALIGNMENT_WINDOW + 1, after + 1):
             if candidate >= position and _looks_like_record(data, candidate, previous_id, sim_date):
@@ -546,15 +556,15 @@ def _looks_like_record(data: bytes, position: int, previous_id: int, sim_date: S
     its size. The age agreement is what closes it, because a run of bytes has to satisfy
     three mutually-constrained fields at once to survive.
     """
-    player_id = _peek_u32(data, position)
+    player_id = peek_u32(data, position)
     if player_id is None or not previous_id < player_id <= _MAX_PLAYER_ID:
         return False
 
-    birth = _peek_date(data, position + _BIRTH_DATE_LOOKAHEAD)
+    birth = _peek_valid_date(data, position + _BIRTH_DATE_LOOKAHEAD)
     if birth is None or not _MIN_BIRTH_YEAR <= birth.year <= _MAX_BIRTH_YEAR:
         return False
 
-    stated_age = _peek_u8(data, position + _AGE_LOOKAHEAD)
+    stated_age = peek_u8(data, position + _AGE_LOOKAHEAD)
     implied_age = _years_between(birth, sim_date)
     if stated_age is None or implied_age is None:
         return False
@@ -569,24 +579,17 @@ def _years_between(birth: SaveDate, on: SaveDate) -> int | None:
     return end.year - start.year - ((end.month, end.day) < (start.month, start.day))
 
 
-def _peek_u8(data: bytes, position: int) -> int | None:
-    """A byte at a **computed** position, for lookahead. Never a literal offset."""
-    return None if position < 0 or position >= len(data) else data[position]
+def _peek_valid_date(data: bytes, position: int) -> SaveDate | None:
+    """A real calendar date at `position`, or `None` if those bytes are not one.
 
-
-def _peek_u32(data: bytes, position: int) -> int | None:
-    """A `u32` at a **computed** position, for lookahead. Never a literal offset."""
-    if position < 0 or position + 4 > len(data):
+    The *reading* moved to `lookahead.peek_date_parts`; the *validation* stays here,
+    because it is not shared. `world.py` treats a zero year as legitimate structural
+    absence in a calendar record while this walk rejects it when framing a player — so the
+    seam hands back raw parts and each caller applies its own rule.
+    """
+    parts = peek_date_parts(data, position)
+    if parts is None:
         return None
-    return int.from_bytes(data[position : position + 4], "little")
-
-
-def _peek_date(data: bytes, position: int) -> SaveDate | None:
-    """A `u8 day, u8 month, u16 year` at a computed position, or `None` if not a date."""
-    if position < 0 or position + 4 > len(data):
-        return None
-    day = data[position]
-    month = data[position + 1]
-    year = int.from_bytes(data[position + 2 : position + 4], "little")
+    day, month, year = parts
     candidate = SaveDate(day=day, month=month, year=year)
     return candidate if candidate.as_date() is not None else None
