@@ -218,5 +218,5 @@ just `requests/`. **Recommendation, not a ruling** — it is the plan panel's to
 The batching guard goes green and stage 4's Verify phase becomes proven — but the
 **doc-link guard's direction is undecided**, so `tests/test_doc_links.py` still rejects
 content six skills promise is safe, and the code-span workaround stays load-bearing for
-every artifact written until it lands. `requests/bugfix-requests/leak-guard-blind-to-untracked-files/`
+every artifact written until it lands. `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/`
 is a separate defect and is untouched by any of this.

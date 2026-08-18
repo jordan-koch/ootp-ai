@@ -81,7 +81,9 @@ is the one you are already following.
   paths yourself before handing off. `tests/test_doc_links.py` does **not** share this
   limitation: it uses `Path.rglob("*.md")` and sees untracked files. *(Corrected 2026-08-16
   at the doc gate — this entry originally named both guards, and the wrong half taught
-  agents to work around a check that works.)* · evidence: `tests/test_no_leaks.py`
+  agents to work around a check that works.)* **SUPERSEDED 2026-08-17 — the workaround is
+  no longer needed; see the correction at the end of this file.** ·
+  evidence: `tests/test_no_leaks.py`
   `tracked_text_files()` vs `tests/test_doc_links.py` `markdown_files()` · tag: harness
 - **2026-08-16** · `measured` · Ruff `N818` demands an `Error` suffix on every exception
   class, but the offline suite imports `MalformedHeader`, `UnsupportedSaveVersion`,
@@ -313,3 +315,25 @@ is the one you are already following.
   The guards caught it in seconds; nothing in CI would have. Prefer plain words in panel
   prose, and run the `.mjs` guards after any panel edit. · evidence:
   `.claude/skills/create-implementation-plan/plan_panel.js` · tag: tooling
+- **2026-08-17** · `verified` · **The leak guard now sees untracked files — the 2026-08-16
+  entry above is superseded and its workaround is obsolete.** `scannable_text_files()`
+  (renamed from `tracked_text_files`) enumerates
+  `git ls-files --cached --others --exclude-standard`, so a file you just wrote IS scanned;
+  a green suite now means something about new files. You no longer need to import
+  `PATTERNS` and hand-scan before handing off. Two things it still does not see, by design:
+  anything `.gitignore` covers (so `var/` scratch stays out), and any suffix outside the
+  `keep` set. · evidence: `tests/test_leak_guard_scope.py` · tag: tooling
+- **2026-08-17** · `measured` · **`git ls-files` C-quotes non-ASCII paths, and
+  `subprocess(text=True)` decodes as the platform's preferred encoding — cp1252 here, not
+  UTF-8.** A file with an accented name came back wrapped in double quotes with octal
+  escapes, so its apparent suffix carried a trailing quote, failed the extension filter and
+  was dropped **silently**. Pass `-z` and decode the bytes explicitly as UTF-8 with
+  `surrogateescape`. Any `git ls-files` call that filters on suffix has this bug until it
+  does both. · evidence: `tests/test_no_leaks.py` `git_paths` · tag: tooling
+- **2026-08-17** · `measured` · **A later `!negation` in `.gitignore` punches a hole clean
+  through an earlier block, because git is last-match-wins.** `players.csv` at the repo root
+  is ignored; `tests/fixtures/players.csv` and `datasets/x.dat` are **not**, because
+  `!tests/fixtures/**` and `!datasets/**` sit below the game-data block. Also `*.lg/` matches
+  a directory only — a plain `foo.lg` file was never ignored at all. Check with
+  `git check-ignore --no-index <path>` rather than reading the file top-down. · evidence:
+  `tests/test_no_leaks.py` `game_data_offenders` · tag: tooling

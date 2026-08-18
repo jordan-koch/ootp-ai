@@ -22,6 +22,9 @@ var/
 # Developments' intellectual property, not ours. This repo holds the CODE that
 # reads them and the SCHEMA knowledge we derived — never the data itself.
 # Paths to both resolve from .env; see .env.example and ADR 0006.
+# Both forms: `*.lg/` alone matches only a DIRECTORY, so a plain file named `foo.lg`
+# was not ignored. Measured 2026-08-17 with `git check-ignore --no-index`.
+*.lg
 *.lg/
 saved_games/
 players.csv

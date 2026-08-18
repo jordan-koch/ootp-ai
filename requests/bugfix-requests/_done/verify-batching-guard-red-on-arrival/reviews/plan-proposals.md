@@ -2,7 +2,7 @@
      occurrence of this checkout's repo root was rewritten to a repo-relative path before
      staging -- the repo is PUBLIC and tests/test_no_leaks.py bans drive letters. The guard
      could not have caught it here: it enumerates via `git ls-files`, so it is blind to an
-     untracked file (see requests/bugfix-requests/leak-guard-blind-to-untracked-files/).
+     untracked file (see requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/).
      Only the path prefixes changed; no other content was altered.
      REPOINTED: when this request was archived, every `requests/bugfix-requests/<slug>/`
      path in this file was rewritten to its `_done/` location so a reader can still follow
@@ -986,7 +986,7 @@ Panel health: planners_ok 3, adversaries_ok 2, meta_audit_ok 1, degraded_lenses 
         "Set the `IMPLEMENTATION_PLAN.md` header to `planned Â· created <today> Â· decided Â· next: implement` (the track grammar, matching `requests/feature-requests/first-sight/IMPLEMENTATION_PLAN.md` line 1) â€” not the `plan` the stage-3 template currently prescribes, which Phase 4 corrects.",
         "Update the Index row at `requests/bugfix-requests/README.md:53` Stage cell as the work advances: `diagnosed` -> `planned` -> `fixed`. `/commit` owns this (`commit/SKILL.md:114-138`); let it, and never mark ahead.",
         "Write the IMPLEMENTATION_REPORT with the before/after guard output pasted verbatim, including the deliberately-corrupted-copy runs from Phase 3. A green guard nobody has seen fail is a guard nobody has tested.",
-        "State plainly what this request does NOT close: `requests/bugfix-requests/_done/doc-link-guard-mismatch/`'s gated decision is still open, so the code-span citation convention remains mandatory for every artifact; and `requests/bugfix-requests/leak-guard-blind-to-untracked-files/` is untouched.",
+        "State plainly what this request does NOT close: `requests/bugfix-requests/_done/doc-link-guard-mismatch/`'s gated decision is still open, so the code-span citation convention remains mandatory for every artifact; and `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/` is untouched.",
         "Consider â€” do not assume â€” the RCA's Hardening item 8 (sweep the remaining ported artifacts for domain residue of the `1230 games` kind). Two instances found by accident in one sitting is weak evidence that a deliberate pass would find none. If you do not run it, say so and leave it as a follow-up rather than implying the sweep happened.",
         "EVERY citation you write in these documents is an inline code span, never a Markdown link. `tests/test_doc_links.py` has no fence awareness (line 10) and does not strip a `:123` suffix (line 30), so an ordinary citation turns CI red. This is a live workaround, and forgetting it is how this phase fails."
       ],

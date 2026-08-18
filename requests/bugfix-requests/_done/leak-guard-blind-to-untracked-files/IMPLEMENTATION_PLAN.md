@@ -25,8 +25,8 @@ offline suite ran green.
 
 | # | File | Why |
 |---|---|---|
-| 1 | `requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md` | **The decided artifact — consume it, don't re-open it.** Verdict, the measured enumeration table, and the tiered fix posture whose gated block disposes the four directions. **Two of its statements are now known wrong and are corrected here, not inherited** — see §5 D6 |
-| 2 | `requests/bugfix-requests/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md` | Context only. Its Open Questions were all disposed by the RCA; do not re-litigate them |
+| 1 | `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md` | **The decided artifact — consume it, don't re-open it.** Verdict, the measured enumeration table, and the tiered fix posture whose gated block disposes the four directions. **Two of its statements are now known wrong and are corrected here, not inherited** — see §5 D6 |
+| 2 | `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/BUGFIX_REQUEST.md` | Context only. Its Open Questions were all disposed by the RCA; do not re-litigate them |
 | 3 | `tests/test_no_leaks.py` | The file being fixed. 117 lines carrying **two independent enumerations**: `tracked_text_files()` at `:31` (shelling out at `:33`) and `test_game_data_is_not_tracked()` at `:97` (shelling out at `:100`). Also `EXEMPT` `:16`, `EXEMPT_PREFIXES` `:18` (empty), `PATTERNS` `:24`, the `keep` suffix set `:39`, the exempt filter `:43`, and the **in-module call site at `:83`** |
 | 4 | `tests/test_leak_guard_scope.py` | **The committed red repro and the acceptance contract.** 7 tests; `test_an_untracked_file_is_visible_to_the_leak_guard` at `:62` is the red one, the other six are counterweights a naive widening breaks. `untracked_file()` at `:38` is the fixture every new test reuses; `LEAK` at `:35` is assembled at runtime so the module never holds a literal banned string |
 | 5 | `.gitignore` | What `--exclude-standard` actually reads, so it *is* the fix's exclusion set. Load-bearing: `*.lg/` at `:25` (directories only), and the two **later** negations `!datasets/**` at `:61` and `!tests/fixtures/**` at `:62` that punch holes through the game-data block, because git is last-match-wins |
@@ -361,7 +361,7 @@ The value is a concrete command replacing a manual eyeball.
 - [ ] `.claude/skills/commit/SKILL.md` — the ordering sentence at `:77` (P5). **Not** the `gitleaks` line at `:78`
 - [ ] `requests/feature-requests/first-sight/IMPLEMENTATION_PLAN.md` — `:757` and `:561`, as dated amendments (P5)
 - [ ] `requests/bugfix-requests/port-residue-sweep/BUGFIX_REQUEST.md` — one line recording the second `gitleaks` occurrence (P5)
-- [ ] `requests/bugfix-requests/leak-guard-blind-to-untracked-files/` — `IMPLEMENTATION_REPORT.md`, statuses, the `_done/` move (P6)
+- [ ] `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/` — `IMPLEMENTATION_REPORT.md`, statuses, the `_done/` move (P6)
 - [ ] a new feature request for the credential scanner (P6)
 - [ ] **NOT** `.claude/skills/update-docs/SKILL.md` — its `gitleaks` claim belongs to `port-residue-sweep`
 
@@ -403,8 +403,8 @@ a draft whose citations were largely absolute paths. Panel health: `planners_ok`
 
 ## References
 
-- `requests/bugfix-requests/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
-- `requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/plan-proposals.md` — the three planners, raw
-- `requests/bugfix-requests/leak-guard-blind-to-untracked-files/reviews/plan-adversarial.md` — 25 adversary + 19 meta-audit findings
+- `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
+- `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/plan-proposals.md` — the three planners, raw
+- `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/reviews/plan-adversarial.md` — 25 adversary + 19 meta-audit findings
 - `requests/bugfix-requests/README.md` — the track contract and status grammar
 - `.claude/agents/data-engineer.md` — the deny set that puts every path here on the main thread
