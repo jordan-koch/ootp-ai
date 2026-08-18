@@ -29,7 +29,7 @@ was verified by running it, and independently re-run by the acceptance panel's v
 | P5 | Phase 5 — link guard matches its promise | **met** | 19 contract tests; both halves proven to bite on a live probe, with fenced / line-suffixed / `var/` controls correctly silent |
 | P6 | Phase 6 — reference guard widened | **met** | Went RED naming three phantom-doc sites, green after the fix |
 | P7 | Phase 7 — record | **met** | This report, three memory entries, both Index rows, the D5 intake |
-| P8 | Phase 8 — guards run in CI | **partial** | The step is written and proven locally; **the in-CI run and the non-vacuity proof are user-run and still outstanding** — see §6 |
+| P8 | Phase 8 — guards run in CI, and the step is not vacuous | **met** | Green run on the PR with `Skill guards (node)` passing; then a deliberate probe commit turned **that step and only that step** red, with ruff, format, mypy and pytest all green ahead of it — see §6 |
 
 **One criterion is deliberately not claimed.** Nothing here tests the acceptance panel's
 *behaviour* against a real run. The guard tests its dedupe and batching against a synthetic
@@ -125,19 +125,30 @@ figures were wrong (75 of 194, 82 files), and one reviewer's assertion that the 
 exemption hid the missing report was false — the plan carries no such token. The panel
 caught both itself and corrected them rather than laundering them forward.
 
-## 6. Manual gates & user-run steps
+## 6. Manual gates & user-run steps — both COMPLETED 2026-08-17
 
-**Both are blocking for the PR, not for this report.** The operator disposed on 2026-08-17
-that Phase 8's proof happens on this PR rather than a follow-up.
+The operator disposed that Phase 8's proof happen on this PR rather than a follow-up.
+Both steps ran; the CI gate is proven in both directions.
 
-1. **Confirm the guards step runs green in CI.** Push the branch, open the PR, and check
-   the `Lint, types, tests` job shows `Skill guards (node)` naming all five guard files and
-   exiting 0. Two risks are uncleared locally: CI pins node 22 while every local run was
-   v24.15.0, and `set -euo pipefail` under GitHub's default bash is unexercised here.
-2. **Prove the step is not vacuous, in CI.** Push one throwaway commit re-keying a single
-   fixture entry, confirm the check goes **red naming the guard**, then revert. A local
-   shell run cannot catch a YAML-level swallowed exit code, which is the failure mode the
-   panel's own mandate names as worse than no check.
+1. **The guards step runs green in CI.** ✅ Observed by the operator on the PR: the
+   `Lint, types, tests` job passed with `Skill guards (node)` included.
+2. **The step is not vacuous.** ✅ Commit `7bab8d5` deliberately broke one duplicate-pair
+   title in the fixture; the operator confirmed `Skill guards (node)` went **red**. Reverted
+   in the next commit, restoring the file byte-identical to `7ab0362`.
+
+**The probe's design is the part worth keeping.** The obvious mutation — re-keying a fixture
+lens back to `data-contract` — was tried first and **rejected**: it also fails
+`tests/test_skill_references.py`, pytest runs *before* the guards step, and the job would
+have stopped early without ever executing the step under test. A green-then-red-at-the-right-step
+sequence is the only evidence that distinguishes a working gate from one that silently runs
+nothing, and a mutation that trips an earlier gate cannot produce it. Ruff, format, mypy and
+pytest were all confirmed green under the probe before it was pushed.
+
+**Epistemics, stated rather than assumed.** The runner's node version is `pinned` at 22 via
+`actions/setup-node`, not `measured` — the `node --version` line is emitted into every log by
+design, but was not read back here. Local runs were v24.15.0. The pin is what makes the
+difference immaterial; the RCA's *unconfirmed* "ubuntu-latest ships node" claim is now moot
+rather than confirmed, and no doc asserts it.
 
 ## 7. Hand-off
 
@@ -154,4 +165,7 @@ pushes the branch. Opening the PR stays the operator's.
   known instances. One of them — `implement-plan/SKILL.md` Step 7 telling both tracks to
   use `implemented` when the bugfix terminal word is `fixed` — is **live and unfixed**,
   and was deliberately left rather than widening this request's scope a third time.
-- The `.mjs` guards are **not yet a proven CI gate** until §6 is done.
+- **Archiving both `fixed` requests into `_done/`** is due and deliberately deferred:
+  18 files reference these two directories by path, and the bare-token scan shipped here
+  would catch every stale one, so it is a mechanical commit of its own rather than more
+  churn on this diff.
