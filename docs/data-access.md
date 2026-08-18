@@ -45,11 +45,22 @@ Two consequences worth carrying: it embeds an absolute user-profile path **four 
 save record**, not once; and it carries **no team id** — the human club appears as a
 display name and a logo filename only, so an id must come from `teams.dat`.
 
+`measured` 2026-08-18 — **`saved_games.dat` is the authority for a save's sim date, and
+the in-game Organization screen is not.** That screen's header shows
+`YESTERDAY / TODAY / TOMORROW` as *labels* against game results; its first row carrying an
+actual date is the **fourth** day, three days ahead of today. Today's date is never
+displayed there at all. Reading that row as the current date produced three wrongly-named
+operator screenshots — off by 11, 4 and 11 days — before it was caught. The index's own
+per-save dates are `OOTP-AI` 2024-03-07 and both test saves 2024-03-18, cross-checked by
+weekday arithmetic against those same screenshots. **This matters beyond filenames:
+`sim_date` is a key column in every bronze table, so a screen-read date would key the
+warehouse three days into the future.**
+
 Each `.lg` directory holds (`measured`):
 
 | File | Size (example) | Content |
 |---|---|---|
-| `players.dat` | ~25 MB | Player records — ratings, contracts, stats |
+| `players.dat` | 25.7–32.1 MB | Player records — ratings, contracts, stats (see §4) |
 | `teams.dat` | ~4.5 MB | Team records |
 | `retired.dat` | ~130–150 MB | Retired players |
 | `world.dat` | ~8.6 MB | Nations, states, cities |
@@ -236,6 +247,56 @@ extract cleanly with correct abbreviations and colors.
 
 `unconfirmed` — Everything else. The overwhelming majority of both files is still
 unmapped.
+
+### `players.dat`: the population, the missing count, and the fixed head
+
+All `measured` 2026-08-18 against `ootp_truth_real` and all three saves on disk, by
+`src/ootp_ai/parser/players.py`.
+
+**The file holds more players than the export does, and the difference is not slack.**
+`measured` — 18,077 records against the export's `retired = 0` population of 18,072.
+The five extras are `player_id` 42001, 49008, 50468, 50469 and 132324, and **none
+appears anywhere in the export at any `retired` value.** They are real records, not
+mis-framed bytes: each carries the same 26-byte padding every record does, each has an
+ordinary length (1,152–1,320 bytes), each has a coherent birth date, age, nationality,
+height and weight, and the same five ids appear in **both** test saves. The relationship
+is a strict superset. On the evidence — blank uniform numbers, ages 18 to 25 — they look
+like an unrevealed amateur or international pool; *which* filter the export applies is
+`unconfirmed`. **The practical consequence: "row count equals 18,072" is the wrong
+assertion, and a coverage statement built on it describes a population the warehouse does
+not hold.**
+
+**The file does not declare its record count.** `measured`, all three saves — where
+`teams.dat` puts a record count in the fifth `u32` of its header tail, `players.dat` puts
+`0xFFFFFFFF`. A walk over this file therefore has **no in-file oracle** to check its own
+framing against, which is why its byte accounting is weaker than `teams.dat`'s and why
+the managed league, having no export either, relies on a record-boundary check alone.
+
+**The record head is fixed for 37 bytes; the drop-zero region begins after it.**
+`verified` against **every** `retired = 0` export row (18,072 of 18,072, exact match, not
+sampled): `u32 player_id`, then two `u32`s, then `date_of_birth` (`u8` day, `u8` month,
+`u16` year), `u8 age`, `u8 nation_id`, `u32 city_of_birth_id`, `u16 weight`, `u8 height`,
+`u8 uniform_number`, `u8 experience`, with four short unclassified spans between them.
+The two `u32`s at +4 and +8 are the plausible home of the name indices — both fall inside
+`names.dat`'s index range — but that is `unconfirmed`, and *which* is first and which is
+last is not established at all.
+
+**After `experience`, the record uses the same drop-zero encoding `teams.dat` uses** — a
+field whose value is falsy is not written. The natural experiment: `last_team_id` sits
+immediately before `team_id`, and for a player who never changed clubs it is absent, so
+`team_id` lands four bytes earlier. `measured` — `team_id` sits at record+58 for 86.9% of
+rostered players and record+62 for the rest, splitting exactly on that. **Reading
+`team_id` at a constant offset therefore scores ~87%**, which is high enough to pass a
+spot-check and wrong for one club in eight. `team_id`, `organization_id`, `league_id`,
+`position`, `role`, `bats`, `throws` and `historical_id` all live past that boundary and
+are consequently **not yet readable**.
+
+**The age byte is an invariant, not just a field.** `measured` — it equals the whole years
+between `date_of_birth` and the save's sim date, exactly, for all 18,072 records with zero
+exceptions. That three-way agreement is what makes record framing exact on a file with no
+declared count: an ascending id plus a parseable date alone accepted a false record start
+and silently truncated a walk to 2,693 records, with every field it did read decoding
+perfectly.
 
 ### Names are indirected
 

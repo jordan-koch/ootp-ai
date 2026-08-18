@@ -39,8 +39,19 @@ neither of them; nothing here fakes it.
 
 `gamedata`: needs the saves, and the export half needs MySQL. Excluded from CI.
 
-This module grows: Phase 6 adds the player and roster clauses, and Phase 7 adds AC9's
-display-name clause, which cannot pass before the `names.dat` join exists.
+This module grows, and here is where its clauses actually went, because the earlier
+promise no longer describes the tree:
+
+* **Phase 6a's player clauses live in `tests/test_parse_players.py`**, not here — the
+  `players.dat` walk needed its own offline half (this module is `gamedata` end to end,
+  and CI runs neither), so splitting was cheaper than bolting a synthetic section onto a
+  module that has none. AC9's `player_id` uniqueness clause is
+  `test_the_ascending_unique_invariant_survives_a_refactor` there.
+* **The roster clauses are not written yet.** They belong to Phase 6b along with
+  `parser/rosters.py`; Boston's per-list counts cannot be asserted before the roster
+  grain exists.
+* **AC9's display-name clause is Phase 7's**, and cannot pass before the `names.dat`
+  join exists.
 """
 
 from __future__ import annotations

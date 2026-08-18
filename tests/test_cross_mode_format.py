@@ -27,6 +27,8 @@ import pytest
 
 from ootp_ai.config import Settings, load_settings
 from ootp_ai.parser.header import read_header
+from ootp_ai.parser.players import PLAYERS_FILE, PlayersFile, read_players
+from ootp_ai.parser.primitives import SaveDate
 from ootp_ai.parser.teams import TEAMS_FILE, TeamsFile, read_teams
 from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
 from ootp_ai.saves import is_challenge_mode, is_record_file
@@ -192,6 +194,134 @@ def test_the_two_modes_differ_only_in_content_not_in_shape() -> None:
         f"both probes flag the same club {managed[0]} as human; they were created to be "
         "managed by different clubs, so an identical flag means it is not being read"
     )
+
+
+# ── record level: players.dat, Phase 6 ───────────────────────────────────────
+
+
+def _matched_players(settings: Settings) -> tuple[PlayersFile, PlayersFile]:
+    assert settings.probe_save is not None and settings.truth_save is not None
+    return (
+        read_players((settings.probe_save.path / PLAYERS_FILE).read_bytes()),
+        read_players((settings.truth_save.path / PLAYERS_FILE).read_bytes()),
+    )
+
+
+def test_the_same_walker_reads_players_dat_in_both_modes() -> None:
+    """The largest file in the save, walked identically in both modes.
+
+    This matters more here than for `teams.dat`. Every field mapping in `players.py` was
+    scored against the export, and **only the Standard save has one**. If the record shape
+    were mode-dependent, all of that validation would apply to a format the managed league
+    does not use — and Challenge Mode is the mode every real decision is made in.
+    """
+    challenge, standard = _matched_players(_settings())
+
+    assert len(challenge.players) == len(standard.players), (
+        f"Challenge mode yields {len(challenge.players)} player records and Standard "
+        f"{len(standard.players)} — mode changes the record count, so the export-backed "
+        "field mappings are not validated against the format we actually manage"
+    )
+    assert [p.player_id for p in challenge.players] == [p.player_id for p in standard.players], (
+        "the two modes frame a different set of player ids"
+    )
+    assert str(challenge.sim_date) == str(standard.sim_date) == "2024-03-18"
+
+
+#: Fields that cannot legitimately differ between two saves of the same universe at the
+#: same sim date. A birth city or a nationality is not a roster decision. `measured`
+#: 2026-08-17: all seven agree on every one of the 18,077 shared records.
+IMMUTABLE_PLAYER_FIELDS = (
+    "name_indices",
+    "age",
+    "nation_id",
+    "city_of_birth_id",
+    "weight",
+    "height",
+    "experience",
+)
+
+#: The only birth-date disagreement between the two saves, `measured` on 6 of 18,077
+#: records: one stores 29 February where the other stores the 28th **of the same leap
+#: year** — seen in 1996, 2000 and 2004. Why is `unconfirmed`; a leap-day normalisation
+#: somewhere in the engine is the obvious guess and nothing here depends on it.
+#:
+#: Pinned as a *shape* rather than a tolerance, so any other kind of birth-date
+#: difference — which is what a mis-read width would produce — fails the test. An earlier
+#: version pinned the literal 1996 pair and went red on 2000, which is the check working.
+LEAP_DAY_DAYS = frozenset({28, 29})
+LEAP_DAY_MONTH = 2
+
+
+def test_the_player_head_decodes_identically_in_both_modes() -> None:
+    """The seven fields that cannot differ, checked on every shared record.
+
+    This is the assertion that rules out a mode-dependent record width. If the head's
+    widths differed by mode, essentially every record would disagree in every field —
+    so seven fields agreeing across 18,077 records is strong evidence the format is one
+    format, which is the claim the export-backed validation depends on.
+    """
+    challenge, standard = _matched_players(_settings())
+    by_id = {p.player_id: p for p in standard.players}
+
+    disagreements: list[str] = []
+    for player in challenge.players:
+        other = by_id[player.player_id]
+        disagreements.extend(
+            f"player {player.player_id}: {field} is "
+            f"{getattr(player, field)!r} in Challenge and {getattr(other, field)!r} in Standard"
+            for field in IMMUTABLE_PLAYER_FIELDS
+            if getattr(player, field) != getattr(other, field)
+        )
+
+    assert not disagreements, (
+        "fields that cannot differ between two saves of the same universe do differ, "
+        "which means the record widths are mode-dependent:\n" + "\n".join(disagreements[:20])
+    )
+
+
+def test_the_two_saves_differ_only_where_content_legitimately_can() -> None:
+    """The complement, and it keeps the test above from being vacuous.
+
+    Two fields do disagree, and both are explicable. `uniform_number` is a roster
+    decision and these saves manage different clubs. `date_of_birth` disagrees on
+    exactly the leap day. Naming both means a *new* kind of difference — the kind a
+    width bug would produce — fails here instead of being absorbed as "content".
+    """
+    challenge, standard = _matched_players(_settings())
+    by_id = {p.player_id: p for p in standard.players}
+
+    def is_leap_day_quirk(left: SaveDate, right: SaveDate) -> bool:
+        return (
+            left.year == right.year
+            and left.month == right.month == LEAP_DAY_MONTH
+            and {left.day, right.day} == LEAP_DAY_DAYS
+        )
+
+    odd = [
+        f"player {p.player_id}: {p.date_of_birth} vs {by_id[p.player_id].date_of_birth}"
+        for p in challenge.players
+        if str(p.date_of_birth) != str(by_id[p.player_id].date_of_birth)
+        and not is_leap_day_quirk(p.date_of_birth, by_id[p.player_id].date_of_birth)
+    ]
+    assert not odd, (
+        "birth dates differ in a way the leap-day quirk does not explain, which is what "
+        "a mis-read field width looks like:\n" + "\n".join(odd[:10])
+    )
+
+    uniform_diffs = sum(
+        1 for p in challenge.players if p.uniform_number != by_id[p.player_id].uniform_number
+    )
+    assert uniform_diffs < len(challenge.players) // 100, (
+        f"{uniform_diffs} of {len(challenge.players)} uniform numbers differ. A handful "
+        "is two clubs assigning numbers differently; this many is a misread field."
+    )
+
+
+def test_neither_mode_declares_a_player_record_count() -> None:
+    """The `0xFFFFFFFF` sentinel is a property of the format, not of one save."""
+    for parsed in _matched_players(_settings()):
+        assert parsed.declared_record_count is None
 
 
 # ── record level: world.dat, Phase 5b ────────────────────────────────────────
