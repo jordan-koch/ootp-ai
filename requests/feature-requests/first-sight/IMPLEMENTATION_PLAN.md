@@ -521,6 +521,46 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 > full answer key from both the run end and the `historical_id` string anchor peaked at
 > ~48%, so a third variable region sits between. **AC8 still cannot be attempted.**
 
+> **ROSTER ARRAY RECONNAISSANCE, 2026-08-18 — located and characterised, but `list_id` is
+> NOT recoverable from it yet, and that is the whole grain.** Recorded because it is the
+> most valuable unfinished thread in the request.
+>
+> **What is `measured`.** Each team record in `teams.dat` carries a contiguous stride-4
+> `u32` array of player ids, starting somewhere around **record+1150 to +1520** (it moves
+> per team; it is not at a fixed offset). Team-record boundaries are recoverable by
+> replaying `read_teams`' own frame search — nine zero bytes, `0x28`, then an ascending
+> team id — which `read_teams` does not currently expose.
+>
+> **What the array contains.** One entry per `team_roster` row, **plus one entry per
+> player who is assigned to the club but holds no roster row at all**. Tested across 26
+> clubs: wherever the full run was located, its multiset equals
+> *(roster rows + unrostered assigned players)* **exactly — 7 of 7**. The other 19 are a
+> limitation of the probe, not a refutation: the scan stops at the first id it cannot
+> attribute to that club, and it is stopping early. Boston is the worked example — 97
+> slots at record+1420 = its 96 roster rows plus **Vladimir Asencio**, who carries
+> `team_id = 4` and a **negative** `league_id` and appears nowhere in `team_roster`. He is
+> one of the 176. **The two findings corroborate each other.**
+>
+> **The blocker, stated plainly.** The array gives the *multiset* and not the
+> *assignment*: a player on lists 1, 2 and 3 appears three times, but nothing in the array
+> says which occurrence is which list. And the occurrences are **not grouped** — they recur
+> at irregular intervals (`31499` at slots 6, 9, 12; `23108` at 5, 18, 24), so "first 33
+> are list 1" is refuted. A parallel `u8` array of list ids **does not exist** anywhere in
+> the team record: a scan for any 97-byte run of values in 1..4 returned **zero**
+> candidates.
+>
+> **So `rosters.py` cannot be written yet.** Producing `(team_id, player_id, list_id)`
+> without recovering `list_id` would mean *deriving* it — and the plan already tested that
+> and rejected it: list 1 differs from `players.team_id > 0` by 176 rows, and a rule that
+> is 97-99% right is the failure this project cannot afford. **Read the array, derive
+> nothing** still stands; the array is simply not yet legible.
+>
+> **Where to look next**, in the order a later session should try them: the stride-**5**
+> cluster at roughly record+260..+990, which holds ~159 entries and may be a
+> (id + 1-byte tag) structure; the `u32` run immediately *after* the array (small values
+> 1,158-3,163 plus a `33`, which is Boston's list-1 size); and why the maximal-run scan
+> stops early on 19 clubs, since whatever id breaks it is itself a fact about the array.
+
 **Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously — and, as the amendment above records, under two different clubs at once.
 
 **Steps.**
