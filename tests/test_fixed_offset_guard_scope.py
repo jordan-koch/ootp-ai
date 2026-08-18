@@ -25,11 +25,16 @@ discretionary nicety, which is why this module is not gated behind a judgment ca
 
 ## Known residuals are pinned, not left implicit
 
-Three of these tests assert that something is **not** flagged which arguably should be. That
-is deliberate: the guard cannot see a fully hoisted read, an attribute-valued buffer, or an
-unannotated parameter under an unexpected name, and an unpinned hole is one the next reader
-assumes is absent. Pinning it means a future edit that closes the hole fails here loudly and
-gets to update the record on purpose.
+Five of these tests assert that something is **not** flagged which arguably should be. That
+is deliberate: the guard cannot see a fully hoisted read, an attribute-valued buffer, an
+unannotated parameter under an unexpected name, a position composed into a local before the
+call, or an offset misnamed as a span. An unpinned hole is one the next reader assumes is
+absent. Pinning it means a future edit that closes the hole fails here loudly and gets to
+update the record on purpose.
+
+**The position-into-a-local one is the open door**, and it is worth reading twice: unlike the
+others it is a shape ordinary code produces, and `world.py:750` writes it correctly. Any rule
+strict enough to catch the folded version fires on the good one too.
 
 Each residual is also **bounded from the other side** — `test_a_partly_hoisted_read_is_still
 _caught` and `test_an_annotated_buffer_under_any_name_is_still_covered` pin where the hole
@@ -361,6 +366,72 @@ def test_a_direct_alias_of_a_buffer_is_followed() -> None:
         "    return buf[start + 58 : start + 62]\n"
     )
     assert guard.scan_source(aliased, "src/ootp_ai/parser/probe.py")
+
+
+def test_a_position_composed_into_a_local_is_a_documented_hole() -> None:
+    """`at = offset + 58` then `peek_u32(data, at)` passes — the third mechanism's residual.
+
+    Unlike the subscript residual, this one has a *legitimate* twin that any stricter rule
+    would break: `world.py:750` composes `date_at` from three named widths and hands it over,
+    which is the model form the RCA called defensible. A rule that caught the folded version
+    would fire on that too, so the hole is the price of not crying wolf rather than an
+    oversight.
+    """
+    hoisted = (
+        "from ootp_ai.parser.lookahead import peek_u32\n\n\n"
+        "def probe(data: bytes, offset: int) -> int | None:\n"
+        "    at = offset + 58\n"
+        "    return peek_u32(data, at)\n"
+    )
+    assert guard.scan_source(hoisted, "src/ootp_ai/parser/probe.py") == [], (
+        "documented in tests/test_no_fixed_offsets.py; if closed, update both together"
+    )
+
+
+def test_an_offset_misnamed_as_a_span_is_a_documented_hole() -> None:
+    """`_TEAM_ID_WIDTH = 58` passes. The name is the only signal, and it can be a lie.
+
+    Pinned rather than hidden because the guard's honesty depends on it: `SPAN_SUFFIXES`
+    separates a distance from an address, both are bare integers, and no value inspection can
+    tell them apart. Evading this means labelling an address a distance — deliberate, not a
+    slip — and the meta-guard records that the door exists.
+    """
+    misnamed = (
+        "from ootp_ai.parser.lookahead import peek_u32\n\n"
+        "_TEAM_ID_WIDTH = 58\n\n\n"
+        "def probe(data: bytes, position: int) -> int | None:\n"
+        "    return peek_u32(data, position + _TEAM_ID_WIDTH)\n"
+    )
+    assert guard.scan_source(misnamed, "src/ootp_ai/parser/probe.py") == []
+
+
+def test_the_span_rule_is_not_a_blanket_pass_for_every_module_constant() -> None:
+    """The counterweight: a constant that is NOT span-named is judged, so the hole above is
+    a narrow door rather than an open side."""
+    folded = (
+        "from ootp_ai.parser.lookahead import peek_u32\n\n"
+        "_TEAM_ID_OFFSET = 58\n\n\n"
+        "def probe(data: bytes, position: int) -> int | None:\n"
+        "    return peek_u32(data, position + _TEAM_ID_OFFSET)\n"
+    )
+    violations = guard.scan_source(folded, "src/ootp_ai/parser/probe.py")
+    assert violations and "_TEAM_ID_OFFSET" in violations[0]
+
+
+def test_the_folded_constant_rule_reports_an_offender_in_the_real_tree() -> None:
+    """Seen to fail on disk, not only against a string — the same standard the subscript
+    rule is held to above."""
+    probe = (
+        "from ootp_ai.parser.lookahead import peek_u32\n\n"
+        "_MUTATION_PROBE_OFFSET = 58\n\n\n"
+        "def probe(data: bytes, position: int) -> int | None:\n"
+        "    return peek_u32(data, position + _MUTATION_PROBE_OFFSET)\n"
+    )
+    with parser_probe("_guard_scope_folded_probe.py", probe) as rel:
+        violations = guard.parser_module_violations()
+        assert any(rel in v for v in violations), (
+            "a folded record-relative constant on disk was not reported by the real scan"
+        )
 
 
 def test_a_nested_function_does_not_leak_its_buffer_outward() -> None:
