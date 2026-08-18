@@ -149,6 +149,82 @@ epistemic = "measured"
 validator = "cross-save-comparison"
 note = "A 64-character hex digest in the file preamble. Measured 2026-08-18: all three saves carry DISTINCT digests, and the two test saves agree on exactly the first 32 hex characters before diverging. Corrected — an earlier note claimed the test saves shared one digest, which came from comparing the first twelve characters of a debug print rather than the string. What the 32/32 split means is `unconfirmed`. Not a game fact; a property of the file."
 
+# ── club assignment, from the presence mask at record+55 ─────────────────────
+#
+# Six `u32` fields written in bit order with absent ones skipped, each paired with its
+# `last_` counterpart. `verified` against every `retired = 0` export row. An absent field
+# means the value IS zero — the writer elides falsy values — so these land as 0, never
+# NULL. Reads are signed: the export carries negatives here, and an unsigned read would
+# turn -1 into 4,294,967,295, which looks like an id.
+
+[[field]]
+name = "team_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 0)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The club the player is assigned to. NOT the roster grain — team_roster is a separate membership store in teams.dat, and deriving list 1 from this column differs by 176 rows."
+
+[[field]]
+name = "last_team_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 1)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Immediately precedes team_id in the written order, which is what made the drop-zero rule visible: a player who never changed clubs has this zero, it is elided, and team_id lands four bytes earlier."
+
+[[field]]
+name = "organization_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 2)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The parent club. Differs from team_id for a prospect assigned to an affiliate, which is the cross-team fan-out the roster grain has to honour."
+
+[[field]]
+name = "last_organization_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 3)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+
+[[field]]
+name = "league_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 4)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-magnitude-all-rows"
+note = "MAGNITUDE verified on all 18,072; the export writes this NEGATIVE on exactly 176 records where the save stores it positive. The parser reports what the bytes hold. Those 176 are precisely the players with a team_id and no list_id=1 roster row, so the sign appears to mark attached-but-not-rostered — `inferred`. A consumer wanting the export's convention must apply it deliberately."
+
+[[field]]
+name = "last_league_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "i32 (presence bit 5)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+
+[[field]]
+name = "free_agent"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "bit 0 of the second mask at record+56"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "A boolean carried entirely by its presence bit — under drop-zero a false boolean is simply not written, so the bit IS the value. The remaining bits of that mask are undecoded and deliberately not guessed at."
+
 # ── crossed but not classified ───────────────────────────────────────────────
 #
 # Bytes the walk consumes inside the fixed head and does not interpret. Recorded as
@@ -195,6 +271,36 @@ epistemic = "unconfirmed"
 validator = "none"
 note = "record+34."
 
+[[field]]
+name = "unclassified_after_experience"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "14 bytes"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "record+37..+50. High-entropy values in the 60-200 range — personality and injury-proneness territory on the evidence of the export's column list, which is exactly why they are categorised rating-true and withheld rather than left as 'unknown'."
+
+[[field]]
+name = "unclassified_before_masks"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u32"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "record+51. **Not a constant, and this one nearly went wrong.** It reads 203 for every one of the 18,077 records in BOTH test saves — a textbook format constant — while the managed league carries six distinct values. Asserting 203 would have passed every available test and broken on the only save that matters. Vary the save before believing a constant."
+
+[[field]]
+name = "unclassified_before_assignments"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "1 byte"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "record+57. Takes 2, 6, 34 and 38 across the saves, so neither a mask this walk understands nor a constant."
+
 # ── deliberately NOT landed ──────────────────────────────────────────────────
 #
 # Recorded because their absence is a decision, not an oversight. A later reader
@@ -211,6 +317,6 @@ source = "players.dat"
 reason = "NOT LANDED, and this entry exists because it nearly went unrecorded. It is named by plan Phase 6 step 1 and it is the join key AC8 depends on — the only Tier-A validation of the names join on the league we actually manage — so its absence is the most consequential gap in this phase and the easiest to miss. Measured: it is a u32-length-prefixed ASCII string (e.g. 'deverra01') appearing TWICE per record, roughly 60 to 80 bytes after the record start, which places it AFTER the drop-zero region and therefore out of reach of this walk for the same reason team_id is. Landing it is Phase 6b's, and AC8 cannot be attempted until it exists. Carrying ~10.6% coverage (1,920 of 18,072), it is a nullable attribute and never a join key in a serving path."
 
 [[withheld]]
-name = "team_id, organization_id, league_id, position, role, bats, throws"
+name = "position, role, bats, throws"
 source = "players.dat"
-reason = "Not refused — not yet readable. They sit past the drop-zero region that begins after `experience`, where a field whose value is falsy is omitted entirely. Measured: reading team_id at a constant offset scores ~87%, because last_team_id is dropped for players who never changed clubs and everything after it shifts four bytes. An 87% field is the failure the fixed-offset ban exists to prevent. Phase 6b resolves the region."
+reason = "Not refused — not yet readable, and NOT for the drop-zero reason the sibling fields had. None of these is ever zero in the export, so no presence mask governs them; they are written unconditionally, past further variable content this walk does not decode. Brute-force scoring against the full answer key, anchored both at the mask run's end and on the historical_id string, peaked at ~48% — a coincidence rate, not a mapping. They are the roster report's remaining gap."

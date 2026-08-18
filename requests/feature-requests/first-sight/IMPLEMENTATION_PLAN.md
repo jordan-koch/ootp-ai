@@ -475,9 +475,11 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 > it — Phase 0's opaque-integer fallback covered a wrong *label*, not an undecodable *array*, so it
 > does not apply. **`measured` / `inferred` as labelled above; nothing here is `verified`.**
 
-> **PHASE 6b RECONNAISSANCE, 2026-08-18 — the drop-zero region is a presence bitmask, and
-> half of it is now decoded.** Recorded here rather than left in scratch because it cost
-> real effort and none of it is in code yet.
+> **PHASE 6b, 2026-08-18 — the drop-zero region is a presence bitmask, and the club
+> assignment is now LANDED.** `parser/players.py` reads `team_id`, `last_team_id`,
+> `organization_id`, `last_organization_id`, `league_id`, `last_league_id` and
+> `free_agent`, all `verified` against every `retired = 0` export row. What remains of 6b
+> is `position`/`role`/`bats`/`throws`, `historical_id`, and `parser/rosters.py`.
 >
 > **The rule.** After the fixed 37-byte head the record carries a byte at **record+55**
 > that is a **presence bitmask over six `u32` fields**, written in bit order, absent ones
