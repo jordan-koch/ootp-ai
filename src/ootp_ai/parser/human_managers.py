@@ -57,6 +57,7 @@ from dataclasses import dataclass
 
 from ootp_ai.parser.errors import SaveFormatError
 from ootp_ai.parser.header import read_header_from
+from ootp_ai.parser.lookahead import U32_WIDTH, peek_u32, zero_run_width
 from ootp_ai.parser.primitives import Cursor, SaveDate
 
 __all__ = [
@@ -200,9 +201,7 @@ def _pad_width(data: bytes, position: int) -> int:
     byte that is not one. `measured` 46 in all three saves, but nothing here depends on
     that number being 46 — only on the sentinel that follows agreeing.
     """
-    width = 0
-    while width < _MAX_PAD and position + width < len(data) and data[position + width] == 0:
-        width += 1
+    width = zero_run_width(data, position, limit=_MAX_PAD)
     if width >= _MAX_PAD:
         raise ManagerRecordLayout(
             f"{HUMAN_MANAGERS_FILE}: more than {_MAX_PAD} zero bytes follow the header "
@@ -240,11 +239,16 @@ def _distance_to_club(data: bytes, position: int) -> int:
 
 
 def _is_club_landmark(data: bytes, offset: int) -> bool:
-    """`CLUB_SLOTS` consecutive `u32`s, all equal, all a plausible team id."""
-    first = int.from_bytes(data[offset : offset + 4], "little")
-    if not 0 < first <= _MAX_TEAM_ID:
+    """`CLUB_SLOTS` consecutive `u32`s, all equal, all a plausible team id.
+
+    Reads through the seam, which bounds-checks. The previous version called
+    `int.from_bytes` on a raw slice: past the end of the buffer that returns a **smaller
+    number silently** rather than raising, so a truncated file could have produced a
+    landmark match out of bytes that were never there. The caller already bounds its
+    range, so no current input reached it — but a `None` here is now a non-match rather
+    than a coincidence.
+    """
+    first = peek_u32(data, offset)
+    if first is None or not 0 < first <= _MAX_TEAM_ID:
         return False
-    return all(
-        int.from_bytes(data[offset + 4 * slot : offset + 4 * slot + 4], "little") == first
-        for slot in range(1, CLUB_SLOTS)
-    )
+    return all(peek_u32(data, offset + slot * U32_WIDTH) == first for slot in range(1, CLUB_SLOTS))
