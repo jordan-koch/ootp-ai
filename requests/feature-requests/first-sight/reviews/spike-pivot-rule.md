@@ -13,7 +13,7 @@ nobody has to decide under time pressure what it means.
 Citations use code spans rather than Markdown links — `tests/test_doc_links.py`
 resolves every relative link target in every tracked `.md` and has no fence
 awareness, so a `file:line` citation written as a link fails the build. See
-`requests/bugfix-requests/doc-link-guard-mismatch/`.
+`requests/bugfix-requests/_done/doc-link-guard-mismatch/`.
 
 ---
 

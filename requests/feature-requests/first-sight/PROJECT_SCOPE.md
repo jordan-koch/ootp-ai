@@ -5,7 +5,7 @@
 > **Citations in this document use code spans, not Markdown links, wherever they
 > carry a `file:line` suffix or point into `var/`.** Both forms fail
 > `tests/test_doc_links.py` today — a live defect with an open bugfix request
-> ([doc-link-guard-mismatch](../../bugfix-requests/doc-link-guard-mismatch/)).
+> ([doc-link-guard-mismatch](../../bugfix-requests/_done/doc-link-guard-mismatch/)).
 > Keep that convention until it is fixed.
 
 ## Fit Verdict

@@ -103,7 +103,7 @@ addresses — not credentials, which nothing scans for at all.
   the whole difficulty. Widening enumeration to the working tree naively would pull
   in `.venv/`, `__pycache__/`, `var/` and every gitignored scratch file, which is
   presumably why it was written this way. This is the same shape as the sibling
-  defect in [doc-link-guard-mismatch](../doc-link-guard-mismatch/): the cheap part is
+  defect in [doc-link-guard-mismatch](../_done/doc-link-guard-mismatch/): the cheap part is
   seeing it, the real part is choosing which direction to correct.
 
 ## Affected Area & Pointers

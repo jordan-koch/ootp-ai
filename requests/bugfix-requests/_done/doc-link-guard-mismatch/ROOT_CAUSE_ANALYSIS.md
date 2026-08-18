@@ -2,7 +2,7 @@
 
 # Root Cause Analysis — The link guard the skills describe was never ported
 
-> **Diagnosed jointly** with `requests/bugfix-requests/verify-batching-guard-red-on-arrival/`,
+> **Diagnosed jointly** with `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/`,
 > at the operator's direction: one analysis of the port rather than two of its symptoms.
 > The shared class finding, the red repro and the third instance found along the way live
 > in that request's `ROOT_CAUSE_ANALYSIS.md` and are not repeated here. This document

@@ -11,8 +11,8 @@ Both are the same class of defect — a ported artifact describing behaviour thi
 repo does not have — and both survived because no check resolves an artifact's
 references against the repo it now lives in. That check is what this module is.
 
-See requests/bugfix-requests/verify-batching-guard-red-on-arrival/ and
-requests/bugfix-requests/doc-link-guard-mismatch/.
+See requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ and
+requests/bugfix-requests/_done/doc-link-guard-mismatch/.
 """
 
 from __future__ import annotations

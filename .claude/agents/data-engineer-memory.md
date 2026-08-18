@@ -153,7 +153,7 @@ is the one you are already following.
   **identically** in the `nba2k-rpg` repo it came from — a pre-existing upstream defect, not
   a porting error. Six dedupe/coverage assertions. **The measurement stands; the reading does
   not — see the 2026-08-17 correction at the end of this file.** · evidence:
-  `requests/bugfix-requests/verify-batching-guard-red-on-arrival/BUGFIX_REQUEST.md` (the
+  `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/BUGFIX_REQUEST.md` (the
   originally cited `CLAUDE.md` section was removed in commit 1c47c2d) · tag: harness
 - **2026-08-16** · `verified` · **"It varies across saves" is not "it is the field."** A `u32`
   in `saved_games.dat` reads 2/2/1 across the three saves, which satisfies an
@@ -299,7 +299,7 @@ is the one you are already following.
   reading of that as "a pre-existing upstream defect, not a porting error" — two
   separately-adapted copies failing identically is exactly what a porting error in the
   shared inherited part looks like. · evidence:
-  `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` ·
+  `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` ·
   tag: harness
 - **2026-08-17** · `measured` · **A guard that names a repo path only checks the paths someone
   thought to scan.** `tests/test_skill_references.py` globbed `*.md` under `.claude/skills/`

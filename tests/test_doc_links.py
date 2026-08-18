@@ -7,7 +7,7 @@ only `http(s)://`, `mailto:`, `#` and angle-bracket placeholders, so following t
 documentation produced a red build. `tests/test_doc_link_contract.py` unit-tests each
 rule against fixture strings; this module applies them to the tree.
 
-See `requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`.
+See `requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`.
 """
 
 from __future__ import annotations

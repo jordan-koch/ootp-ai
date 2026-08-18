@@ -19,7 +19,7 @@ Six instances are known, and they were not found by one search:
 | 5 | `diagnose-bug/SKILL.md`'s worked example cited `tests/test_extract_pagination.py` failing with *"expected 1230 games, got 1000"* — an NBA regular season, in a baseball save-file parser | reading the template |
 | 6 | `implement-plan/SKILL.md` Step 7 says to set the Index row to `implemented` on **both** tracks; the bugfix track's terminal word is `fixed` | running that skill |
 
-Instances 1–5 are fixed (`requests/bugfix-requests/verify-batching-guard-red-on-arrival/`).
+Instances 1–5 are fixed (`requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/`).
 **#6 is open and unfixed** — it is the concrete starting point for this request.
 
 ## Reproduction attempt
@@ -74,7 +74,7 @@ now guarded. This is cleanup with a real but bounded payoff.
 1. `.claude/skills/implement-plan/SKILL.md` — Step 7's terminal stage word, instance #6
 2. `tests/test_skill_references.py` — the mechanical half that exists; what it covers is
    the boundary of what is already handled
-3. `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` —
+3. `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` —
    the port-drift class, with instances 1–4 evidenced
 4. `.claude/agents/data-engineer-memory.md` — three 2026-08-17 entries record what the
    widened guard actually found

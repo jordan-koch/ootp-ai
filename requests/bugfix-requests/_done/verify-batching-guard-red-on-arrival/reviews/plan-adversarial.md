@@ -1,4 +1,9 @@
-<!-- Raw, unfiltered panel output. Saved by /create-implementation-plan step 3. -->
+<!-- Raw, unfiltered panel output. Saved by /create-implementation-plan step 3.
+     REPOINTED: when this request was archived, every `requests/bugfix-requests/<slug>/`
+     path in this file was rewritten to its `_done/` location so a reader can still follow
+     it. `_done/` is excluded from tests/test_doc_links.py, so this was for the reader, not
+     for CI. Only path prefixes changed; no agent's wording was altered. -->
+
 
 # Planning panel — adversarial + meta-audit findings
 
@@ -47,7 +52,7 @@ Replace criterion 4 with the one part that is actually true and load-bearing —
 
 **Proposed fix**
 
-Split the instruction. Keep "the two assertions and their regexes are untouched — never weaken them to fit the fix", and ADD an explicit step in Phase 3 (the phase that closes the contract): move the three docstrings to past tense with a pointer, e.g. `:50` → "Six skills used to instruct the agent to run `tests/test_request_links.py`, which has never existed here; they were repointed at `tests/test_doc_links.py` — see `requests/bugfix-requests/verify-batching-guard-red-on-arrival/`." Same for `:89-92` and the module docstring. State in the commit note that only prose moved, so a reviewer can confirm the assertions are byte-identical with `git diff -U0 tests/`.
+Split the instruction. Keep "the two assertions and their regexes are untouched — never weaken them to fit the fix", and ADD an explicit step in Phase 3 (the phase that closes the contract): move the three docstrings to past tense with a pointer, e.g. `:50` → "Six skills used to instruct the agent to run `tests/test_request_links.py`, which has never existed here; they were repointed at `tests/test_doc_links.py` — see `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/`." Same for `:89-92` and the module docstring. State in the commit note that only prose moved, so a reviewer can confirm the assertions are byte-identical with `git diff -U0 tests/`.
 
 ### [MAJOR] Phase 3's grep acceptance criterion is factually wrong and will read as a failure on a correct implementation
 
@@ -93,7 +98,7 @@ Split the acceptance on the disposition. "GD2 in favour: `:56`, `:65`, `:172`, `
 
 ### [MAJOR] Phase 7 instructs the implementer to create the IMPLEMENTATION_PLAN it is executing
 
-- **Location:** `plan phases[6].steps[0] ("Open `requests/bugfix-requests/verify-batching-guard-red-on-arrival/IMPLEMENTATION_PLAN.md` with `> **Status:** planned · created <today> · decided · next: implement`") and files_to_touch entry for the same path ("NEW — the stage-3 deliverable")`
+- **Location:** `plan phases[6].steps[0] ("Open `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/IMPLEMENTATION_PLAN.md` with `> **Status:** planned · created <today> · decided · next: implement`") and files_to_touch entry for the same path ("NEW — the stage-3 deliverable")`
 - **Confidence:** high
 - **Category:** sequencing
 
@@ -313,13 +318,13 @@ Phase 7 and gated decision 4 describe the 2026-08-15 entry at `:151-155` as fals
 
 **Proposed fix**
 
-Have the appended entry state exactly what was measured here and nothing more: label `verified`, tag `harness`, claim — "the guard's fixture keys `data-contract`/`extraction` name lenses this repo's panel does not define; re-keying them to `warehouse`/`parser` turns the guard green with `acceptance_panel.js` byte-untouched (measured 2026-08-17, Node v24.15.0). The 2026-08-15 entry's conclusion 'not a porting error' is refuted for this repo; its upstream observation was not re-tested." Evidence pointer: `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md`, as an inline code span. Also drop the plan's assertion that the entry's dead `CLAUDE.md` pointer proves the entry wrong — I confirmed by grep that no 'Outstanding scaffolding work' section survives (removed by `1c47c2d`), but a dead pointer is stale, not false.
+Have the appended entry state exactly what was measured here and nothing more: label `verified`, tag `harness`, claim — "the guard's fixture keys `data-contract`/`extraction` name lenses this repo's panel does not define; re-keying them to `warehouse`/`parser` turns the guard green with `acceptance_panel.js` byte-untouched (measured 2026-08-17, Node v24.15.0). The 2026-08-15 entry's conclusion 'not a porting error' is refuted for this repo; its upstream observation was not re-tested." Evidence pointer: `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md`, as an inline code span. Also drop the plan's assertion that the entry's dead `CLAUDE.md` pointer proves the entry wrong — I confirmed by grep that no 'Outstanding scaffolding work' section survives (removed by `1c47c2d`), but a dead pointer is stale, not false.
 
 ## Meta-audit findings (13)
 
 ### [MAJOR] Phase 4's new pytest grammar guard is work beyond the decided tiers, and it is ungated while it forces gated decision 2
 
-- **Location:** `merged plan → phases[4] ("Phase 4") step 7 ("Add a third test to `tests/test_skill_references.py`"); files_to_touch entry for `tests/test_skill_references.py`; cf. requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:191-192`
+- **Location:** `merged plan → phases[4] ("Phase 4") step 7 ("Add a third test to `tests/test_skill_references.py`"); files_to_touch entry for `tests/test_skill_references.py`; cf. requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:191-192`
 - **Confidence:** high
 - **Category:** scope-creep
 
@@ -417,7 +422,7 @@ Add two entries to `onboarding.files_to_read`: `.claude/agents/data-engineer-mem
 
 ### [MINOR] The plan lists its own stage-3 deliverable as a file the stage-4 implementer creates, and Phase 7 tells them to "Open" it
 
-- **Location:** `merged plan → files_to_touch entry for `requests/bugfix-requests/verify-batching-guard-red-on-arrival/IMPLEMENTATION_PLAN.md` ("NEW — the stage-3 deliverable"); phases[7] step 1 ("Open ... IMPLEMENTATION_PLAN.md with `> **Status:** planned · created <today> ...`")`
+- **Location:** `merged plan → files_to_touch entry for `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/IMPLEMENTATION_PLAN.md` ("NEW — the stage-3 deliverable"); phases[7] step 1 ("Open ... IMPLEMENTATION_PLAN.md with `> **Status:** planned · created <today> ...`")`
 - **Confidence:** medium
 - **Category:** correctness
 
@@ -640,7 +645,7 @@ META-AUDIT OF THE MERGE, not the repo. I re-verified the merged plan's grounding
     "question": "How far does Phase 3 go on the four 'What good looks like' bullets? Repointing `tests/test_request_links.py` → `tests/test_doc_links.py` is safe under both readings of the doc-link gate. But those same bullets (`create-implementation-plan/SKILL.md:250-256`, `make-bugfix-request/SKILL.md:199-204`, `make-feature-request/SKILL.md:245-250`, `diagnose-bug/SKILL.md:176-181`) promise three exemptions the real guard does not implement — and attaching a false promise to a REAL file arguably makes the misinformation more credible than a dangling name did.",
     "recommendation": "REPOINT THE TOKEN ONLY; leave the promise prose exactly as it is, and record the known-incomplete state in the IMPLEMENTATION_REPORT where it cannot be mistaken for a promise. Two reasons. First, `doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md:95-98` says the reference correction is the only part safe to do early — rewriting the promises IS reading (b)'s work, and doing it here decides the gate by implication. Second, that request's own recommendation is reading (a) — extend the guard — under which the promises become TRUE, so a rewrite now would be work thrown away and would make (a) cheaper to abandon. The alternative (describe the guard's current behaviour plus a bare pointer to the open request) is defensible and reads as more honest, but it is not free: it hard-codes reading (b)'s framing into four files. The user disposes.",
     "related": [
-      "requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md:82-98",
+      "requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md:82-98",
       "tests/test_doc_links.py:10-33",
       ".claude/skills/create-implementation-plan/SKILL.md:250-256"
     ]
@@ -659,7 +664,7 @@ META-AUDIT OF THE MERGE, not the repo. I re-verified the merged plan's grounding
     "question": "Are Phases 5 and 6 (measure node on the runner, then run the five `.mjs` guards in CI) in scope? The RCA files this under Hardening — 'worth considering, not assumed' — and it widens a bugfix into CI work across two commits and two user round-trips. If it IS in scope, should `actions/setup-node` be pinned regardless of what the measurement says?",
     "recommendation": "IN SCOPE, and YES pin `actions/setup-node`. In favour: the guard was red from the day it arrived and nothing noticed for the life of the skill — that IS the defect class, and `tests/test_skill_references.py` only catches lens-key drift, not a guard that breaks for any other reason. `.claude/skills/implement-plan/SKILL.md:309` instructs running it after every `acceptance_panel.js` change, and a check nobody is forced to run is how this one rotted. On the node question: pinning `setup-node` removes the unconfirmed claim from the dependency chain entirely and pins the runtime the guards execute on, which is strictly better than testing the claim — but keep Phase 5's `node --version` probe anyway so the fact is measured and recorded rather than merely made irrelevant. If the user wants to keep this a pure bugfix, drop both phases and file Hardening 7 as its own intake; the acceptance contract does not depend on them.",
     "related": [
-      "requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:209-211",
+      "requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:209-211",
       ".github/workflows/ci.yml:13-17",
       ".github/workflows/ci.yml:34-49",
       "ops/branch-protection.json"
@@ -679,8 +684,8 @@ META-AUDIT OF THE MERGE, not the repo. I re-verified the merged plan's grounding
     "question": "Is RCA Hardening 6 (generalise `tests/test_skill_references.py` from two token classes to every repo path a skill names) owned by the doc-link plan, and is Hardening 8 (a deliberate sweep for remaining sibling-repo domain residue) filed as a fresh intake before this request closes?",
     "recommendation": "CONFIRM Hardening 6 belongs to the doc-link plan — it appears in BOTH RCAs (this one at its `:208`, the doc-link one at its `:104-106`), which is exactly the shape where each request assumes the other owns it and neither does. And FILE Hardening 8 as a new intake rather than running it here: two residue instances turned up by accident in one sitting, plus a fourth status-word instance during planning, which is now weak-but-growing evidence a deliberate pass would find more — but it is an open-ended search with no acceptance criterion, and folding it in would turn a bugfix into an audit. A bounded, vocabulary-agreed sweep deserves its own scope.",
     "related": [
-      "requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:206-214",
-      "requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md:104-106",
+      "requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md:206-214",
+      "requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md:104-106",
       "tests/test_skill_references.py:32"
     ]
   }

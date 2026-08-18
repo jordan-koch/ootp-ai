@@ -185,7 +185,7 @@ exist — the guard is `tests/test_doc_links.py`. That looked like two one-word 
 in files this request already opens, and the corrections were made and then reverted, for
 two reasons found on checking:
 
-- **It is already filed.** `requests/bugfix-requests/doc-link-guard-mismatch/` covers it at
+- **It is already filed.** `requests/bugfix-requests/_done/doc-link-guard-mismatch/` covers it at
   `intake`, names all **six** skills that carry the dead path, and is on the **full
   pipeline** by its own argued stage plan.
 - **It is not a filename fix.** That report's symptom B is that the guard which *does*
