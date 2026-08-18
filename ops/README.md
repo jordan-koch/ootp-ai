@@ -33,6 +33,24 @@ uv run ruff check .
 uv run mypy
 ```
 
+**Node is required too, for the skills' own guards.** The panels under
+[`.claude/skills/`](../.claude/skills/) ship `.mjs` guards that exercise their
+harness logic, and CI runs all five on every PR (pinned via `actions/setup-node`).
+They read only tracked files — no network, no `uv`, no warehouse, no OOTP install:
+
+```bash
+node .claude/skills/implement-plan/tests/verify_batching_guard.mjs
+node .claude/skills/implement-plan/tests/merge_fallback_guard.mjs
+node .claude/skills/scope-feature/tests/merge_fallback_guard.mjs
+node .claude/skills/create-implementation-plan/tests/merge_fallback_guard.mjs
+node .claude/skills/create-implementation-plan/tests/merge_failure_repro.mjs
+```
+
+Exit 0 each. PowerShell has no `&&`, so run them separately and check
+`$LASTEXITCODE`; CI chains them under `set -euo pipefail`. Run them after editing
+any panel script — a backtick added to a mandate string terminates its template
+literal and breaks three of them at once, which is how that was found.
+
 **The `gamedata` marker** covers tests that need a real OOTP install or save.
 They are excluded from CI, which has neither and must never have either. Run
 them locally before opening a PR that touches the parser — CI cannot catch a

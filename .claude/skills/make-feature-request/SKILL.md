@@ -243,7 +243,7 @@ your turn by suggesting `/commit` when the user wants the request landed.
 ## What good looks like
 
 - **Every relative link you write must resolve on disk.** Live (non-`_done/`) artifact bodies are
-  scanned by `tests/test_request_links.py`, a blocking CI check, so a dead pointer fails the build
+  scanned by `tests/test_doc_links.py`, a blocking CI check, so a dead pointer fails the build
   rather than quietly misleading the next stage. Two shapes to watch: a **forward reference** to a
   file a later stage creates, and a deliberately **broken example path**. Put either inside a fenced
   code block (``` or ~~~, blockquoted is fine) — fenced content is exempt, precisely so a report can

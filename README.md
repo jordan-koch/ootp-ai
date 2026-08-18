@@ -105,6 +105,9 @@ uv run pytest
 name, and local MySQL credentials. Every path in this repo resolves from those;
 none is hardcoded.
 
+**Node** is needed only for the agent skills' own guards, which CI also runs —
+see [`ops/README.md`](ops/README.md). Nothing in `src/` requires it.
+
 Standing up the local MySQL warehouse — install, bootstrap script, and the
 server settings worth changing — is documented in
 [`ops/README.md`](ops/README.md).

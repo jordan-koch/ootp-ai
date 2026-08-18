@@ -196,7 +196,7 @@ landed.
 ## What good looks like
 
 - **Every relative link and bare `requests/...` token you write must resolve on disk.** A live
-  (non-`_done/`) artifact body is scanned by `tests/test_request_links.py`, a blocking CI
+  (non-`_done/`) artifact body is scanned by `tests/test_doc_links.py`, a blocking CI
   check, so a dead pointer here fails the build rather than quietly misleading the next stage. Two
   shapes to watch: a **forward reference** to a file a later stage creates, and a deliberately
   **broken example path**. Put either inside a fenced code block (``` or ~~~, blockquoted is fine) —

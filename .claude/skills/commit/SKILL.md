@@ -101,7 +101,7 @@ the docs describe:
 **Otherwise, do the two-minute version yourself:**
 
 ```
-uv run pytest tests/test_request_links.py -q
+uv run pytest tests/test_doc_links.py -q
 ```
 
 plus a read of `CLAUDE.md`'s project map against the tree. A typo fix in a test does not need the
