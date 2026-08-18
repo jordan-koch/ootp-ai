@@ -411,11 +411,43 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 > directly — deriving it as active + injured + prospects over-counts by the 60-day population
 > (58 players league-wide).
 
+> **AMENDED 2026-08-17 (second) — the roster grain is in `teams.dat`, not `players.dat`.**
+> This phase's title pairs the player walk with "roster-list extraction" as though they were one
+> job against one file. **Measured, they are two jobs against two files**, and the second is the
+> harder one. Reconnaissance on the standard-mode snapshot, before any build:
+>
+> - **The roster ids are in `teams.dat`.** Boston's (`team_id` 4) export roster ids appear there as
+>   a dense **stride-4 `u32` array** spanning roughly 384 bytes — 96 slots against the export's
+>   96 roster rows (33 + 26 + 30 + 7) — with values repeating exactly as a per-list encoding
+>   predicts, since a player on lists 1, 2 and 3 must appear three times. The array is **unaligned**
+>   relative to the file, which is expected: every string here is `u32`-length-prefixed, so nothing
+>   is 4-byte aligned. `measured`. That this array **is** `team_roster` is `inferred` — the sub-list
+>   boundaries and any length prefixes are not yet decoded, and one non-player value sits inside the
+>   run.
+> - **It sits in the region Phase 5 chose not to decode.** `parser/teams.py`'s docstring records
+>   that records are separated by *"variable-length bodies of 1.5 KB to 60 KB that this walk does
+>   not decode"* and that everything past `historical_id` is `unconfirmed`. So `rosters.py` is an
+>   **extension of the `teams.dat` walker**, not a by-product of the player walk. Sequence it
+>   accordingly, and expect it to inherit that file's drop-zero encoding.
+> - **It cannot be derived from player columns, and the near-miss is the trap.** Tested against
+>   `ootp_truth_real`: `list 1` vs `players.team_id > 0` differs by **176 rows** (7,370 vs 7,546,
+>   all at `level` 1); `list 4` vs `injury_is_injured = 1 AND team_id > 0` differs by **3** (330 vs
+>   332, 329 agreeing); `list 3` agrees with `organization_id` on all 935 rows but
+>   `organization_id` is populated for every player in an org, so it identifies the club and not the
+>   membership. A rule that is 97–99% right reproduces the answer key well enough to look finished
+>   and is wrong on a roster somewhere — **derive nothing here; read the array.**
+>
+> **Consequence for sequencing.** The player walk (steps 1, 3, 4) is independent and can land
+> first; `rosters.py` (step 2) depends on decoding further into the team record. If the sub-list
+> framing resists inside this phase, that is the case for splitting the phase rather than widening
+> it — Phase 0's opaque-integer fallback covered a wrong *label*, not an undecodable *array*, so it
+> does not apply. **`measured` / `inferred` as labelled above; nothing here is `verified`.**
+
 **Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously — and, as the amendment above records, under two different clubs at once.
 
 **Steps.**
 1. `parser/players.py` — a deliberately minimal field set: `player_id`, team/organization assignment, position, uniform number, date of birth, bats/throws, the name indices, and `historical_id` (the Lahman/BBRef string, `verified` at `docs/data-access.md:99-102`, ~1,712 unique values). **No ratings, whatever the Phase 2 verdict returned.** Resist widening: every landed field is a field somebody re-validates after a game patch. The field set is a maintenance liability, not a free win.
-2. `parser/rosters.py` — extraction at the `(team_id, player_id, list_id)` grain. Ground truth for the shape: `ootp_truth_real.team_roster` is **15,672 rows over 7,370 distinct players** — not 18,072 — with `list_id ∈ {1: 7370, 2: 7037, 3: 935, 4: 330}`. `db_structure_ootp25_mysql.txt` documents the columns but **not** the enum's semantics.
+2. `parser/rosters.py` — extraction at the `(team_id, player_id, list_id)` grain, **reading the array in `teams.dat` per the second amendment above, not deriving it from player fields.** Ground truth for the shape: `ootp_truth_real.team_roster` is **15,672 rows over 7,370 distinct players** — not 18,072 — with `list_id ∈ {1: 7370, 2: 7037, 3: 935, 4: 330}`, and it is a **pure key triple with no payload columns**, which is why it has to be read as a membership array rather than reconstructed from attributes. `db_structure_ootp25_mysql.txt` documents the columns but **not** the enum's semantics.
 
    **Resolve `list_id` by asking the operator to read the roster screen — do this FIRST, before any empirical derivation.** *Amended; the first draft sent this straight to open-ended research and put an unbounded tail on the critical path of the headline report.* The game shows, directly and unambiguously, which players sit on the active roster, which on the 40-man, and which in each minor-league tier. The operator reads it; the enum is settled in minutes and lands at `verified` rather than `inferred`. Bound the ask so it is cheap to answer: hand over a handful of `player_id`s per observed `list_id` value and ask which list the game shows each on. Cross-tabbing against the export's counts (`{1: 7370, 2: 7037, 3: 935, 4: 330}`) then becomes a *confirmation* of a known answer rather than an attempt to infer one from four integers.
 
@@ -439,7 +471,7 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 3. **Verify, do not assume, the `players.dat` population.** The plan (and AC12's diagnostic tier, and Phase 11's coverage statements) assumes `players.dat` holds the export's `retired = 0` set of 18,072 and `retired.dat` holds the rest. That is an **inference from filenames, not a measurement.** Confirm it by record count against the export before treating it as fact.
 4. Byte accounting at the **diagnostic** tier for `players.dat` (blocker F3): assert the walk terminates on a record boundary and reaches a record count matching the independent count, and **record** the residual byte count rather than asserting it is zero. Full byte accounting on a 32 MB `players.dat` is a research task, not a counter — say so in the tier rationale so a later reader does not mistake the weaker assertion for sloppiness. On `OOTP-AI.lg` there is no export, so the check degrades to boundary termination plus Phase 9's Boston sanity check; encode that degradation explicitly rather than silently skipping.
 5. Append every landed field to `field_map.toml`. Anything the walk crosses but cannot classify is recorded `category = "rating-true"`, `epistemic = "unconfirmed"` — the withhold-by-default posture.
-6. **MAIN THREAD:** advance `tests/test_parse_real_save.py` (**AC9, partial**) — `player_id` unique per snapshot; Boston's roster rows **≥ 26**, not `== 26` (the club is in spring training at 2024-03-07 and a set 26 probably does not exist yet). **AC9's `zero roster rows carry a null or blank display name` clause does NOT belong here** — no display name exists until Phase 7 resolves the join, so asserting it now would fail on a correct parse. It moves to Phase 7, per the MERGE-03 correction. Extend `test_sequential_walk.py` with a player-shaped synthetic record (1-year vs 10-year contract array) asserting `historical_id`, which sits after the variable region, reads identically. Add the parser-determinism half of `test_snapshot_semantics.py` (**AC10**): parsing the same snapshot twice is byte-identical.
+6. **MAIN THREAD:** advance `tests/test_parse_real_save.py` (**AC9, partial**) — `player_id` unique per snapshot; **Boston's exact per-list counts from the USER-RUN table below — 26 / 30 / 7 / 33, 96 rows over 34 distinct players.** *(Amended 2026-08-17: this was `≥ 26`, hedged on the guess that "a set 26 probably does not exist yet" in spring training. The operator's `OOTP-AI` screenshot reads 26/26 and 30/40, so the guess was wrong and the inequality is retired — it would have passed on a walk that found 27.)* **AC9's `zero roster rows carry a null or blank display name` clause does NOT belong here** — no display name exists until Phase 7 resolves the join, so asserting it now would fail on a correct parse. It moves to Phase 7, per the MERGE-03 correction. Extend `test_sequential_walk.py` with a player-shaped synthetic record (1-year vs 10-year contract array) asserting `historical_id`, which sits after the variable region, reads identically. Add the parser-determinism half of `test_snapshot_semantics.py` (**AC10**): parsing the same snapshot twice is byte-identical.
 
 **Acceptance.** AC9's in-phase clauses green (the display-name clause belongs to Phase 7); AC12 green at both tiers with the residual recorded; **`tests/test_cross_mode_format.py` extended to `players.dat`** — same record shape and stride across both test saves (§2.5); the three `list_id` invariants above asserted against the probe (26 exactly, 40 not exceeded, list 1 is 1:1); the population claim measured; the **USER-RUN screenshot check** below; `test_read_only.py` re-run green after the largest read this project performs.
 
@@ -460,10 +492,102 @@ cheaper for the operator — one screen, one image, no transcription:
 - It shows name, position, age and uniform number for the whole org, so the field-level
   spot-check the old criterion wanted falls out of the same image.
 
+**Where operator screenshots live.** `var/operator/screenshots/`, named
+`<sim-date>-<save>-<club>-<screen>.png`. Three properties, each load-bearing:
+
+- **`var/` is gitignored, and that is the point, not a convenience.** A game screenshot is Out of
+  the Park Developments' data and [ADR 0006](../../../docs/decisions/0006-public-repo-local-data.md)
+  bars it from this public repo at any size. Dropping it here makes that automatic instead of
+  something an implementer has to remember at `/commit`.
+- **`tests/test_doc_links.py` exempts `var/` targets**, so this plan and the review artifacts may
+  name the path in prose without turning a blocking CI check red — while the binary itself stays
+  untracked. Naming the file is how the evidence stays checkable.
+- **The sim date and the club belong in the filename.** A roster screenshot is true for exactly
+  one club on exactly one date; an undated one silently becomes wrong the first time the league
+  sims, and there is nothing in the image to catch it.
+
+**The three exhibits now on disk**, one per save, all supplied 2026-08-17:
+
+| File under `var/operator/screenshots/` | Save | Club shown |
+|---|---|---|
+| `2024-03-18-test-save-standard-mode-dodgers-organization.png` | `truth_save` — *Test Save - Standard Mode* (Cubs) | **Dodgers** org page |
+| `2024-03-18-test-save-challenge-mode-boston-organization.png` | `probe_save` — *Test Save - Challenge Mode* | Boston org page |
+| `2024-03-07-ootp-ai-boston-organization.png` | **`managed` — `OOTP-AI.lg`** | Boston org page |
+
+> **The sim dates in those names are corrected, and the correction is the finding.** All three
+> arrived named for a date the save is not on — off by 11, 4 and 11 days. **The Organization
+> screen's header never displays the current date.** Its block reads
+> `YESTERDAY / TODAY / TOMORROW` as *labels* against game results, and the first row carrying an
+> actual date is the **fourth** day — three days out. Reading that row as "today" is what produced
+> all three names.
+>
+> Measured instead from `saved_games.dat` via `parser/saved_games.py`: `OOTP-AI` **2024-03-07**,
+> *Test Save - Challenge Mode* **2024-03-18**, *Test Save - Standard Mode* **2024-03-18**. Both
+> Boston images then cross-check by weekday arithmetic against their own headers — `OOTP-AI` shows
+> `SAT. MAR. 9 · SUN. MAR. 10 · MON. MAR. 11`, and 9 March 2024 was a Saturday, which places today
+> at Thursday the 7th; the challenge test save shows `WED. MAR. 20 (OPENING DAY) · THU. MAR. 21`,
+> placing today at Monday the 18th. Two independent confirmations, one per image.
+>
+> **`saved_games.dat` is the authority for `sim_date`; a screenshot is not.** That matters beyond
+> filenames, because `sim_date` is a key column in every bronze table (§2.3(d)) — a screen-read
+> date would key the warehouse three days into the future. `docs/data-access.md` should carry this
+> at `measured` via the Phase 12 docs-delta.
+
+**The standard-mode exhibit is a Cubs save showing another club's org page**, which is why it
+carries *Show Ratings (D. Kantrovitz)* — the Cubs' scouting director, not the Dodgers'. It is the
+evidence behind `requests/feature-requests/first-sight/reviews/list-id-semantics.md` and nothing
+in this phase re-derives it.
+
 **Ask for it at the START of the phase, not at its acceptance.** The Dodgers image settled
 `list_id` in one pass and surfaced two invariants nobody had proposed; the equivalent Boston
 image is the cheapest available insurance against a mis-mapped field, and a field found wrong
 here costs one phase rather than the five it would cost at Phase 13 (§2.5 channel 4).
+
+**DELIVERED 2026-08-17 — and it reconciles.** `2024-03-07-ootp-ai-boston-organization.png` is the
+Organization → Overview page of `OOTP-AI.lg`, Challenge Mode, Boston, 0-0, 2nd in the AL East.
+Read off it (roster membership, names, positions, ages — the safe class only):
+
+| Panel | Header |
+|---|---|
+| Boston Active Roster | **26/26 Players** |
+| Secondary (40-man) Roster | **30/40 Players** |
+| Injured List | 7 MLB rows, plus 5 affiliate rows below a separator |
+| Worcester (IL, AAA) · Portland (EL, AA) · Greenville (SAL, A+) | 26 · 26 · 26 Pl. |
+| Salem (CAR, A) · Boston FCL (R) · DSL Blue · DSL Red | 24 · 28 · 30 · 27 Pl. |
+| Designated for Assignment · Waivers | both empty |
+
+**The arithmetic closes, exactly as it did on the Dodgers.** Of the 7 MLB injured, four read
+`61 days (60)` — Fulmer, Giolito, Hendriks, Murphy — and three read `11`/`16 days` — Grissom,
+Mata, Refsnyder. The 40-man panel carries a **TEAM column**, and Cooper Criswell appears there as
+`WOR (IL, AAA)`: on Boston's 40-man while assigned to Worcester. So
+**26 active + 3 short-IL + 1 affiliate-assigned = 30**, the 40-man header, with the four 60-day
+players excluded — the second independent confirmation of the 60-day rule, on a different club, a
+different save and a different game mode from the one that produced it.
+
+**This replaces the `>= 26` smoke test with exact, falsifiable counts for `OOTP-AI.lg`.** Boston is
+`team_id` 4. Assert all of these in Phase 6, and treat any one of them missing as a mis-framed walk
+rather than a tolerance to widen:
+
+| Quantity at Boston | Expected | Where it comes from |
+|---|---|---|
+| rows at `list_id = 2` | **26** | Active Roster header |
+| rows at `list_id = 3` | **30** | Secondary (40-man) header |
+| rows at `list_id = 4` | **7** | Injured List, MLB rows only |
+| rows at `list_id = 1` | **33** | 26 active + 7 injured — injured keep their assignment |
+| total `team_roster` rows | **96** | 33 + 26 + 30 + 7 |
+| distinct players | **34** | 33 assigned + Criswell, who is on the 40-man but assigned to WOR |
+
+**The spring-training hedge was wrong and is retired.** This phase's step 6 assumed *"a set 26
+probably does not exist yet"* at 2024-03-07. The screen says 26/26. The club carries a full active
+roster eleven days before opening day, so the weaker assertion bought nothing and would have
+passed on a walk that found 27.
+
+**The two Boston saves are near-twins and must not be conflated.** `OOTP-AI` (03-07) and the
+challenge test save (03-18) both show Boston at 26/26 and 30/40 with the same seven injured
+players and the same diagnoses; they differ in affiliate assignments (Salem 24 vs 26; Coffey and
+Dobbins at Worcester in one, Alexander and Jacques in the other). Same club, same mode, eleven
+days and two universes apart — so a test asserting the table above must name **which save** it
+loaded, and `test_cross_mode_format.py` compares *format*, never counts.
 
 **Ratings are not part of this check and never will be** (§2.5). The screen shows rating
 columns; they are scale-converted and scout-filtered, and matching one to a byte identifies the
