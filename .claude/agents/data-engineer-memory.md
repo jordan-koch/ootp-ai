@@ -337,3 +337,20 @@ is the one you are already following.
   a directory only — a plain `foo.lg` file was never ignored at all. Check with
   `git check-ignore --no-index <path>` rather than reading the file top-down. · evidence:
   `tests/test_no_leaks.py` `game_data_offenders` · tag: tooling
+- **2026-08-18** · `verified` · **Read a save buffer through `parser/lookahead.py`, never by
+  indexing it.** The AST guard now allows exactly two modules to index a buffer — the seam
+  itself and `primitives.py`, which owns the cursor — and flags a buffer subscript carrying
+  arithmetic or a literal anywhere else. It also judges the position handed to a lookahead,
+  so `peek_u32(data, position + _TEAM_ID_OFFSET)` fails even though it indexes nothing:
+  a module-level constant used as an offset must be **derived from named field widths**, not
+  folded from a literal. Two 2026-08-16 entries above are dated by this — one says the guard
+  runs with *zero exemptions*, the other that the primitives need no exemption of their own;
+  `primitives.py` is now the second allowlist entry. Both were true when written, and a
+  ledger is a log, so both stay. · evidence: `tests/test_no_fixed_offsets.py`,
+  [ADR 0020](../../docs/decisions/0020-sanctioned-lookahead-seam.md) · tag: harness
+- **2026-08-18** · `measured` · **A guard that only asserts the tree is CLEAN proves nothing
+  about whether it can fail.** Three separate scan guards in this repo have now had that
+  shape, and two shipped broken — a leak-guard mutant scanning zero files left all 18 of its
+  tests green. Pair every whole-tree assertion with a planted offender written to disk and
+  removed in `finally`, and mutate the rule itself to watch the module go red before trusting
+  it. · evidence: `tests/test_fixed_offset_guard_scope.py` · tag: harness
