@@ -33,10 +33,13 @@ from fixtures.synthetic import (
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
 from ootp_ai.db import connect_truth
 from ootp_ai.parser.errors import MalformedHeader
+from ootp_ai.parser.lookahead import peek_date_parts, peek_u8
 from ootp_ai.parser.players import (
     # Private on purpose, imported on purpose: the independent-framing test below has to
     # re-derive candidates with the walk's own validity rule but WITHOUT its sequencing.
     # Re-implementing the rule here would test a copy of it rather than what ships.
+    _AGE_LOOKAHEAD,
+    _BIRTH_DATE_LOOKAHEAD,
     _PAD_RUN,
     BYTE_ACCOUNTING_TIER,
     NO_DECLARED_COUNT,
@@ -64,6 +67,39 @@ TRUTH_PLAYER_RECORDS = TRUTH_ACTIVE_PLAYERS + len(EXTRA_BEYOND_THE_EXPORT)
 #: which is what makes the sign look like an attached-but-not-rostered marker
 #: (`inferred`). Pinned as an exact count, never a tolerance.
 LEAGUE_ID_NEGATED_BY_THE_EXPORT = 176
+
+
+# ── offline: the two lookaheads the framing rests on ─────────────────────────
+#
+# These sit first because everything below depends on them. `_looks_like_record` reads the
+# birth date and the age at these offsets to decide whether a candidate position is a
+# record at all — so if either is wrong the walk does not return bad fields, it returns the
+# wrong NUMBER OF RECORDS, which is how the 2,693-of-18,072 truncation happened during
+# development. A gamedata test would catch that too, but only against a save CI never has.
+
+
+def test_the_head_lookaheads_land_on_the_fields_they_name() -> None:
+    """The semantic pin: the derived offsets reach the birth date and age actually written.
+
+    This is what makes the derivation trustworthy rather than merely tidy. Written as sums
+    of named field widths (`players.py`), the two offsets can now drift if a width is
+    mistyped — so they are checked against a head whose contents the fixture controls,
+    rather than against the numbers they used to be.
+    """
+    birth = (26, 6, 1996)
+    head = make_player_head(birth=birth, sim_date=SIM)
+
+    assert peek_date_parts(head, _BIRTH_DATE_LOOKAHEAD) == birth
+    assert peek_u8(head, _AGE_LOOKAHEAD) == player_age_on(birth, SIM)
+
+
+def test_the_derived_lookaheads_still_equal_the_measured_offsets() -> None:
+    """The numeric pin: the arithmetic must still come out at the values that were measured.
+
+    Weaker than the test above and faster to read in a failure — a broken addend shows up
+    here as a plain number, which is the first thing anyone will want to see.
+    """
+    assert (_BIRTH_DATE_LOOKAHEAD, _AGE_LOOKAHEAD) == (12, 19)
 
 
 # ── offline: the framing rules ───────────────────────────────────────────────
