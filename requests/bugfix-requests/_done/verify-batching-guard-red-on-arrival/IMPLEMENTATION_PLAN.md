@@ -37,8 +37,8 @@ single worst available outcome, and it is the one thing every planner and both a
 
 | # | File | Why |
 |---|---|---|
-| 1 | `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` | The decided upstream artifact. **Consume it; do not re-open it.** Verdict at `:17-24`, the per-failure-line table at `:88-96`, the tiered fix posture at `:173-214` |
-| 2 | `requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md` | The second request this plan closes. Its gated decision at `:82-93` — **now disposed in favour of extending the guard**; `:95-98` is why the reference repointing was always safe to do early |
+| 1 | `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` | The decided upstream artifact. **Consume it; do not re-open it.** Verdict at `:17-24`, the per-failure-line table at `:88-96`, the tiered fix posture at `:173-214` |
+| 2 | `requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md` | The second request this plan closes. Its gated decision at `:82-93` — **now disposed in favour of extending the guard**; `:95-98` is why the reference repointing was always safe to do early |
 | 3 | `.claude/skills/implement-plan/tests/verify_batching_guard.mjs` | The file being fixed — 293 lines, read it in full. Fixture `:40-64`, the two bad keys `:54`/`:58`, the silent swallow `:78`, the stale roster comment `:150`, the call recorder `:163-179`, `fails` at `:181`, Scenario 1 at `:185-226`, the single RED path at `:285-292` |
 | 4 | `.claude/skills/implement-plan/acceptance_panel.js` | The code under test — **read, never edit**. `CORE` `:189-194`, `SPEC_DEFS` `:196-202`, `AREA_TO_SPEC` `:203-207`, `specKeys`/`ROSTER` `:208-209`. `safeAgent` `:139-146` swallows every throw, which constrains how Phase 2 may fail loudly. The dedupe the guard falsely accused: `normLocation` `:298-301` and the `jaccard >= 0.5` gate at `:317` |
 | 5 | `tests/test_skill_references.py` | The committed red repro **and** the regression guard the acceptance contract requires. `TEST_REFERENCE` `:32`, `LENS_KEY` `:37`, `FIXTURE_LENS` `:40`, `fixture_lens_keys()` `:72-76` (splits on literal delimiters), the deliberate one-directionality note `:94-95`. **Its two assertions are not weakened to fit the fix**; its docstrings *are* moved to past tense in Phase 3 |
@@ -603,8 +603,8 @@ that exist. Asserting the reverse would turn a harmless partial fixture red.
 - [ ] `.github/workflows/ci.yml` — `actions/setup-node` + the guards step (Phase 8)
 - [ ] `.claude/agents/data-engineer-memory.md` — **append one entry** (Phase 7)
 - [ ] `requests/bugfix-requests/README.md` — Index rows `:51` and `:53` (Phase 7)
-- [ ] `requests/bugfix-requests/verify-batching-guard-red-on-arrival/` — `BUGFIX_REQUEST.md:1`, `ROOT_CAUSE_ANALYSIS.md:1`, this plan's `:1`, new `IMPLEMENTATION_REPORT.md` (Phase 7)
-- [ ] `requests/bugfix-requests/doc-link-guard-mismatch/` — `BUGFIX_REQUEST.md:1`, `ROOT_CAUSE_ANALYSIS.md:1` (Phase 7)
+- [ ] `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/` — `BUGFIX_REQUEST.md:1`, `ROOT_CAUSE_ANALYSIS.md:1`, this plan's `:1`, new `IMPLEMENTATION_REPORT.md` (Phase 7)
+- [ ] `requests/bugfix-requests/_done/doc-link-guard-mismatch/` — `BUGFIX_REQUEST.md:1`, `ROOT_CAUSE_ANALYSIS.md:1` (Phase 7)
 - [ ] **NOT** `.claude/skills/implement-plan/acceptance_panel.js` — proven correct; must never appear in the diff
 - [ ] **NOT** `requests/bugfix-requests/README.md`'s `leak-guard-blind-to-untracked-files` row, or either track README's contract text
 
@@ -654,9 +654,9 @@ does not exist — the fourth instance of the drift class, inside the planning p
 
 ## References
 
-- `requests/bugfix-requests/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
-- `requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md` — the second request this plan closes
-- `requests/bugfix-requests/verify-batching-guard-red-on-arrival/reviews/plan-proposals.md` — the three planners' raw proposals
-- `requests/bugfix-requests/verify-batching-guard-red-on-arrival/reviews/plan-adversarial.md` — 22 adversary + 13 meta-audit findings, the convergence map, and the gated decisions as posed
+- `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
+- `requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md` — the second request this plan closes
+- `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/reviews/plan-proposals.md` — the three planners' raw proposals
+- `requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/reviews/plan-adversarial.md` — 22 adversary + 13 meta-audit findings, the convergence map, and the gated decisions as posed
 - `requests/bugfix-requests/README.md` — the track contract, status grammar, and definition of done
 - `.claude/agents/data-engineer.md` — the write allowlist that puts every path here in the deny set

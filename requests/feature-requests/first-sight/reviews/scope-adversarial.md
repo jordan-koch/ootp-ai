@@ -333,7 +333,7 @@ My own new measurement, which the scope does not have: names.dat is 8,642,110 by
 
 *adversary:* scope-completeness · *confidence:* high · *category:* risk
 
-**Location:** risks ("tests/test_doc_links.py FAILS CI ON ANY TRACKED MARKDOWN LINK INTO var/"); requests/bugfix-requests/doc-link-guard-mismatch/BUGFIX_REQUEST.md:18-26 and :45-55; tests/test_doc_links.py:10 and :33-37
+**Location:** risks ("tests/test_doc_links.py FAILS CI ON ANY TRACKED MARKDOWN LINK INTO var/"); requests/bugfix-requests/_done/doc-link-guard-mismatch/BUGFIX_REQUEST.md:18-26 and :45-55; tests/test_doc_links.py:10 and :33-37
 
 **Problem.** The open bugfix request records THREE constructs that trip the live guard: links inside fenced code blocks, citations carrying a `file.py:123` line suffix, and `var/` targets. The scope's risk register names only the var/ one. Every artifact this pipeline produces downstream — PROJECT_SCOPE.md, IMPLEMENTATION_PLAN.md, IMPLEMENTATION_REPORT.md, the data-engineer's handoff under reviews/ — is tracked Markdown scanned by tests/test_doc_links.py, and this scope's prose cites roughly forty `path:line` references. Any one of them written as a Markdown link turns CI red before a byte of parser code is written. The BUGFIX_REQUEST itself notes it was "written around the defect, by using code spans instead of links" — that workaround is nowhere in this scope. Separately the scope's risk phrasing is imprecise: the guard fails when the link TARGET does not resolve on disk, which is why it is green locally and red on a fresh clone.
 

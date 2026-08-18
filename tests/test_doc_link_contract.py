@@ -13,7 +13,7 @@ exempt too"; and — in four of the five copies — "every relative link **and b
 
 None of the four was implemented. Authors who followed the documentation got a red
 build, and the repo grew a code-span citation convention to work around it. See
-`requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`.
+`requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`.
 """
 
 from __future__ import annotations
@@ -222,7 +222,7 @@ def test_there_is_no_own_directory_exemption() -> None:
     looser than the contract it implements, and silencing a mistyped sibling filename.
     The skills already prescribe the remedy for a forward reference: put it in a fence.
     """
-    own = "requests/bugfix-requests/verify-batching-guard-red-on-arrival/NOT_WRITTEN_YET.md"
+    own = "requests/bugfix-requests/_done/verify-batching-guard-red-on-arrival/NOT_WRITTEN_YET.md"
     assert guard.bare_request_tokens(f"write {own}") == [own], (
         "a not-yet-written artifact must be caught unless the author fences it"
     )

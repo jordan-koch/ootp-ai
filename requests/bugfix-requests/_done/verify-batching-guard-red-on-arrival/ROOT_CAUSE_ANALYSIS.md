@@ -4,7 +4,7 @@
 
 > **Joint diagnosis**, at the operator's direction: one analysis covering the port
 > itself rather than two covering symptoms. The primary target is
-> `verify_batching_guard.mjs`; `requests/bugfix-requests/doc-link-guard-mismatch/` is
+> `verify_batching_guard.mjs`; `requests/bugfix-requests/_done/doc-link-guard-mismatch/` is
 > in scope as the second instance and carries its own RCA for its own gated decision.
 > That request's third Open Question — *"is the same drift present in the other ported
 > guards?"* — is answered here: **yes, and a third instance turned up while writing this.**
@@ -128,7 +128,7 @@ available, and it was one plausible reading away.
 ### The doc-link guard: the same class, a different mechanism
 
 Confirmed as a genuine second instance, not a coincidence. Full analysis and its gated
-decision live in `requests/bugfix-requests/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`;
+decision live in `requests/bugfix-requests/_done/doc-link-guard-mismatch/ROOT_CAUSE_ANALYSIS.md`;
 in brief:
 
 - **Symptom A** — six skills name `tests/test_request_links.py`, which has never existed

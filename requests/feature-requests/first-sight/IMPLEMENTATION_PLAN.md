@@ -11,7 +11,7 @@
 > document is a **code span, never a Markdown link**, and nothing links into `var/`.
 > `tests/test_doc_links.py` resolves every relative link target in every tracked `.md`
 > with no fence awareness and no `var/` exemption, so either shape turns CI red **today**.
-> An open bugfix request exists (`requests/bugfix-requests/doc-link-guard-mismatch/`) —
+> An open bugfix request exists (`requests/bugfix-requests/_done/doc-link-guard-mismatch/`) —
 > work around it here, do not fix it. `PROJECT_SCOPE.md` adopts the same convention.
 >
 > **Never write an absolute path into this or any tracked file.** Finding F01 caught the
@@ -112,7 +112,7 @@ Both are **pure functions over a declaration**, so AC13's offline test feeds the
 
 **Reports render to `<output_root>/<save_id>/<sim_date>/<ingest_seq>/roster.md`.** Snapshot-partitioning dissolves SD-21 / Risk 10 — regenerating a report overwrites the prior snapshot's view and breaks citation integrity for any `gm/decisions/` record that cites it — because a new sim date, or a new `ingest_seq` within one date, writes a new directory, while re-rendering the same triple stays idempotent. **This is what makes a `gm/decisions/` citation verifiable months later**: the exact bytes the GM read are still on disk, not regenerated from a warehouse that has since moved on. `.gitignore:18` is a bare `var/`, and `git check-ignore -q var/reports/roster.md` exits 0 today, so AC14's ignored-root proof works as written.
 
-**Every `file:line` citation this feature writes uses a code span, never a Markdown link, and nothing links into `var/`.** `tests/test_doc_links.py` resolves every relative link target in every tracked `.md` with no fence awareness and no `var/` exemption, so a link into the ignored output root turns CI red **today**. An open bugfix request exists (`requests/bugfix-requests/doc-link-guard-mismatch/`); work around it, do not fix it here. `PROJECT_SCOPE.md:5-9` adopts the same convention for the same reason.
+**Every `file:line` citation this feature writes uses a code span, never a Markdown link, and nothing links into `var/`.** `tests/test_doc_links.py` resolves every relative link target in every tracked `.md` with no fence awareness and no `var/` exemption, so a link into the ignored output root turns CI red **today**. An open bugfix request exists (`requests/bugfix-requests/_done/doc-link-guard-mismatch/`); work around it, do not fix it here. `PROJECT_SCOPE.md:5-9` adopts the same convention for the same reason.
 
 ### 2.5 The three saves, and which question each one can answer
 

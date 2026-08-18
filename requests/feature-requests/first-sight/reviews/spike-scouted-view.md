@@ -5,7 +5,7 @@
 > (`56741e5`), before this file existed or anything ran — that ordering is AC18.
 >
 > Citations are code spans, never Markdown links, and nothing links into `var/`.
-> See `requests/bugfix-requests/doc-link-guard-mismatch/`.
+> See `requests/bugfix-requests/_done/doc-link-guard-mismatch/`.
 
 ## Verdict: `stored`
 
