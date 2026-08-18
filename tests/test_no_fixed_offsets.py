@@ -37,8 +37,11 @@ could launder a constant would be worse than no seam.
 
 ## What this cannot see, named so nobody assumes otherwise
 
-- **A position hoisted into a local.** `at = start + 58` then `data[at : at + 4]` passes.
-  Closing it needs dataflow analysis inside a test module.
+- **A read whose every index component is a bare name.** `at = start + 58; end = at + 4`
+  then `data[at:end]` passes, as does `data[at]`. Note this is **narrower than a hoist**:
+  `data[at : at + 4]` is still caught, because the slice's upper bound carries arithmetic —
+  measured 2026-08-18, after an earlier draft of this list claimed otherwise. Closing the
+  remainder needs dataflow analysis inside a test module.
 - **An attribute-valued buffer.** `self._buf[start + 58]` passes; only a plain `Name` is
   tracked. `Cursor.take` is exactly this shape, and is also exempt.
 - **`bytearray` and `memoryview` annotations.** Nothing in the tree uses either; the
