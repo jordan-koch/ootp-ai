@@ -127,7 +127,8 @@ def test_the_first_record_is_found_even_though_nothing_pads_it() -> None:
 def test_every_head_field_survives_the_walk() -> None:
     head = make_player_head(
         player_id=1234,
-        name_indices=(11, 22),
+        first_name_index=11,
+        last_name_index=22,
         birth=(26, 6, 1996),
         sim_date=SIM,
         nation_id=206,
@@ -139,7 +140,7 @@ def test_every_head_field_survives_the_walk() -> None:
     )
     (player,) = read_players(make_players_file((head,), sim_date=SIM)).players
     assert player.player_id == 1234
-    assert player.name_indices == (11, 22)
+    assert (player.first_name_index, player.last_name_index) == (11, 22)
     assert (player.date_of_birth.day, player.date_of_birth.month) == (26, 6)
     assert player.date_of_birth.year == 1996
     assert player.age == player_age_on((26, 6, 1996), SIM)

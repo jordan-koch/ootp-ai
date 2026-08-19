@@ -171,7 +171,8 @@ cursor and never indexes them.**
 | At | Field | Status |
 |---|---|---|
 | +0 | `u32 player_id`, ascending across the file | `verified` — 18,072 of 18,072 |
-| +4, +8 | two `u32`s, both inside `names.dat`'s index range | `unconfirmed` — see below |
+| +4 | `u32 first_name_index` into `names.dat` | `verified` — 18,072 of 18,072 |
+| +8 | `u32 last_name_index` into `names.dat` | `verified` — 18,072 of 18,072 |
 | +12 | `date_of_birth` (`u8` day, `u8` month, `u16` year) | `verified` — 18,072 of 18,072 |
 | +16 | 3 bytes | unclassified |
 | +19 | `u8 age` | `verified` |
@@ -188,13 +189,19 @@ cursor and never indexes them.**
 Every row marked `verified` was scored against **every** `retired = 0` row of
 `ootp_truth_real.players` — not a spot-check — and matched exactly.
 
-**The two `u32`s at +4 and +8 are deliberately not named.** They are the plausible home
-of the first- and last-name indices: both fall inside `names.dat`'s ~264,095-entry range
-in every record sampled. That is suggestive and it is not proof, and *which* is which is
-not established at all. Phase 7 resolves them by brute force against a full answer key,
-which is the only way to tell a correct mapping from a plausible one. Until then they
-are carried as an opaque pair, because a field named `first_name_index` is a claim and
-this walk has not earned it.
+**The two `u32`s at +4 and +8 are named as of Phase 7, and were not before.** They were
+carried as an opaque pair — a field called `first_name_index` is a claim, and until it
+was scored the walk had not earned it. Phase 7 scored it by brute force against the full
+export population rather than by reading the bytes, which is the only way to tell a
+correct mapping from a plausible one:
+
+| Mapping | Score against `ootp_truth_real.players` |
+|---|---|
+| `+4` as **first**, `+8` as **last** | **18,072 / 18,072 = 100.00%** |
+| `+4` as last, `+8` as first | 1 / 18,072 = 0.01% |
+
+Zero unresolved indices in either direction. The join itself, the one-index-space
+finding behind it and the encoding live in `parser/names.py`.
 """
 
 from __future__ import annotations
@@ -277,9 +284,9 @@ _PAD_RUN = b"\x00" * 24
 _ALIGNMENT_WINDOW = 4
 
 #: The widths of the head fields the lookaheads step over. `_NAME_INDEX_COUNT` is 2 because
-#: the head carries an opaque *pair* of `u32`s at +4 and +8 — the head-layout table above
-#: already records what is and is not established about them, and naming their count here
-#: claims nothing further.
+#: the head carries two `u32` name indices at +4 and +8 — first then last, `verified` by
+#: Phase 7. Only the count matters here: these constants exist so a lookahead can step
+#: over the fields to reach the birth date, not so anything can jump to one.
 _PLAYER_ID_WIDTH = U32_WIDTH
 _NAME_INDEX_WIDTH = U32_WIDTH
 _NAME_INDEX_COUNT = 2
@@ -445,10 +452,13 @@ class PlayerRecord:
     """
 
     player_id: int
-    #: The two `u32`s at +4 and +8, in file order. Almost certainly the name indices;
-    #: which is first and last is **unconfirmed** and Phase 7 settles it. Carried as a
-    #: pair precisely so nothing downstream can mistake a position for a proof.
-    name_indices: tuple[int, int]
+    #: The `u32` at +4. `verified` 18,072/18,072 against the export by Phase 7's brute
+    #: force; the opposite assignment scored 1/18,072. Resolve it through a
+    #: `parser.names.NameTable` built from **the same save** — the index means nothing
+    #: without one.
+    first_name_index: int
+    #: The `u32` at +8, `verified` the same way.
+    last_name_index: int
     date_of_birth: SaveDate
     age: int
     nation_id: int
@@ -618,7 +628,8 @@ def _read_record(cursor: Cursor, data: bytes) -> PlayerRecord:
     `teams.py` uses, because the cursor exposes no lookahead by construction.
     """
     player_id = cursor.u32()
-    name_indices = (cursor.u32(), cursor.u32())
+    first_name_index = cursor.u32()
+    last_name_index = cursor.u32()
     date_of_birth = cursor.date()
 
     cursor.skip(_GAP_AFTER_BIRTH_DATE)
@@ -665,7 +676,8 @@ def _read_record(cursor: Cursor, data: bytes) -> PlayerRecord:
 
     return PlayerRecord(
         player_id=player_id,
-        name_indices=name_indices,
+        first_name_index=first_name_index,
+        last_name_index=last_name_index,
         date_of_birth=date_of_birth,
         age=age,
         nation_id=nation_id,

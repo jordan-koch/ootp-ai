@@ -105,7 +105,10 @@ Verified 2026-08-15; detail and epistemic labels in
   one sanctioned module index a save buffer
   ([ADR 0020](docs/decisions/0020-sanctioned-lookahead-seam.md)). The scan names
   what it cannot see; it does not claim to see everything.
-- **Names are indirected** into `names.dat`; `players.dat` holds indices.
+- **Names are indirected** into `names.dat`; `players.dat` holds two indices per
+  record, first then last. **The join is built and exact** — one index space of
+  264,095 entries, latin-1, strict byte accounting. `players.csv` is *not* an exact
+  name key: it ships pure ASCII with accents already replaced by `?`.
 - **Real players carry their Lahman/BBRef ID** — a join key to public baseball data.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
 

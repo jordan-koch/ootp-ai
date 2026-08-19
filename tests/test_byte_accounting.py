@@ -17,10 +17,11 @@ claim that in fact achieves zero residual everywhere is an **under-claim** and f
 Under-claiming is the cheaper mistake to make and the harder one to notice, because it
 never turns anything red.
 
-Scope note: this module covers `teams.dat` (diagnostic) and, since Phase 5b, `world.dat`
-(region-accounted). `names.dat` joins it at the strict tier in Phase 7; `players.dat`
-joins at the diagnostic tier in Phase 6, where the scope is explicit that full accounting
-over 32 MB is a research task rather than a counter.
+Scope note: this module covers `teams.dat` (diagnostic), `world.dat` (region-accounted,
+Phase 5b), `players.dat` (diagnostic, Phase 6 — the scope is explicit that full accounting
+over 32 MB is a research task rather than a counter) and, since Phase 7, `names.dat` at
+the **strict** tier. `names.dat` is the only one that reaches strict, and the reason is
+the file's rather than the walk's: a name record has no undecoded body.
 
 `world.dat` is the one that needs its own section rather than another helper, because
 "residual" is not the question there. A landmark-entered walk never reads most of the
@@ -38,7 +39,10 @@ from dataclasses import dataclass
 
 import pytest
 
+from fixtures.tiers import KNOWN_TIERS
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
+from ootp_ai.parser.names import BYTE_ACCOUNTING_TIER as NAMES_TIER
+from ootp_ai.parser.names import NAMES_FILE, NamesFile, read_names
 from ootp_ai.parser.players import BYTE_ACCOUNTING_TIER as PLAYERS_TIER
 from ootp_ai.parser.players import PLAYERS_FILE, PlayersFile, read_players
 from ootp_ai.parser.teams import BYTE_ACCOUNTING_TIER, TEAMS_FILE, TeamsFile, read_teams
@@ -64,6 +68,11 @@ TRUTH_PLAYER_RECORDS = 18_077
 #: Thirty clubs at 26 active apiece is 780 before a single affiliate. A file returning
 #: fewer records than that is short however plausible the ones it did return look.
 MINIMUM_PLAUSIBLE_PLAYERS = 780
+
+#: `measured` 2026-08-18 — the count `names.dat`'s header declares, and the number of
+#: records the walk frames, in all three saves. The one file in the save whose declared
+#: count and framed count can be compared to each other.
+NAME_TABLE_ENTRIES = 264_095
 
 
 @dataclass(frozen=True, slots=True)
@@ -451,6 +460,89 @@ def test_the_managed_player_walk_degrades_honestly_without_an_export() -> None:
         "record-boundary check are the only things standing between a short walk and a "
         "warehouse that quietly holds half a league."
     )
+
+
+# ── names.dat, the strict tier, Phase 7 ──────────────────────────────────────
+#
+# The only walk in this project that reaches strict, and the reason it can is a property
+# of the file rather than of the effort spent on it: a name record has no undecoded body.
+# `teams.dat` and `players.dat` carry variable-length remainders this slice does not
+# read, so both are honest about being diagnostic; here every byte is a field the walk
+# consumes, and a wrong width desynchronises the next length prefix immediately.
+
+
+def _walk_names(save: SaveRef) -> tuple[str, NamesFile, int]:
+    path = save.path / NAMES_FILE
+    if not path.is_file():
+        pytest.skip(f"{save.league} has no {NAMES_FILE} — nothing to account for")
+    payload = path.read_bytes()
+    return save.league, read_names(payload), len(payload)
+
+
+def _every_names_save(settings: Settings) -> list[tuple[str, NamesFile, int]]:
+    present = [ref for ref in (settings.managed, settings.probe_save, settings.truth_save) if ref]
+    if len(present) < 2:
+        pytest.skip("fewer than two saves are configured")
+    return [_walk_names(ref) for ref in present]
+
+
+def test_the_names_tier_is_a_known_one() -> None:
+    assert NAMES_TIER in KNOWN_TIERS
+
+
+def test_the_names_walk_leaves_no_byte_unaccounted_for() -> None:
+    """Strict means zero. Nothing to interpret and no residual to record.
+
+    This is the assertion the tier label buys: `read_names` raises rather than returning
+    a `NamesFile` with a residual, so reaching this line at all already means the walk
+    consumed the buffer. Asserting it anyway keeps the claim visible at the place a
+    reader looks for it, and catches a future walker that starts tolerating a remainder.
+    """
+    assert NAMES_TIER == "strict"
+
+    for league, parsed, size in _every_names_save(_settings()):
+        assert parsed.residual_bytes == 0, (
+            f"{league}: {parsed.residual_bytes} of {size:,} bytes unaccounted for, in a "
+            f"walk declared {NAMES_TIER!r}. Either the tier is wrong or a record carries "
+            "a field this walk does not read."
+        )
+
+
+def test_the_names_walk_frames_exactly_the_count_the_file_declares() -> None:
+    """The in-file oracle `players.dat` does not have, used as one.
+
+    `players.dat` carries the `0xFFFFFFFF` sentinel, so its walk has nothing to check its
+    own framing against and its rationale says so. This file declares a real count, which
+    means the strict claim is checked against something other than itself: framing too
+    few records and framing too many are both caught, in the file, on every save.
+    """
+    for league, parsed, _ in _every_names_save(_settings()):
+        assert len(parsed.names) == parsed.declared_record_count, (
+            f"{league}: framed {len(parsed.names):,} name records but the header declares "
+            f"{parsed.declared_record_count:,}"
+        )
+        assert parsed.declared_record_count == NAME_TABLE_ENTRIES, (
+            f"{league}: the table declares {parsed.declared_record_count:,} entries, not "
+            f"{NAME_TABLE_ENTRIES:,}. A game patch may have shipped a different name "
+            "master, which would change every index players.dat points with."
+        )
+
+
+def test_name_records_are_not_all_the_same_length() -> None:
+    """Otherwise the file exercises none of the variable-length hazard.
+
+    Two independent sources of width variation here — the length-prefixed name and the
+    per-record usage array — and both must actually vary, or a fixed-stride reader would
+    walk this file correctly and the strict result would prove nothing about the ban.
+    """
+    for league, parsed, _ in _every_names_save(_settings()):
+        name_widths = {len(record.text) for record in parsed.names}
+        usage_widths = {len(record.usage) for record in parsed.names}
+        assert len(name_widths) > 1, f"{league}: every name is the same length"
+        assert len(usage_widths) > 1, (
+            f"{league}: every name record carries the same number of usage pairs, so the "
+            "second source of width variation is not being read"
+        )
 
 
 # ── the premise byte accounting exists to protect ────────────────────────────

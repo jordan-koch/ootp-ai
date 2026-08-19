@@ -269,7 +269,8 @@ PLAYER_STATUS_INJURED_BIT = 4
 def make_player_head(
     *,
     player_id: int = 47035,
-    name_indices: tuple[int, int] = (12143, 76945),
+    first_name_index: int = 12143,
+    last_name_index: int = 76945,
     birth: tuple[int, int, int] = (26, 6, 1996),
     sim_date: tuple[int, int, int] = (18, 3, 2024),
     age: int | None = None,
@@ -360,8 +361,8 @@ def make_player_head(
 
     return (
         struct.pack("<I", player_id)
-        + struct.pack("<I", name_indices[0])
-        + struct.pack("<I", name_indices[1])
+        + struct.pack("<I", first_name_index)
+        + struct.pack("<I", last_name_index)
         + make_date(day, month, year)
         + gap * 3
         + struct.pack("<B", stated_age)
@@ -428,6 +429,100 @@ def make_players_file(
         for index, (head, tail_bytes) in enumerate(zip(heads, per_record, strict=True))
     )
     return make_header(filename="players.dat", sim_date=sim_date) + tail + preamble + records
+
+
+# ── names.dat, measured ──────────────────────────────────────────────────────
+# The string table's record shape is `measured` 2026-08-18 and, like the calendar and
+# player builders, this fixture pins a finding rather than a hypothesis: the walk it
+# describes consumes all three real files to **zero residual** and frames exactly the
+# 264,095 records each header declares.
+#
+# The category byte LEADS its record. That is not a stylistic reading — see
+# `parser/names.py` §2 — and the fixture emits it that way so a test can build the exact
+# collision that refutes the trailing-separator reading: a name whose first character is
+# an apostrophe (`'t Hart` is a real Dutch surname in the table), which under the wrong
+# reading is indistinguishable from the 0x27 the byte itself takes.
+
+#: The category values observed, most common first. Opaque — `parser/names.py` §5 records
+#: why the obvious first-name/surname reading of them is refuted.
+NAME_CATEGORY_SURNAME_BLOCK = 0x07
+NAME_CATEGORY_GIVEN_BLOCK = 0x27
+
+#: The `u32` between the name and its index. `measured` — zero on every record of every
+#: save, and the walker refuses a record where it is not.
+NAME_ZERO_FIELD = 0
+
+#: The preamble between the header tail and the first record: a zero run, then this
+#: constant. Measured at 46 zero bytes, the same sentinel `players.dat` carries.
+NAME_PREAMBLE_CONSTANT = 1234
+NAME_PREAMBLE_ZEROS = 46
+
+
+def make_name_record(
+    *,
+    index: int,
+    text: str,
+    category: int = NAME_CATEGORY_SURNAME_BLOCK,
+    usage: tuple[tuple[int, int], ...] = ((0, 1),),
+    zero_field: int = NAME_ZERO_FIELD,
+) -> bytes:
+    """One name-table entry: `u8 category, string, u32 zero, u32 index, u32 count, pairs`.
+
+    `text` is encoded **latin-1**, not ASCII, because 1,621 of the real table's 264,095
+    entries carry a byte above 0x7f and a fixture that could not express one could not
+    test the encoding at all.
+
+    `usage` varies the record's width, which is the property that matters: every field
+    after it sits at a different absolute offset in a one-pair record than in a
+    three-pair one. `zero_field` exists so a test can build the record the walker must
+    refuse.
+    """
+    encoded = text.encode("latin-1")
+    return (
+        struct.pack("<B", category)
+        + struct.pack("<I", len(encoded))
+        + encoded
+        + struct.pack("<I", zero_field)
+        + struct.pack("<I", index)
+        + struct.pack("<I", len(usage))
+        + b"".join(struct.pack("<II", key, weight) for key, weight in usage)
+    )
+
+
+def make_names_file(
+    records: tuple[bytes, ...],
+    *,
+    sim_date: tuple[int, int, int] = (18, 3, 2024),
+    declared_count: int | None = None,
+    preamble_constant: int = NAME_PREAMBLE_CONSTANT,
+    lead_zeros: int = NAME_PREAMBLE_ZEROS,
+    preamble_prefix: bytes = b"",
+    trailing: bytes = b"",
+) -> bytes:
+    """A whole synthetic `names.dat`: header, six-u32 tail, preamble, then the records.
+
+    `declared_count` defaults to the truth so a test can **lie** in either direction —
+    declaring more records than the buffer holds must raise rather than return a short
+    table, and declaring fewer must leave a residual the strict tier refuses.
+
+    `preamble_prefix` is emitted before the zero run, so a test can put content *inside*
+    the preamble rather than merely removing the sentinel. The walker measures the zero
+    run from the data instead of skipping the observed 46 bytes, and those are the two
+    distinct ways that can be wrong.
+
+    `trailing` appends bytes after the last record, which is the other way the strict
+    claim can be false: every record framed, and the file still not accounted for.
+    """
+    count = len(records) if declared_count is None else declared_count
+    tail = struct.pack("<IIIIII", 21, 21, 11, 5, count, 3_289_089)
+    preamble = preamble_prefix + b"\x00" * lead_zeros + struct.pack("<I", preamble_constant)
+    return (
+        make_header(filename="names.dat", sim_date=sim_date)
+        + tail
+        + preamble
+        + b"".join(records)
+        + trailing
+    )
 
 
 # ── teams.dat, span level ────────────────────────────────────────────────────

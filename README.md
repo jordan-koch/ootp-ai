@@ -22,11 +22,12 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > **Phase 1 — the parser is real.** The managed club exists — Boston Red Sox,
 > Challenge Mode, from 2024-03-07 — and the code that reads its save does too:
 > a forward-only cursor, a header and version guard, an immutable snapshot layer,
-> and working walkers for five of the save's binaries. Every team record of the
+> and working walkers for six of the save's binaries. Every team record of the
 > validation save matches the game's own export field-by-field, so does every
-> entry of the league calendar, and so does every biographical field of all
-> 18,072 players the export knows about — plus five it does not. No warehouse and
-> no reports yet, so the GM still cannot see its own club.
+> entry of the league calendar, so does every biographical field of all 18,072
+> players the export knows about — plus five it does not — and so does every
+> player's **name**, resolved through a two-file join. No warehouse and no reports
+> yet, so the GM still cannot see its own club.
 
 ## Why it's interesting
 
@@ -156,10 +157,17 @@ the export's derived closer role, and a mapping below exact does not ship.
 The roster grain — which players sit on which club's active roster, 40-man and
 injured list — reproduces the export's 15,672-row membership table exactly, by
 combining stored per-player status bits with each club's membership array and
-refusing loudly whenever the two files disagree. Next is resolving names against
-`names.dat`, the step that turns a roster of integers into people, and then
-bronze landing. **The first genuinely useful job is telling the GM who is on its
-roster, and the remaining gap is now names alone.**
+refusing loudly whenever the two files disagree.
+
+**The roster is now people rather than integers.** `names.dat` is a 264,095-entry
+string table with a single index space, walked to zero residual, and the two `u32`s
+in each player record turn out to be the first- and last-name indices in that order —
+established by scoring every candidate mapping across all 18,072 players of the
+validation save rather than by reading the bytes, since the correct assignment scores
+100% and the reverse one scores 0.01%. Names resolve exactly against the export, and
+against `players.csv` for the real players on Boston. Next is bronze landing.
+**The first genuinely useful job is telling the GM who is on its roster, and what
+remains between here and that is the warehouse, not the parser.**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

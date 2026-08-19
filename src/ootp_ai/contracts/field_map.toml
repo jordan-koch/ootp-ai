@@ -5,6 +5,27 @@
 # field-offset map you computed is ours and is tracked. A copy of players.csv is Out of
 # the Park Developments' and is not").
 #
+# ── ADR 0006, an individual name string as structural evidence ────────────────
+#
+# RULED 2026-08-18 by the operator, at the first occasion the question arose (Phase 7,
+# names.dat). An INDIVIDUAL name string from OOTP's shipped name master, used as
+# STRUCTURAL EVIDENCE for a format finding, falls inside ADR 0006's derived-knowledge
+# carve-out and may be tracked. A slice of the table does not, at any size.
+#
+# The distinction is what the string is doing. "'t Hart" appears in tests/test_parse_names.py
+# and in parser/names.py's docstring because it IS the finding: a real surname whose first
+# character is an apostrophe (0x27) is the exact collision that refutes reading that byte
+# as a record separator, and without it the finding is unreproducible prose — a reader
+# cannot check it against the shipped file. That is the same kind of artifact as a byte
+# offset we measured. A LOOKUP — a mapping from an identifier to a name, in any form,
+# under any filename — is the thing that stays out, and Phase 7's Tier-A test therefore
+# holds no name data at all: it reads both sides at runtime and compares them to each
+# other. `tests/test_no_leaks.py` catches players.csv by FILENAME only, so a renamed
+# derived copy would sail through; that guard is not what makes this safe, this rule is.
+#
+# Note this file itself carries NO name strings — only counts, offsets and block
+# boundaries.
+#
 # This file starts INCOMPLETE, by design and with the gap named rather than hidden:
 #
 #   * `teams.dat` landed in Phase 5 and its fields were never added here, because the
@@ -35,9 +56,9 @@
 [meta]
 schema_version = 1
 updated = "2026-08-18"
-phase = "first-sight Phase 6b (players.dat identity tail + roster-membership grain)"
-covers = ["players.dat", "teams.dat (roster-membership region only)"]
-incomplete = ["teams.dat", "world.dat", "names.dat"]
+phase = "first-sight Phase 7 (names.dat and the join, against two independent answer keys)"
+covers = ["players.dat", "teams.dat (roster-membership region only)", "names.dat"]
+incomplete = ["teams.dat", "world.dat"]
 
 # ── players.dat, the fixed head ──────────────────────────────────────────────
 #
@@ -56,14 +77,24 @@ validator = "export-exact-all-rows"
 note = "Ascending across the file. OOTP's internal key, and the one that covers every player — unlike historical_id, which covers ~10.6%."
 
 [[field]]
-name = "name_indices"
+name = "first_name_index"
 source = "players.dat"
 walker = "ootp_ai.parser.players.read_players"
-type = "u32 pair"
+type = "u32"
 category = "identity"
-epistemic = "unconfirmed"
-validator = "none"
-note = "Two u32s at record+4 and +8, both inside names.dat's ~264,095-entry range in every record sampled. Suggestive, not proof, and WHICH is first-name and which is last is not established at all. Phase 7 resolves them by brute force against a full answer key. Carried as an opaque pair so nothing downstream mistakes a position for a proof."
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The u32 at record+4. Resolved by brute force in Phase 7, not by reading bytes: scored across all 18,072 export rows, +4-as-first/+8-as-last matched 18,072/18,072 = 100.00% while the opposite assignment scored 1/18,072 = 0.01%, with zero unresolved indices either way. An index into names.dat and meaningless without a NameTable built from the SAME save."
+
+[[field]]
+name = "last_name_index"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u32"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The u32 at record+8, verified by the same scoring run as first_name_index."
 
 [[field]]
 name = "date_of_birth"
@@ -513,6 +544,91 @@ category = "rating-true"
 epistemic = "measured"
 validator = "fixed-width-implied-by-exact-bit-match"
 note = "Crossed, not interpreted. The middle 4 are the prone_overall/leg/back/arm quad (byte-exact on all 18,072 rows, per the position/role note below); the 13 before and 5 after are unclassified. That the whole span is fixed-width on every record of every save is implied by the status bits matching at a constant distance on all 18,072 scorable rows."
+
+# ── names.dat, the string table ──────────────────────────────────────────────
+#
+# Phase 7. The walk is STRICT: zero residual on all three saves, and it frames exactly
+# the 264,095 records the header declares. There is ONE index space, not two — the
+# question the plan pre-registered as a silent-collision risk. Three measurements:
+# index == position+1 for every record with no reset; both player slots resolve against
+# this one table at 18,072/18,072; and 510 indices are used as a first name by one
+# player and a last name by another, with both readings correct.
+
+[[field]]
+name = "name_index"
+source = "names.dat"
+walker = "ootp_ai.parser.names.read_names"
+type = "u32"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The key players.dat points with. Monotonic 1..264,095 across the whole file, one space, ENFORCED by read_names rather than merely observed — a repeated index would collapse the table last-write-wins and hand every player pointing there a confident wrong name, with the strict tier still reporting success. Grain note for Phase 8: bronze_name is keyed (save_id, sim_date, ingest_seq, name_space, name_index) as pre-registered, with name_space taking the single literal value 'all' — correct under both the one-space and two-space outcomes, and one-space is what was measured."
+
+# GRAIN DECISION for Phase 8, taken 2026-08-18 by the operator rather than inherited,
+# because Phase 7 produced the measurement that makes it worth a second look.
+#
+# bronze_name KEEPS the full per-snapshot key every other bronze table uses. That lands
+# 264,095 rows per snapshot — roughly 14x the combined row count of bronze_player,
+# bronze_team_roster and bronze_team — restated on every ingest across a simmed season.
+# The volume is KNOWINGLY ACCEPTED: uniform bronze grain and snapshot immutability are
+# worth more than the disk, and a reference table keyed differently from its neighbours
+# is a special case every later query has to remember.
+#
+# What makes this a decision rather than an inheritance: the name table is measured to be
+# static. All three saves' record bodies are BYTE-IDENTICAL, so a snapshot key restates
+# unchanged data by design, not by accident. The named fallback, if snapshot size ever
+# becomes a real problem, is to key bronze_name on the table's content digest and land
+# one row set per distinct name master — deferred, not rejected.
+
+[[field]]
+name = "name_text"
+source = "names.dat"
+walker = "ootp_ai.parser.names.read_names"
+type = "u32-length-prefixed bytes, no terminator, decoded latin-1"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Resolves both player slots exactly on all 18,072 export rows. Encoding is latin-1: 1,621 of 264,095 entries carry a byte above 0x7f, so strict ASCII would raise on them. cp1252 scores identically on every name any player carries — the two readings disagree on exactly one entry in the table (index 259,322), which is already-corrupt mojibake in OOTP's shipped data and wrong under both. latin-1 wins on being total: it never raises, so an unseen byte cannot turn a landing into a crash. NOTE players.csv is NOT an exact answer key here — it ships pure ASCII with every accent already replaced by '?'."
+
+[[field]]
+name = "name_category"
+source = "names.dat"
+walker = "ootp_ai.parser.names.read_names"
+type = "u8, leading each record"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "WITHHELD as unclassified, per the withhold-by-default rule. Takes 0x07 (225,171), 0x27 (33,954), 0x0f (4,234), 0x37 (584), 0x17 (152) and sits in contiguous blocks — 1..31,876 is 0x27 and 31,877..252,899 is 0x07, which look exactly like a given-name block and a surname block. That reading is REFUTED: of the indices players use as a LAST name, 6,668 point at 0x27 records. So it is not a first/last discriminator and nothing joins on it. Recorded because the plausible reading is the trap. Also load-bearing structurally: this byte LEADS its record. Read as a trailing separator the walk finds 264,094 records with 8 bytes left over, and mis-stops at index 31,877 — the Dutch surname \"'t Hart\", whose first character is an apostrophe (0x27), the same value the byte takes."
+
+[[field]]
+name = "name_usage_pairs"
+source = "names.dat"
+walker = "ootp_ai.parser.names.read_names"
+type = "u32 count, then count x (u32, u32)"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "WITHHELD as unclassified. Consumed because strict byte accounting requires it, exposed because a walk that silently dropped a variable-length region could not claim strict, and read by nothing. The first element of each pair ranges 0-40 over 41 distinct values, which is name-origin-group shaped rather than nation-shaped (the world holds ~206 nations); the second is plausibly a frequency weight. Neither is confirmed and neither is needed for the join."
+
+[[field]]
+name = "names_declared_record_count"
+source = "names.dat"
+walker = "ootp_ai.parser.names.read_names"
+type = "u32, header tail field 4"
+category = "structural"
+epistemic = "measured"
+validator = "framed-count-equals-declared"
+note = "264,095 in all three saves, and the walk frames exactly that many with zero residual. Unlike players.dat — which declares the 0xFFFFFFFF sentinel and therefore has no in-file oracle — this file carries a real count, which is what lets the strict tier be checked against something other than itself. Deliberately `measured` and NOT `verified`: `verified` in this file means scored against an INDEPENDENT answer key, and this field is cross-checked only against the same file's own record framing. Self-consistency is strong evidence and it is not an independent source; the export carries no names.dat row count to check it against."
+
+[[field]]
+name = "name_table_save_ownership"
+source = "names.dat"
+walker = "ootp_ai.parser.names.build_name_table"
+type = "structural constraint, not a field"
+category = "structural"
+epistemic = "measured"
+validator = "no-module-level-cache"
+note = "The plan expected three saves to hold three different tables and asked for a resolver whose cache key includes save_id. MEASURED, and it refutes that premise: all three names.dat files are 8,642,110 bytes with three DIFFERENT SHA-256 digests, but their record bodies are BYTE-IDENTICAL — all 264,095 index->string mappings agree exactly. The digests differ only in the header, at the league sim date (byte 75) and the wall-clock write time (bytes 99-110). The structural rule is kept anyway and in its stronger form: names.py holds no cache at all, and a NameTable carries the save_id it was built from, so a table can only be applied by a caller naming both. Identity across today's three saves is a fact about shipped data, not an invariant — a patch, a mod or a custom name master would break it, and the failure it would produce is a roster full of confident wrong names with nothing raised."
 
 # ── deliberately NOT landed ──────────────────────────────────────────────────
 #
