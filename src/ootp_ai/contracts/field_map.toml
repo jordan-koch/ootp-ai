@@ -26,18 +26,19 @@
 # Note this file itself carries NO name strings — only counts, offsets and block
 # boundaries.
 #
-# This file starts INCOMPLETE, by design and with the gap named rather than hidden:
+# Phase 8a completed the `teams.dat` and `world.dat` backfills this file used to declare
+# as outstanding, so `[meta].incomplete` is now empty. What remains undecoded is inside
+# `players.dat`, and it is named rather than hidden: the record is described below through
+# the identity tail (the two historical strings, roughly record+70..100), and the rest —
+# including position and role — is undecoded, with the final [[withheld]] entry recording
+# how far the decode got and where it breaks.
 #
-#   * `teams.dat` landed in Phase 5 and its fields were never added here, because the
-#     contracts directory did not exist yet. That backfill is Phase 8's, which the plan
-#     describes as "complete tables.toml and field_map.toml".
-#   * `players.dat` is described below through the identity tail (the two historical
-#     strings, roughly record+70..100). The rest of each record — including position
-#     and role — is undecoded; the final [[withheld]] entry records how far the decode
-#     got and where it breaks.
-#
-# Nothing reads this file yet. `contracts/loader.py` and `contracts/policy.py` are
-# Phase 8 and Phase 10; until they exist this is a declaration, not a gate.
+# **This file is now READ, and validated.** `contracts/loader.py` parses it, and every
+# `category`, `epistemic` and `validator` value below must be a member of the [vocabulary]
+# declared further down — an unknown value raises, naming the field and the value. Until
+# Phase 8a that check did not exist and a `verified` pasted from the row above would have
+# shipped green; the labels here carry ADR 0012's withhold rule, so they had to stop being
+# unenforced prose. `contracts/policy.py` is the gate that consumes them.
 #
 # ── the vocabulary ───────────────────────────────────────────────────────────
 #
@@ -55,10 +56,46 @@
 
 [meta]
 schema_version = 1
-updated = "2026-08-18"
-phase = "first-sight Phase 7 (names.dat and the join, against two independent answer keys)"
-covers = ["players.dat", "teams.dat (roster-membership region only)", "names.dat"]
-incomplete = ["teams.dat", "world.dat"]
+updated = "2026-08-19"
+phase = "first-sight Phase 8a (contracts, DDL, and the offline grain guards)"
+covers = ["players.dat", "teams.dat", "names.dat", "world.dat", "human_managers.dat (club id only)"]
+# CORRECTED at the Phase 8a panel, which caught this as an empty list. Two files ARE
+# parsed and have no field entries here, and one of them feeds a declared column, so
+# `incomplete = []` was an overclaim in the very key that exists to prevent one. The rule
+# this key now states: a file appears here when the walker reads fields this map does not
+# declare — not when the file is unread.
+incomplete = ["human_managers.dat (everything but the club id)", "saved_games.dat"]
+
+# The vocabulary above, in machine-readable form. `contracts/loader.py` checks every entry
+# against these three lists and refuses an unknown value by name — which is the whole
+# reason this section exists rather than staying a comment. A typo in a label is otherwise
+# invisible: it lints clean, it parses clean, and it silently reclassifies a field that
+# ADR 0012's withhold rule depends on.
+[vocabulary]
+category = ["identity", "rating-true", "rating-scouted", "contract", "structural"]
+epistemic = ["measured", "verified", "inferred", "assumed", "unconfirmed"]
+validator = [
+    "none",
+    "export-exact-all-rows",
+    "export-exact-all-divisions",
+    "export-exact-all-events",
+    "export-exact-single-row",
+    "export-exact-magnitude-all-rows",
+    "export-presence-all-rows",
+    "cross-save-comparison",
+    "cross-save-parse-zero-refusals",
+    "multiset-equality-all-clubs",
+    "cross-check-vs-multiplicity-solve",
+    "population-exact",
+    "signature-match-or-refuse",
+    "fixed-width-implied-by-exact-bit-match",
+    "framed-count-equals-declared",
+    "declared-count-equals-parsed-count",
+    "no-module-level-cache",
+    "unambiguous-landmark-or-refuse",
+    "inverse-model-reproduces-every-record",
+    "mutual-link-agreement",
+]
 
 # ── players.dat, the fixed head ──────────────────────────────────────────────
 #
@@ -630,6 +667,405 @@ epistemic = "measured"
 validator = "no-module-level-cache"
 note = "The plan expected three saves to hold three different tables and asked for a resolver whose cache key includes save_id. MEASURED, and it refutes that premise: all three names.dat files are 8,642,110 bytes with three DIFFERENT SHA-256 digests, but their record bodies are BYTE-IDENTICAL — all 264,095 index->string mappings agree exactly. The digests differ only in the header, at the league sim date (byte 75) and the wall-clock write time (bytes 99-110). The structural rule is kept anyway and in its stronger form: names.py holds no cache at all, and a NameTable carries the save_id it was built from, so a table can only be applied by a caller naming both. Identity across today's three saves is a fact about shipped data, not an invariant — a patch, a mod or a custom name master would break it, and the failure it would produce is a roster full of confident wrong names with nothing raised."
 
+# ── teams.dat, the club record (Phase 8a backfill) ───────────────────────────
+#
+# Landed in Phase 5 and declared here in Phase 8a, which is the gap `[meta].incomplete`
+# used to name. Twelve of these were scored against ALL 259 rows of `ootp_truth_real.teams`
+# by `tests/test_parse_real_save.py::test_every_parsed_team_matches_the_export_field_by_field`;
+# the four the export does not carry say so and stay `measured`.
+#
+# The entries are prefixed `team_` because this file's names are unique across every
+# source, and `players.dat` already holds a `team_id`, `league_id`, `sub_league_id` and
+# `nation_id` meaning the PLAYER's. Two fields called the same thing from two files is
+# exactly how a loader lands one where the other belongs.
+#
+# THE ENCODING IS DROP-ZERO: a record omits a field entirely when its value is falsy, so
+# these fields sit at offsets that move from record to record. `parser/teams.py` carries
+# the full argument; the consequence for anyone reading this file is that no offset here
+# is a constant.
+
+[[field]]
+name = "team_record_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32, leading each record"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.team_id`. Ascending across the file, unique within a save, and never zero — which is what frees 0 to mean \"no team\" in players.dat. The bronze_team key rests on the uniqueness, and a duplicate would silently merge two clubs."
+
+[[field]]
+name = "team_city"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), droppable slot 1 of 5"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.city`. Compared against the export's `teams.name` on every record that carries one; the 26 that do not are the minor-league All-Star sides, and their absence is asserted separately by count rather than compared, because the export renders that absence as the club's display name and a direct comparison would fail on a CORRECT parse. Lands `None`, never `\"\"` — the writer drops a falsy slot, so an empty string and an absent one are indistinguishable on disk and \"not present\" is the only reading that asserts nothing the bytes never said."
+
+[[field]]
+name = "team_abbr"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), slot 2 of 5"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.abbr`. The thirty MLB abbreviations of real baseball are asserted by content and not merely by count — thirty wrong strings also count to thirty."
+
+[[field]]
+name = "team_nickname"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), slot 3 of 5"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+
+[[field]]
+name = "team_logo_filename"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), droppable slot 4 of 5"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.logo_filename`. 289 records in the managed league carry none, because a freshly-created league has no logo assets for its minor-league clubs — the second of the two droppable slots, and the reason the walk determines the string count by parsing forward rather than by counting to five. An asset filename, not a machine path: `tests/test_parse_real_save.py` asserts no team string carries a drive letter or a home directory, because these strings reach rendered reports and this repo is public (ADR 0006)."
+
+[[field]]
+name = "team_full_name"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), slot 5 of 5"
+category = "identity"
+epistemic = "measured"
+validator = "none"
+note = "`TeamRecord.full_name`. The export's `teams` table carries `name`, `nickname` and `abbr` but no assembled full name, so this slot has NO independent answer key and is deliberately not claimed as verified. It is the fifth string of a signature `docs/data-access.md` records as verified, and it reproduces on 259 of 259 records in two saves — strong, and not the same thing as being scored against a source we did not write."
+
+[[field]]
+name = "team_colors"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "exactly three u32 ARGB values, alpha 0xff"
+category = "structural"
+epistemic = "measured"
+validator = "inverse-model-reproduces-every-record"
+note = "`TeamRecord.colors`. Load-bearing structurally before it is interesting visually: colours are never zero, so they are never dropped, and three of them in a row is the specific signature that lets the walk decide how many strings and how many integers the record carried. WHICH of the three is primary, secondary or trim is `unconfirmed` and nothing renders them — bronze lands them as `color_1..color_3` in file order rather than inventing names for slots nobody has read."
+
+[[field]]
+name = "team_city_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+
+[[field]]
+name = "team_park_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Never zero — every club has a ballpark, 259 of 259 in the export, range 1..198 — so it is always written. That fact and the same one about `league_id` are what pin the run's spine and make the drop-zero encoding invertible at all."
+
+[[field]]
+name = "team_league_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Never zero — every club belongs to a league — so it is always written."
+
+[[field]]
+name = "team_sub_league_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run, 0 or 1"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The structural-absence trap in the direction that actually bites: sub-league 0 is the American League and it is DROPPED from the record, so a reader that treats \"absent\" as \"unknown\" loses half of baseball. Because a written value is therefore always exactly 1, the field also eliminates every wrong reading of a four- or five-value run."
+
+[[field]]
+name = "team_nation_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+
+[[field]]
+name = "team_human_flag"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 in the drop-zero pre-colour run, 0 or 1"
+category = "structural"
+epistemic = "measured"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.human_team`. DELIBERATELY `measured` AND NOT `verified`, corrected at the Phase 8a panel: the parsed column matches the export's `human_team` on all 259 rows, but `parser/teams.py` records that the slot is either `human_team` or `human_id` and BOTH EXPORT COLUMNS ARE 1 on the single managed club and 0 everywhere else — so the answer key cannot separate the two readings, and 18 field orders fit the observed bytes equally well. An oracle that cannot discriminate is not an answer key for that distinction; the same reasoning is applied to `world_league_head`. A save with two human managers would settle it. At most one club per save carries the flag, which is both a constraint the walk uses to disambiguate and the answer to \"which club do we manage\" — cross-checked against `human_managers.dat`, and the two agree on all three saves."
+
+[[field]]
+name = "team_level"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 immediately after the three colours"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Never zero — 259 of 259 — so it is never dropped. Gives the direction of the organisation link: level decides which of two mutually-linked clubs is the parent."
+
+[[field]]
+name = "team_parent_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "derived from the drop-zero u32 organisation-link array"
+category = "identity"
+epistemic = "verified"
+validator = "mutual-link-agreement"
+note = "`TeamRecord.parent_team_id`, and it reproduces the export's column for all 259 rows WITHOUT consulting the export: the link array is one array with two meanings — a club lists its affiliates, an affiliate lists its parent — and nothing in the bytes says which, so the parent is taken only where both records agree (b in a's links AND a in b's), with `level` giving the direction. The mutual test is also what discards the spurious links the array's soft end swallows (only ever 1 and 257, measured, neither of which points back). 0 means \"no parent\" on all 34 top-level clubs and it is a VALUE, not structural absence — this field and `team_level` are not optional, which is the opposite of the rule that governs the string slots."
+
+[[field]]
+name = "team_historical_id"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "string (u32 length + ASCII), empty on all but 30 clubs"
+category = "identity"
+epistemic = "measured"
+validator = "none"
+note = "The franchise code, and the walk stops here. Not carried by the export's `teams` table, so it has no independent answer key and is not claimed as verified. Like the player-level `historical_id` it is a NULLABLE ATTRIBUTE and never a join key."
+
+[[field]]
+name = "team_pre_colour_run"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "structural finding, not a field: [city_id, park_id, league_id, sub_league_id, nation_id, human] with falsy values omitted"
+category = "structural"
+epistemic = "measured"
+validator = "inverse-model-reproduces-every-record"
+note = "The model that makes the six fields above readable at all, and the reason a fixed-offset reader is wrong here while looking right on Boston. It reproduces 259 of 259 records in two independent saves; the EXPORT'S OWN COLUMN ORDER scores 0 of 259. A record that survives no reading, or more than one, raises `AmbiguousTeamRecord` rather than guessing — measured, exactly two records per save need the tie-break against the file's own unambiguous records, and they are the National League All-Star sides."
+
+[[field]]
+name = "team_string_signature"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "structural finding: five length-prefixed strings, slots 1 and 4 droppable"
+category = "structural"
+epistemic = "measured"
+validator = "inverse-model-reproduces-every-record"
+note = "`docs/data-access.md` records a five-string signature as verified; measured, it is five strings WHEN ALL FIVE ARE NON-EMPTY. The walk determines the count by parsing forward and requiring the rest of the record to validate — three colours are a very specific signature — then assigns slots by asking whether the third string is an asset filename."
+
+[[field]]
+name = "team_organisation_links"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "drop-zero u32 array of team ids"
+category = "structural"
+epistemic = "measured"
+validator = "mutual-link-agreement"
+note = "Consumed to derive `team_parent_id` and landed nowhere itself — a variable-length array whose direction is only decidable pairwise. Recorded here because a later reader who finds it in the bytes needs to know it was crossed deliberately, and that the naive reading (\"the first link is the parent when the level is below the top\") is refuted: the managed league has parented clubs eight levels down, and 55 clubs whose spurious `1` would have made them affiliates of Arizona."
+
+# ── world.dat, the division nest and the league calendar (Phase 8a backfill) ──
+#
+# Landed in Phase 5b and declared here in Phase 8a. The entry point is the thing to
+# understand before the fields: `world.dat` is ~8.7 MB, its header declares ONE record,
+# and the leagues sit 62% in behind a ~94,000-entry city array. So the walk enters by
+# searching the buffer for content, validating what it finds by parsing forward, and
+# REFUSING unless the answer is unique — never by seeking to an offset. Zero matches and
+# two matches are both errors: a landmark walk that finds nothing would otherwise hand
+# back a world with no divisions and no calendar, structurally indistinguishable from a
+# league that genuinely has neither.
+
+[[field]]
+name = "world_declared_record_count"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32, header tail field 5"
+category = "structural"
+epistemic = "measured"
+validator = "declared-count-equals-parsed-count"
+note = "Reads 1 in all three saves — the world is a single record. Which is exactly why this file's byte accounting is `region-accounted` and not `strict`: there is no top-level record count to check a full walk against, so each walked REGION audits itself (declared count equals parsed count, zero residual inside the region) and the un-walked prefix and suffix are recorded as byte counts rather than pretended away."
+
+[[field]]
+name = "world_landmark_entry"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "structural finding: composite length-prefixed string landmarks, plus a structural search for the calendar"
+category = "structural"
+epistemic = "measured"
+validator = "unambiguous-landmark-or-refuse"
+note = "PREFIX AND PAYLOAD TOGETHER, never the payload alone: bare `OPENING DAY` occurs 95 times per save, and the length prefix is what turns a string into a landmark. The league record is found by `<u32 21>Major League Baseball` (1 occurrence per save) and the sub-league nest by a bounded backward scan validated by parsing the whole nest. The calendar could not use a string at all — the schedule in front of it is count-prefixed with a per-league game count that differs between saves — so it is found by what it IS: a count followed by exactly that many decoding records, maximal in BOTH directions. Left-maximality is the half that matters: without it each save yields two survivors, because a calendar record's own tail reads as a count of 1."
+
+[[field]]
+name = "world_league_head"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32 league_id, u32 nation_id, u32 language_id, u32 gender"
+category = "structural"
+epistemic = "measured"
+validator = "export-exact-single-row"
+note = "203 / 206 / 0 / 0, matching the export's `leagues` row for MLB field for field. NOT scored across rows, and deliberately not called verified for that reason: this walk reaches ONE league's nest — the one named `Major League Baseball` — because the other fourteen each sit behind their own unmapped scalar block. A league dimension is therefore not landed by anything in this slice."
+
+[[field]]
+name = "division_league_id"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32, from the league → sub_league → division nest"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-divisions"
+
+[[field]]
+name = "division_sub_league_id"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32, from the nest"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-divisions"
+
+[[field]]
+name = "division_id"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32, from the nest"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-divisions"
+note = "The file writes membership from the DIVISION's side — a u32 count then explicit team ids — while the export writes it from the club's side as a `division_id` column. Neither was derived from the other, which is what makes their agreement on all six MLB divisions in all three saves worth something."
+
+[[field]]
+name = "division_team_id"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_world"
+type = "u32 array, count-prefixed, one entry per club in the division"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-divisions"
+note = "`teams.division_id` is derived from THIS in silver and never parsed: `teams.dat` does not carry it (measured, 0 of 140 on the clubs with a non-zero one), so a division stamped onto a team record could only have come from a join, and bronze does not join. Clubs no division names are structurally absent, not division zero — the four All-Star sides appear in no array, and their export `sub_league_id`/`division_id` of 0 is the export rendering absence as zero, a live instance of the trap. This is also what tightens the managed league's top-level count from 34 records to 30 real clubs."
+
+[[field]]
+name = "calendar_seq"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u32, first field of each event"
+category = "identity"
+epistemic = "measured"
+validator = "declared-count-equals-parsed-count"
+note = "THE KEY, and the export does not expose it — which is why the grain had to be settled from the bytes rather than from the answer key. Unique across all 3,058 entries and strictly increasing, which the array's structural search relies on. The readable alternative `(league_id, start_date, event_type, name)` collapses 3,058 rows to 2,600: 458 events lost with nothing raised."
+
+[[field]]
+name = "calendar_league_id"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u32"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-events"
+note = "One of the eight columns matched against `ootp_truth_real.league_events` on all 3,058 rows. The control — shifting this field by ±3 — scores 1,070, which is what makes the 3,058 mean something."
+
+[[field]]
+name = "calendar_event_type"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u16"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+note = "THE INTEGER IS VERIFIED; THE MEANING IS NOT. It matches the export's column exactly on all 3,058 rows, and the enum's semantics are undocumented — `db_structure_ootp25_mysql.txt` has the column, not the meaning. So it lands raw and NO HUMAN LABEL MAY BE ATTACHED to it, by the same rule Phase 6 applied to `list_id`: a wrong label produces a confidently wrong calendar that throws nothing. The epistemic label here describes the mapping, which is what this file's labels always describe; the label ban lives with the report layer."
+
+[[field]]
+name = "calendar_start_date"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "date (u8 day, u8 month, u16 year) followed by 3 pad bytes"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+
+[[field]]
+name = "calendar_name"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "string (u32 length + ASCII)"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+note = "The one variable-length field in an otherwise fixed-shape record, which is why a test asserts the fields AFTER it survive a change in its length: a reader that mis-sized the name would corrupt the three flags and the sim-date field behind it while the name itself still looked right."
+
+[[field]]
+name = "calendar_event_over"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u8 flag, landed as an integer"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+
+[[field]]
+name = "calendar_deleted"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u8 flag, landed as an integer"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+note = "DELETED IS NOT \"PAST\". 2,492 of 3,058 carry it in the probes and 2,259 in the managed league, and deleted MLB rows are dated AFTER the sim date — the set includes a duplicate OPENING DAY and three PLAYOFFS BEGIN. Every row lands and filtering belongs to the report: a walk that dropped them would return 566 rows and look perfectly consistent. It is also the only thing the two universes disagree about in this region — the managed save differs from the probes in exactly 233 bytes, every one of them this flag."
+
+[[field]]
+name = "calendar_needs_human_action"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u8 flag, landed as an integer"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-events"
+note = "The game's own answer to which dates the front office must show up for, which ADR 0013 currently answers by our judgment alone. 112 entries carry it in every save; three survive undeleted in the probes and TEN in the managed league, which still holds live duplicate Trading Deadlines and Rule 5 Drafts. Landed as a datum; no doctrine is built on it in this slice."
+
+[[field]]
+name = "calendar_real_sim_date"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "u16, last field of each event"
+category = "structural"
+epistemic = "unconfirmed"
+validator = "none"
+note = "CORRECTED at the Phase 8a acceptance panel, which caught this labelled `verified` — the one wrong label in the file that built the loader to prevent wrong labels. The value matches the export on all 3,058 rows, but BOTH SIDES ARE ZERO on every row of every save, so `export-exact-all-events` discriminates nothing here: a parser reading an adjacent zero u16 scores identically. `parser/world.py` says the same thing outright — the meaning is `unconfirmed`, measured 0 everywhere, so nothing can say what a non-zero one would mean — and reviews/handoff-phase-5b.md proposed exactly this label. Crossed and landed raw. What would settle it is a mid-season save with a partially-simulated calendar. This is also the file's FIRST field on the uncertainty path: it renders only through `render_with_uncertainty`, under a banner, never as a bare column."
+
+[[field]]
+name = "calendar_flag_typing"
+source = "world.dat"
+walker = "ootp_ai.parser.world.read_calendar"
+type = "structural decision, not a field: the three u8 flags land as int, never bool"
+category = "structural"
+epistemic = "measured"
+validator = "export-exact-all-events"
+note = "Every observed value is 0 or 1, and *observed* is doing real work in that sentence: `bool(2)` is `True`, so a boolean column would make an unexpected value indistinguishable from a 1 forever. Bronze is 1:1 with parser output — typing and casing, no semantic conversion — so `bronze_league_event` declares these `bool01`, a 0/1 integer, and a gamedata test checks the domain against the real files. The day the game writes something else it arrives as a red test rather than as a `True` that used to be a 2."
+
+# ── human_managers.dat, the one field a declared column depends on ───────────
+#
+# 835 bytes that name the club we manage, and the only file in a save that gives an ID
+# rather than a display string. Only the club id is declared here, because only the club
+# id feeds a declared column (`ingest_run.human_team_id`). The rest of the record — the
+# manager's own identity, the drop-zero scalar run — is parsed but undeclared, which is
+# what `[meta].incomplete` now says out loud.
+
+[[field]]
+name = "human_manager_team_id"
+source = "human_managers.dat"
+walker = "ootp_ai.parser.human_managers.read_human_manager"
+type = "u32, first of three consecutive identical slots at a measured-unique landmark"
+category = "identity"
+epistemic = "inferred"
+validator = "export-exact-single-row"
+note = "`inferred` and not higher, for a reason the walker states: the file holds THREE consecutive u32s all carrying the managed club, byte-identical in every save on disk (4/4/4, 4/4/4, 6/6/6), and the export's column list has `team_id`, `last_team_id` and `organization_id` as separate integers. No oracle here can say which slot is which. The walk takes the FIRST — the one the drop-zero field order puts first, and the reading that stays correct when the three diverge, since the other two are the ones that legitimately can. The landmark requires all three to agree, so the divergence that would break the inference makes the parser raise rather than lie. Cross-checked against `teams.dat`'s human flag on all three saves; `None` means the file was absent from the snapshot, which is a known gap and never a zero."
+
 # ── deliberately NOT landed ──────────────────────────────────────────────────
 #
 # Recorded because their absence is a decision, not an oversight. A later reader
@@ -638,7 +1074,9 @@ note = "The plan expected three saves to hold three different tables and asked f
 [[withheld]]
 name = "ratings"
 source = "players.dat"
-reason = "ADR 0012, permanent. Two lossy transforms sit between a stored rating and any display — scale conversion and scout filtering — so matching a displayed value to a byte identifies the wrong field with no error surfaced. This slice lands no ratings whatever the Phase 2 spike returned."
+reason = """ADR 0012, permanent. Two lossy transforms sit between a stored rating and any display — scale conversion and scout filtering — so matching a displayed value to a byte identifies the wrong field with no error surfaced. This slice lands no ratings whatever the Phase 2 spike returned.
+
+DECISIONS §8, RECORDED HERE SO THE NEXT SLICE INHERITS IT RATHER THAN RE-DERIVING IT: when ratings are eventually landed and rendered, **they render at the 20-80 player-page scale**. The engine stores roughly 1-1000, the player page shows 20-80 and in-game reports show 1-100, and the three are not interchangeable — a report that mixes them produces numbers that are individually plausible and mutually meaningless. The storage value is what lands; the conversion belongs to the report layer, once, at the moment of rendering, and 20-80 is the target because it is the scale the operator sees on the screen they would check us against."""
 
 [[withheld]]
 name = "position, role"

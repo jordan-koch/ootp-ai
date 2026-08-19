@@ -370,7 +370,7 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 2. **Division membership**, nested `league → sub_league → division → u32 count + explicit team_id array`. Matches the export exactly on all six MLB divisions in all three saves. Lands as `bronze_division_team`; **`teams.division_id` is derived in silver from that array and never parsed**, which is what makes Phase 5a's omission of it correct rather than a gap.
 3. **All-Star sides appear in no division array.** Their export `sub_league_id`/`division_id` of `0` is **structural absence rendered as zero** — a live instance of the trap the scope names, and the thing that lets the top-league count tighten from 34 to 30.
 4. **The league calendar**, a `u32`-count-prefixed array (3,058) of `u32 seq, u32 league_id, u16 type, u8 day, u8 month, u16 year, 3 pad, u32 len + name, u8 event_over, u8 deleted, u8 needs_human_action, u16 real_sim_date`. All 3,058 entries match `ootp_truth_real.league_events` exactly on all eight columns, and the calendar is byte-identical across all three saves.
-5. **The grain is `(save_id, sim_date, ingest_seq, event_seq)`, and this is not a preference.** `seq` is unique across all 3,058 entries and the export does not expose it. The human-readable alternative `(league_id, start_date, type, name)` collapses 3,058 rows to 2,600 — **458 events lost with nothing raised.** Declare the key on `seq`.
+5. **The grain is `(save_id, sim_date, ingest_seq, event_seq)`, and this is not a preference.** *(Naming corrected 2026-08-19: the shipped column is **`seq`**, which is what `world.py`'s `CalendarEvent.seq` is called, because bronze is 1:1 with parser output and does not rename. `event_seq` below means that field. See Phase 8a step 2.)* `seq` is unique across all 3,058 entries and the export does not expose it. The human-readable alternative `(league_id, start_date, type, name)` collapses 3,058 rows to 2,600 — **458 events lost with nothing raised.** Declare the key on `seq`.
 6. **`deleted` is not "past".** 2,482 of 3,058 rows carry it and every deleted MLB row is dated *after* the sim date; the set includes a duplicate OPENING DAY and three PLAYOFFS BEGIN. Land it as an attribute and let the report filter; do not filter at parse time, and do not treat it as history.
 7. **`needs_human_action` is the field this phase is for.** Three live MLB events carry it — First-Year Player Draft (2024-07-11), Trading Deadline (2024-07-31), Rule 5 Draft (2024-12-13). It is the game's own answer to which dates the front office must act on, which [ADR 0013](../../../docs/decisions/0013-action-economy.md) currently answers by our judgment alone. Land it; do not build doctrine on it in this phase.
 8. **MAIN THREAD:** `tests/test_parse_world.py`, the world half of `tests/test_byte_accounting.py` at the **`region-accounted`** tier, and the world half of `tests/test_cross_mode_format.py`. Tighten `test_parse_real_save.py`'s top-league count from 34 to 30.
@@ -858,16 +858,82 @@ from it — nothing else.
 ---
 
 
-### Phase 8 — Contracts, DDL, bronze landing, and the ingest run
+### Phase 8a — Contracts, DDL, and the offline grain guards
 
-**Goal.** Land bronze into the empty `ootp` schema from **one** tracked declaration with **three** consumers, so grain-prose-vs-grain-enforcement drift becomes structurally impossible. The contracts land *before* the loader, so the loader is written against a declared contract rather than the contract being reverse-engineered from the loader.
+> **AMENDED 2026-08-19, before the phase started, on three points — proposed in a
+> readiness review and directed by the operator, who asked for the amendments and then for
+> 8a to be built.** Phase 8 was written before Phase 5b existed and before Phase 6 split in
+> flight; all three changes follow from that. *(The same provenance covers the two smaller
+> edits this amendment made elsewhere: the `world.py` row added to §7's checklist and §9's
+> four-tables → six-tables rewrite.)*
+>
+> - **The split MERGE-17 asked for is adopted.** This plan's own adversarial review found
+>   Phase 8 oversized against §4 Risk 20's *"three checkpoints buy three independently
+>   revertible units"* argument, and proposed **8a** (declaration + DDL + the offline tests,
+>   provable in CI with no MySQL) / **8b** (loader + `ingest_run` + the gamedata tests). The
+>   merge kept the sentence and dropped the split. Phase 6 then split mid-flight for exactly
+>   this reason, and the two `world.dat` tables below make the phase larger still. Split it
+>   here, before the build, rather than discovering it half-written.
+> - **`world.dat`'s two tables join the declared set, taking it from six to eight.** Phase 5b
+>   arrived by amendment *after* Phase 8 was written and its output was never added to this
+>   declaration: `bronze_division_team` (`:370`) and the 3,058-entry calendar whose grain
+>   `:373` already pre-registered. `reviews/handoff-phase-5b.md` records that wiring
+>   `read_world` into ingest is Phase 8's job — the tables it would wire were missing from
+>   the list. **This is not bookkeeping.** `teams.dat` provably does not carry `division_id`
+>   (`parser/teams.py`, measured 0 of 140 on the clubs that have a non-zero one), so
+>   Phase 10's *"30 MLB clubs **by division**"* has no division source at all unless
+>   `bronze_division_team` lands here.
+> - **The acceptance said "the `ootp` schema"; Phase 1's amendment made `ootp_dev` the
+>   development default** and the live `.env` resolves there. Measured 2026-08-19: both
+>   schemas exist and both hold **0 tables**, so either satisfies the clause — the wording
+>   was what needed fixing, not the state. Read every schema reference in 8a/8b as *the
+>   configured warehouse schema*.
+
+**Goal.** Land the declaration and the DDL it emits — and nothing else — from **one** tracked declaration with **three** consumers, so grain-prose-vs-grain-enforcement drift becomes structurally impossible. The contracts land *before* the loader, so the loader is written against a declared contract rather than the contract being reverse-engineered from the loader, and every guard in this phase is provable in CI with no database running.
 
 **Steps.**
-1. Complete `contracts/tables.toml` and `field_map.toml` per §2.3(b). Declared keys: `bronze_team` (`save_id`, `sim_date`, `ingest_seq`, `team_id`); `bronze_player` (`save_id`, `sim_date`, `ingest_seq`, `player_id`); `bronze_team_roster` (`save_id`, `sim_date`, `ingest_seq`, `team_id`, `player_id`, `list_id`) — **explicitly not** `(sim_date, player_id)`; `bronze_name` (`save_id`, `sim_date`, `ingest_seq`, `name_space`, `name_index`) with its own declared grain, key and coverage like every other table. Record Decisions §8 here too (ratings render at the 20–80 player-page scale) so the next slice inherits a decision rather than re-deriving one.
-2. Declare `historical_id` a **nullable attribute, never a join key** in any serving path. Measured: 1,920 of 18,072 active players carry a non-empty one (10.6%) — `.claude/agents/data-engineer.md:107-109` states the consequence: *"A join on the wrong one silently drops the fictional majority and looks like it worked."* Add a static check over `src/ootp_ai/` asserting no join uses it — and **scope it to `src/` and exclude `tests/`**, because `test_names_join_boston.py` legitimately joins on LahmanID as ground truth and an unscoped guard would block its own validation.
-3. `warehouse/ddl.py` emits `CREATE TABLE` and `PRIMARY KEY` **from** the declaration. Every PK column `NOT NULL` (§2.3(d)). Name-bearing tables get `CHARSET=utf8mb4 COLLATE=utf8mb4_bin`.
-4. `warehouse/load.py` — bronze is **1:1 with parser output**: typing, casing, dedup only. No joins, no filtering, no semantic renaming (`.claude/agents/data-engineer.md:98-100`). Land **everything** the walk yields including all 259 teams and every minor-league population; the org filter lives in the report layer (Decisions §7). Preserve structural absence as NULL, never zero.
-5. `warehouse/ingest_run.py` — **resolve the idempotency collision explicitly.** AC10 requires that loading the same snapshot twice leaves row counts and checksums unchanged, but an append-only ingest-run table adds a row and changes a count, and a wall-clock column breaks bit-identity. **Decision (amended — see §2.3(d)): key `ingest_run` on `(save_id, sim_date, ingest_seq)`.** The two operations are different and must not be conflated:
+1. Complete `contracts/tables.toml` and `field_map.toml` per §2.3(b). **Eight declared tables**, each carrying its own grain sentence, key and coverage statement — not four with the rest inferred:
+
+   | Table | Grain | Key |
+   |---|---|---|
+   | `bronze_team` | one row per team per save per snapshot | `save_id, sim_date, ingest_seq, team_id` |
+   | `bronze_player` | one row per player per save per snapshot | `save_id, sim_date, ingest_seq, player_id` |
+   | `bronze_team_roster` | one row per player per team per **roster list** per save per snapshot | `save_id, sim_date, ingest_seq, team_id, player_id, list_id` — **explicitly not** `(sim_date, player_id)` |
+   | `bronze_name` | one row per name-table entry per save per snapshot | `save_id, sim_date, ingest_seq, name_space, name_index` |
+   | `bronze_division_team` | one row per club per division per save per snapshot | `save_id, sim_date, ingest_seq, league_id, sub_league_id, division_id, team_id` |
+   | `bronze_league_event` | one row per calendar event per save per snapshot | `save_id, sim_date, ingest_seq, seq` |
+   | `bronze_field_label` | one row per landed column per save per snapshot | `save_id, sim_date, ingest_seq, table_name, column_name` |
+   | `ingest_run` | one row per ingest attempt | `save_id, sim_date, ingest_seq` |
+
+   `field_map.toml`'s `[meta]` currently declares `incomplete = ["teams.dat", "world.dat"]` — **this step is what clears both entries**, and the key must end the phase either empty or naming only what genuinely did not land, never stale. Record Decisions §8 here too (ratings render at the 20–80 player-page scale) so the next slice inherits a decision rather than re-deriving one.
+
+2. **Two naming calls, made here rather than discovered by the loader.**
+   - `bronze_league_event` is the calendar's table name — it echoes the export's `league_events` without pretending to be it.
+   - Its key column is **`seq`, not `event_seq`.** `world.py`'s `CalendarEvent.seq` is what the file writes, and bronze is 1:1 with parser output with **no semantic renaming** (`.claude/agents/data-engineer.md:98-100`). Phase 5b's prose at `:373` says `event_seq` for the same field; the declaration is the authority and the prose is the drift. If the adjacency to `ingest_seq` is judged too confusable to live with, rename the **parser field and the plan text together** — never bronze alone, which is how a column stops meaning what its walker says it means.
+3. Declare `historical_id` a **nullable attribute, never a join key** in any serving path. Measured: 1,920 of 18,072 active players carry a non-empty one (10.6%) — `.claude/agents/data-engineer.md:107-109` states the consequence: *"A join on the wrong one silently drops the fictional majority and looks like it worked."* Add a static check over `src/ootp_ai/` asserting no join uses it — and **scope it to `src/` and exclude `tests/`**, because `test_names_join_boston.py` legitimately joins on LahmanID as ground truth and an unscoped guard would block its own validation.
+4. `warehouse/ddl.py` emits `CREATE TABLE` and `PRIMARY KEY` **from** the declaration. Every PK column `NOT NULL` (§2.3(d)). Name-bearing tables get `CHARSET=utf8mb4 COLLATE=utf8mb4_bin`. Emit all **eight** tables here — 8b fills them; 8a only declares their shape.
+
+5. **`contracts/loader.py` is the field map's first programmatic consumer, and it must validate rather than merely read.** The Phase 7 acceptance panel's meta-audit (`reviews/phase-7-acceptance-panel.md`, finding 4) found `field_map.toml` to be the largest tracked contract change in the project's history with **zero** consumers: nothing parses it, nothing checks a `category` against a declared vocabulary, nothing cross-checks an `epistemic` label against the validator that earned it — so a typo, or a `verified` pasted from the row above, **ships green**. The loader closes that. Every entry's `category`, `epistemic` and `validator` must be a member of a vocabulary declared in the same file; an unknown value **raises naming the field and the offending value**, never falls back to a default. This is the cheapest guard in the phase, and it protects the labels that ADR 0012's withhold rule and Phase 9's docs-delta both stand on.
+
+6. `contracts/policy.py` — `is_renderable()` and the separate `render_with_uncertainty` path, per §2.3(c)'s corrected two-outcome policy. Both are **pure functions over a declaration**, which is what lets AC13's test feed them synthetic entries and run in CI where no ratings have landed.
+7. **MAIN THREAD tests, both offline.** `tests/test_grain_contracts.py`'s offline half (**AC4**) reads the declaration and the emitted DDL and asserts the prose grain sentence equals the emitted key for **all eight** tables, and that every PK column is `NOT NULL`. `tests/test_withheld_fields.py` (**AC13**, offline) keyed on declared **category**, not column-name globs, **including the negative case** — a synthetic `rating-scouted` field with a proven label *is* renderable, **and** a synthetic `unconfirmed` non-rating field is reachable *only* via `render_with_uncertainty` — because a guard that blocks everything passes the positive half and delivers nothing. Keep name patterns only as a secondary check, with `talent_%` corrected to `%_talent_%` (the real columns are `batting_ratings_talent_*`; as originally written the pattern matched nothing). Plus the loader's refusal tests from step 5.
+
+**Acceptance.** AC4 and AC13 green **offline with no MySQL** — these are the contracts CI actually enforces. **Mutate the declared `bronze_team_roster` key to `(sim_date, player_id)` locally and confirm `test_grain_contracts.py` goes red; revert.** **Plant an unknown `epistemic` value in one field-map entry and confirm the loader refuses it by name and value; revert.** `field_map.toml`'s `[meta].incomplete` no longer names `teams.dat` or `world.dat`. `uv run pytest -m "not gamedata"` green with no MySQL running, and `git ls-files src/ootp_ai/warehouse` still lists no `load.py` — **8a writes no loader and touches no database.**
+
+**Commit note.** *"Contracts declaration for eight tables, a validating loader, the DDL emitter, and the two offline guards."* Fully revertible at zero cost — nothing has run against a database and no schema object exists yet. This is the cheapest checkpoint in the plan at which a wrong grain is still catchable.
+
+---
+
+
+### Phase 8b — Bronze landing, the ingest run, and the first ingest
+
+**Goal.** Land bronze into the configured warehouse schema from 8a's declaration, and record what the run cost and what it believed about every column it wrote.
+
+**Steps.**
+1. `warehouse/load.py` — bronze is **1:1 with parser output**: typing, casing, dedup only. No joins, no filtering, no semantic renaming (`.claude/agents/data-engineer.md:98-100`). Land **everything** the walk yields including all 259 teams and every minor-league population; the org filter lives in the report layer (Decisions §7). Preserve structural absence as NULL, never zero — including the clubs that no division array names, which `world.py` treats as structurally absent rather than as division zero.
+
+2. **Wire `read_world` into ingest**, which `reviews/handoff-phase-5b.md:255` records as deliberately not done in Phase 5b. `bronze_division_team` lands **MLB's six divisions only** — the other fourteen leagues each sit behind their own unmapped scalar block — and the coverage statement must say so. A reader who finds thirty rows against a club count of 259 has to be able to see that as the documented reach of the walk rather than as a parse fault.
+3. `warehouse/ingest_run.py` — **resolve the idempotency collision explicitly.** AC10 requires that loading the same snapshot twice leaves row counts and checksums unchanged, but an append-only ingest-run table adds a row and changes a count, and a wall-clock column breaks bit-identity. **Decision (amended — see §2.3(d)): key `ingest_run` on `(save_id, sim_date, ingest_seq)`.** The two operations are different and must not be conflated:
    - **Re-loading an already-landed `(save_id, sim_date, ingest_seq)` refuses loudly.** That triple is immutable once written. This is what satisfies AC10's four clauses, including *"re-landing an existing snapshot id does not silently overwrite it"* — nothing is ever overwritten, so byte-identity across a repeated load holds trivially.
    - **Taking a *new* snapshot of an already-ingested `sim_date` allocates the next `ingest_seq`** and lands a fresh row set alongside the previous one. This is a legitimate, expected operation — the operator executes a GM action without simming and wants to prove it landed, or a parser fix means re-reading a date already ingested. The first draft's key blocked it.
 
@@ -876,13 +942,17 @@ from it — nothing else.
    Columns: source file sizes, SHA-256 digests, header versions, sim date, human team, per-table row counts, residual bytes, wall-clock parse seconds (`time.perf_counter()`, never a naive `datetime` — ruff `DTZ`), and the wall-clock ingestion timestamp as a **tz-aware attribute, never part of the key**.
 
    **Add one assertion to the grain tests:** two snapshots of the same `(save_id, sim_date)` at different `ingest_seq` both persist, and neither is mutated by the arrival of the other. The immutability claim is only worth making if something is seen to enforce it.
-6. `bronze_field_label` (folded-in §5) — each landed field's epistemic label written into the warehouse alongside the data, keyed `(save_id, sim_date, ingest_seq, table_name, column_name)`, so a future incident can ask *"what did we believe about this field the day it landed?"* as a query rather than as archaeology through the git history of `docs/data-access.md`.
-7. Add `dump_parse(path)` — a deterministic, key-sorted serialization — so "parsing twice is byte-identical" is testable by hashing.
-8. **MAIN THREAD tests.** `tests/test_grain_contracts.py`: the **offline** half (**AC4**) reads the declaration and the emitted DDL and asserts the prose grain sentence equals the emitted key for all four tables, and that every PK column is NOT NULL. The `-m gamedata` half (**AC5**), `test_roster_grain_is_not_player_grain`, **positively asserts** `player_id` is *not* unique within one snapshot's roster rows, and that `count(distinct player_id)` in `bronze_team_roster` is materially less than `count(*)` in `bronze_player` for the same snapshot. `tests/test_withheld_fields.py` (**AC13**, offline) keyed on declared **category**, not column-name globs, **including the negative case** — a synthetic `rating-scouted` field with a proven label *is* renderable — because a guard that blocks everything passes the positive half and delivers nothing. Keep name patterns only as a secondary check, with `talent_%` corrected to `%_talent_%` (the real columns are `batting_ratings_talent_*`; as originally written the pattern matched nothing). Complete `tests/test_snapshot_semantics.py` (**AC10**).
+4. `bronze_field_label` (folded-in §5) — each landed field's epistemic label written into the warehouse alongside the data, keyed `(save_id, sim_date, ingest_seq, table_name, column_name)`, so a future incident can ask *"what did we believe about this field the day it landed?"* as a query rather than as archaeology through the git history of `docs/data-access.md`.
+5. Add `dump_parse(path)` — a deterministic, key-sorted serialization — so "parsing twice is byte-identical" is testable by hashing.
 
-**Acceptance.** AC4 and AC13 green **offline** with no MySQL — these are the contracts CI actually enforces. AC5 and AC10 green under `-m gamedata`. **Mutate the declared `bronze_team_roster` key to `(sim_date, player_id)` locally and confirm `test_grain_contracts.py` goes red; revert.** The `ootp` schema, previously 0 tables, holds exactly the six named tables. `uv run pytest -m "not gamedata"` green with no MySQL running.
+6. **One read of `players.dat` per ingest, not two.** Phase 6b's acceptance panel (CF-7) recorded that `read_rosters` walks the 32 MB file a second time (~0.7 s) and deferred it here, to the phase where AC17 finally puts a number on the whole extraction. Wire the ingest so the buffer is read once and shared. If sharing it turns out to cost more than it saves — a second 32 MB read is cheap, and a shared mutable buffer between two walkers is not free — **record the measurement and keep the second pass**; the point is that the number decides it, not the aesthetics.
 
-**Commit note.** *"Field map declaration + DDL emitter + bronze landing + ingest_run + the five contracts."* Reversibility here is schema-level: dropping the `ootp` tables restores the prior state, and `ops/mysql-bootstrap.sql` recreates the empty schema. This is the first phase requiring a running MySQL, so local and CI signal diverge permanently from here — which is why the contract tests were deliberately written to run offline.
+7. **Settle the `rosters.py` → `players.py` seam.** CF-6 of the same panel: `rosters.py` imports thirteen private underscore names from `players.py`, accepted at the time as the single-source-of-truth trade with *"promoting a public seam is Phase 8's call"*. Make the call in writing either way — the loader importing record types from both modules is the moment that seam stops being internal.
+8. **MAIN THREAD tests, `-m gamedata`.** `tests/test_grain_contracts.py`'s gamedata half (**AC5**), `test_roster_grain_is_not_player_grain`, **positively asserts** `player_id` is *not* unique within one snapshot's roster rows, and that `count(distinct player_id)` in `bronze_team_roster` is materially less than `count(*)` in `bronze_player` for the same snapshot. Add the division twin, which is the opposite shape and catches the opposite fault: `team_id` **is** unique within one snapshot's `bronze_division_team` rows, because a club sits in one division and a double-consumed membership array is exactly what that would surface. Complete `tests/test_snapshot_semantics.py` (**AC10**), including step 3's two-`ingest_seq` assertion — two snapshots of the same `(save_id, sim_date)` at different `ingest_seq` both persist, and neither is mutated by the arrival of the other.
+
+**Acceptance.** AC5 and AC10 green under `-m gamedata`, with AC4 and AC13 still green offline from 8a. **The configured warehouse schema — `ootp_dev` in development, `ootp` in production per Phase 1's amendment; measured 2026-08-19, both exist and both hold 0 tables — holds exactly the eight tables 8a declared, and nothing else.** Per-table row counts are read back **from the `ingest_run` row**, not from stdout, and recorded in the phase's handoff. `uv run pytest -m "not gamedata"` still green with no MySQL running — the offline contract signal must survive the arrival of the loader.
+
+**Commit note.** *"Bronze landing for eight tables, the ingest run, and the first real ingest."* Reversibility here is schema-level: dropping the tables restores the prior state, and `ops/mysql-bootstrap.sql` recreates the empty schema. This is the first phase requiring a running MySQL, so local and CI signal diverge permanently from here — which is why 8a's contract tests were deliberately written to run offline.
 
 ---
 
@@ -895,6 +965,18 @@ from it — nothing else.
 1. `validate/export_diff.py` — parse the probe save, land it under its own `save_id`, and diff against `ootp_truth_real` **inside one MySQL instance**, which is ADR 0004's stated rationale for choosing MySQL at all. Every identifier routes through `quote_ident()`.
 2. **Assert provenance first, before any value comparison** (`tests/test_parser_vs_export.py`, `-m gamedata`, **AC6**): the parsed save's sim date is 2024-03-18 and its human team is the Chicago Cubs, matching `ootp_truth_real`. A field diff against a different universe is noise that looks like a finding.
 3. Then diff: **zero** row-count and **zero** value differences over the landed field set — 259 teams, 18,072 active players (`retired = 0`), 15,672 `team_roster` rows, 15 leagues. Every mismatch listed **per field by name**; an aggregate pass rate is not acceptable output (Core §18) — it is exactly how a parser reading the adjacent u16 ships green.
+
+   > **Flagged 2026-08-19 with the Phase 8 split, to be settled when this phase starts, not now.**
+   > Two of this clause's numbers no longer describe the landed set. **(i) "15 leagues" has no
+   > landed source** — no walker lands a league dimension; Phase 5b reached division membership
+   > and the calendar, and stopped short of the per-league scalar blocks. The count can only come
+   > from `COUNT(DISTINCT league_id)` over `bronze_team`, which is a *different* claim about a
+   > *different* table. Either restate the clause against a column that exists or land a league
+   > dimension first and say which. **(ii) The two `world.dat` tables are now landed and belong in
+   > the differential**: `bronze_division_team` against the export's club-side `teams.division_id`
+   > — the two were written from opposite sides, which is what makes their agreement worth
+   > something — and `bronze_league_event`'s 3,058 rows against `ootp_truth_real.league_events` on
+   > the eight columns the export exposes, `seq` excepted, since the export does not carry it.
 4. **Add an explicit structural-absence allowlist.** The export writes `0` where the value is structurally absent (`rules_active_roster_limit` and the service-time columns on all 14 non-MLB league rows); our parser lands NULL. Without a **named per-column allowlist, each entry carrying its reason**, a *correct* parse produces 14 false mismatches — and the tempting fix is to make the parser write 0, committing precisely the error `.claude/agents/data-engineer.md:110-112` warns about.
 5. Compare strings in Python on decoded `str`, per Phase 7's collation finding.
 6. **Document Tier B's limits inside the test**, so a later agent extending the harness to ratings does not inherit false confidence from a green suite: Tier B is **exact** for ids, names, strings, dates, roster lists, team dimension and league config, and **bucketed** for ratings — measured, `players_batting.batting_ratings_overall_contact` has exactly **12 distinct values across 20–80**. The export is display scale and can never be an exact rating validator; a bucketed check can pass a parser reading the *adjacent* u16, which is CLAUDE.md's named correctness trap in its most dangerous form. `players.csv` (Tier A) stays load-bearing permanently.
@@ -1144,7 +1226,8 @@ Ordered by expected cost, not by likelihood.
 - [ ] `src/ootp_ai/config.py` · `saves.py` · `snapshot.py` · `ingest.py` · `db.py`
 - [ ] `src/ootp_ai/parser/primitives.py` — the forward-only `Cursor`; **no `seek`, no absolute read**
 - [ ] `src/ootp_ai/parser/header.py` · `errors.py` · `saved_games.py`
-- [ ] `src/ootp_ai/parser/teams.py` · `players.py` · `rosters.py` · `names.py`
+- [ ] `src/ootp_ai/parser/teams.py` · `players.py` · `rosters.py` · `names.py` · `world.py`
+      *(`world.py` added 2026-08-19 — Phase 5b arrived by amendment and never reached this list)*
 - [ ] `src/ootp_ai/contracts/tables.toml` · `field_map.toml` — **tracked declarations**
 - [ ] `src/ootp_ai/contracts/loader.py` · `policy.py`
 - [ ] `src/ootp_ai/warehouse/sql.py` · `ddl.py` · `load.py` · `ingest_run.py`
@@ -1205,9 +1288,12 @@ Ordered by expected cost, not by likelihood.
 
 ## 9. Data contracts touched
 
-Four bronze tables, each declaring its grain in `contracts/tables.toml` and proving it in
-`tests/test_grain_contracts.py` — the same declaration emitting the DDL, so prose and
-enforcement cannot drift.
+**Six** bronze tables — *amended 2026-08-19; it was four until Phase 5b's `world.dat` output
+was added to Phase 8a's declaration* — each declaring its grain in `contracts/tables.toml`
+and proving it in `tests/test_grain_contracts.py`, the same declaration emitting the DDL, so
+prose and enforcement cannot drift. Two further tables, `bronze_field_label` and
+`ingest_run`, are declared and keyed the same way but are records *about* a landing rather
+than facts from the save; the declared set is eight.
 
 | Table | Grain | Key |
 |---|---|---|
@@ -1215,6 +1301,8 @@ enforcement cannot drift.
 | `bronze_player` | one row per player per save per snapshot | `save_id, sim_date, ingest_seq, player_id` |
 | `bronze_team_roster` | one row per player per team per **roster list** per save per snapshot | `save_id, sim_date, ingest_seq, team_id, player_id, list_id` |
 | `bronze_name` | one row per name-table entry per save per snapshot | `save_id, sim_date, ingest_seq, name_space, name_index` |
+| `bronze_division_team` | one row per club per division per save per snapshot | `save_id, sim_date, ingest_seq, league_id, sub_league_id, division_id, team_id` |
+| `bronze_league_event` | one row per calendar event per save per snapshot | `save_id, sim_date, ingest_seq, seq` |
 
 **Keys.** `player_id` is the only universal key. `historical_id` is a **nullable attribute,
 never a join key** — measured, 1,920 of 18,072 active players carry one (10.6%), so a join
@@ -1226,7 +1314,10 @@ legitimately joins on `LahmanID` as ground truth.
 minor-league population; filtering at bronze is forbidden. The org filter lives in the
 report layer. `bronze_team_roster` covers **7,370 distinct players, not 18,072**: ~10,700
 active players (free agents, draft-eligible, international, unassigned) carry **no roster
-row at all**, which the catalog states explicitly.
+row at all**, which the catalog states explicitly. `bronze_division_team` covers **MLB's six
+divisions only** — the thirty clubs those arrays name — because the other fourteen leagues
+each sit behind their own unmapped scalar block (Phase 5b); the four All-Star sides appear in
+no division array at all and are **structurally absent, not division zero**.
 
 **Structural absence is preserved as NULL, never zero.** The export writes `0` for
 `rules_active_roster_limit` and the service-time columns on all 14 non-MLB league rows —

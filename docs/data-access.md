@@ -63,7 +63,7 @@ Each `.lg` directory holds (`measured`):
 | `players.dat` | 25.7–32.1 MB | Player records — ratings, contracts, stats (see §4) |
 | `teams.dat` | ~4.5 MB | Team records |
 | `retired.dat` | ~130–150 MB | Retired players |
-| `world.dat` | ~8.6 MB | Nations, states, cities |
+| `world.dat` | ~8.6 MB | Nations, states, cities — **and** the league → sub-league → division nest and the 3,058-entry league calendar (`measured`, Phase 5b) |
 | `names.dat` | ~8.6 MB | Name string table |
 | `coaches.dat` | ~2 MB | Coaches and staff |
 | `scouting.dat` | ~2.3 MB | Scout-perceived ratings (see §5) |

@@ -165,9 +165,21 @@ in each player record turn out to be the first- and last-name indices in that or
 established by scoring every candidate mapping across all 18,072 players of the
 validation save rather than by reading the bytes, since the correct assignment scores
 100% and the reverse one scores 0.01%. Names resolve exactly against the export, and
-against `players.csv` for the real players on Boston. Next is bronze landing.
-**The first genuinely useful job is telling the GM who is on its roster, and what
-remains between here and that is the warehouse, not the parser.**
+against `players.csv` for the real players on Boston.
+
+**The warehouse now has a shape, and it is declared rather than written.** Eight
+tables state their grain as a sentence — *"one row per player per team per roster
+list per save per snapshot"* — and the loader parses that sentence, resolves each
+dimension to columns, and requires the union to equal the declared key exactly. The
+same declaration emits the `CREATE TABLE`s, so the schema MySQL will hold is the
+schema the sentence describes, and prose-versus-enforcement drift fails at load time
+rather than failing to be noticed. Every landed field carries an epistemic label
+checked against a declared vocabulary, because until now nothing read those labels at
+all and a mistyped one would have shipped green.
+
+Next is bronze landing. **The first genuinely useful job is telling the GM who is on
+its roster, and what remains between here and that is the warehouse, not the
+parser.**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job
