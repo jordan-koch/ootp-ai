@@ -35,9 +35,12 @@ date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
 the game's own export. [`README.md`](README.md) carries what has landed and what
 is next.
 
-**There is still no warehouse and no reports**, so the GM cannot yet see its own
-club ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Bronze
-landing is Phase 8 of [`first-sight`](requests/feature-requests/first-sight/).
+**The warehouse schema is declared and emitted, and nothing is landed in it yet** —
+so the GM still cannot see its own club
+([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Phase 8a of
+[`first-sight`](requests/feature-requests/first-sight/) landed the eight-table
+declaration, the DDL it emits and the offline guards; **8b is bronze landing** and is
+the first phase to open a database.
 
 ## Stack
 
@@ -76,6 +79,7 @@ requests/           Intake — feature-requests / bugfix-requests / data-inciden
 .claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading
   contracts/          TRACKED field + grain declarations — derived schema, ours to keep
+                      — plus the loader that validates them and the serving gate
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
 var/                GITIGNORED — save snapshots, warehouse files, scratch
