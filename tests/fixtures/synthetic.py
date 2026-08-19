@@ -238,6 +238,33 @@ PLAYER_ASSIGNMENT_BITS = (
 )
 PLAYER_FREE_AGENT_BIT = 0
 
+#: The identity tail, `verified` 2026-08-18 against every `retired = 0` export row.
+#: Bits 6 and 7 of the second mask carry `bats` and `throws` under **drop-DEFAULT**
+#: encoding — the writer elides the majority value 1, so a set bit means a written byte
+#: holding a value that is *not* 1. The byte after that mask is a third mask whose bit 1
+#: is set on every record of every save measured; the walk requires it as a sentinel and
+#: refuses the whole tail without it, which is what lets a record built WITHOUT a tail
+#: (the pre-decode legacy shape) parse to `None` + a counted `undecoded_tails` rather
+#: than to garbage.
+PLAYER_BATS_BIT = 6
+PLAYER_THROWS_BIT = 7
+PLAYER_TAIL_SENTINEL = 0b10
+PLAYER_DEFAULT_SIDE = 1
+
+#: Between the second historical string and the roster-status byte: a 13-byte
+#: unclassified span, the four injury-proneness bytes, and five further unclassified
+#: bytes. `measured` — the status byte's IL bit matches the export at this distance on
+#: all 18,072 scorable records. The fixture emits the span as gap fill because the walk
+#: crosses it without interpreting it; a reader that started depending on its contents
+#: goes red here rather than on a save that fills it differently.
+PLAYER_STATUS_GAP = 22
+
+#: The roster-status byte's decoded bits (`rosters.py`): active on an organisation
+#: top club, the secondary/40-man roster, the injured list.
+PLAYER_STATUS_ACTIVE_BIT = 2
+PLAYER_STATUS_SECONDARY_BIT = 3
+PLAYER_STATUS_INJURED_BIT = 4
+
 
 def make_player_head(
     *,
@@ -256,6 +283,12 @@ def make_player_head(
     free_agent: bool = False,
     assignment_mask: int | None = None,
     gap_fill: int = PLAYER_GAP_FILL,
+    tail: bool = False,
+    bats: int = PLAYER_DEFAULT_SIDE,
+    throws: int = PLAYER_DEFAULT_SIDE,
+    historical_id: str = "",
+    historical_team_id: str = "",
+    status: int | None = None,
 ) -> bytes:
     """One player record's head, through the club-assignment block.
 
@@ -268,7 +301,32 @@ def make_player_head(
     from which values are non-zero**, exactly as the writer does it, so a fixture cannot
     accidentally disagree with its own mask. `assignment_mask` overrides that, which is
     how a test builds a record whose mask *lies* about what follows.
+
+    `tail=False` builds the **legacy shape** — the record as this fixture emitted it
+    before the identity tail was decoded, whose third-mask byte is the non-zero gap fill
+    and therefore lacks the sentinel bit. The walk must answer that shape with
+    `bats`/`throws`/`historical_id` as `None` and a counted `undecoded_tails`, never by
+    consuming it, so the legacy default is a fixture for the degrade path rather than an
+    accident of history. `tail=True` builds the measured tail: bats/throws bits computed
+    drop-DEFAULT from the values (set exactly when the value is not 1, written byte
+    following), the sentinel third mask, then the two length-prefixed historical strings.
+    An out-of-set value such as `bats=5` is written as asked — the parser must refuse it,
+    and a fixture that sanitised it could never prove that.
+
+    `status` appends the roster-status region — the 22 crossed bytes and then the status
+    byte itself — which sits past where `read_players` stops and is read only by
+    `rosters.py`'s deeper walk. It needs a valid tail in front of it to be reachable, so
+    it requires `tail=True`.
     """
+    if not tail and (
+        bats != PLAYER_DEFAULT_SIDE
+        or throws != PLAYER_DEFAULT_SIDE
+        or historical_id
+        or historical_team_id
+    ):
+        raise ValueError("tail fields were supplied but tail=False builds the legacy shape")
+    if status is not None and not tail:
+        raise ValueError("status requires tail=True — the status byte sits past the tail")
     day, month, year = birth
     stated_age = player_age_on(birth, sim_date) if age is None else age
     gap = bytes([gap_fill])
@@ -285,6 +343,20 @@ def make_player_head(
         if (assignment_mask if assignment_mask is not None else mask) & (1 << bit)
     )
     flags = (1 << PLAYER_FREE_AGENT_BIT) if free_agent else 0
+
+    third_mask = gap
+    identity_tail = b""
+    if tail:
+        if bats != PLAYER_DEFAULT_SIDE:
+            flags |= 1 << PLAYER_BATS_BIT
+            identity_tail += struct.pack("<B", bats)
+        if throws != PLAYER_DEFAULT_SIDE:
+            flags |= 1 << PLAYER_THROWS_BIT
+            identity_tail += struct.pack("<B", throws)
+        third_mask = struct.pack("<B", PLAYER_TAIL_SENTINEL)
+        identity_tail += make_string(historical_id) + make_string(historical_team_id)
+        if status is not None:
+            identity_tail += gap * PLAYER_STATUS_GAP + struct.pack("<B", status)
 
     return (
         struct.pack("<I", player_id)
@@ -309,8 +381,9 @@ def make_player_head(
         + struct.pack("<I", 203 + (player_id % 3) * 18)
         + struct.pack("<B", assignment_mask if assignment_mask is not None else mask)
         + struct.pack("<B", flags)
-        + gap
+        + third_mask
         + written
+        + identity_tail
     )
 
 
@@ -355,6 +428,50 @@ def make_players_file(
         for index, (head, tail_bytes) in enumerate(zip(heads, per_record, strict=True))
     )
     return make_header(filename="players.dat", sim_date=sim_date) + tail + preamble + records
+
+
+# ── teams.dat, span level ────────────────────────────────────────────────────
+# `make_teams_spans_file` builds ONLY what the span walk and the roster reconciliation
+# decode: the record frame, an ascending team id, and an opaque body the caller controls.
+# It deliberately does NOT synthesize a team record's head — the string signature and
+# drop-zero integer run — for the reason Phase 5a refused to: `read_teams` decodes those
+# by measurement, and a hand-built head would assert a hypothesis. `read_teams` therefore
+# REFUSES buffers built here; `read_team_record_spans` and `read_rosters` accept them,
+# because frames and content-located arrays are all they read.
+
+#: Nine zero bytes and a `0x28`, immediately before every record's `team_id`. `measured`
+#: (`teams.py`).
+TEAMS_RECORD_FRAME = b"\x00" * 9 + b"\x28"
+
+
+def make_u32_run(values: tuple[int, ...]) -> bytes:
+    """A contiguous little-endian `u32` array — the shape of the membership array."""
+    return b"".join(struct.pack("<I", value) for value in values)
+
+
+def make_teams_spans_file(
+    records: tuple[tuple[int, bytes], ...],
+    *,
+    sim_date: tuple[int, int, int] = (18, 3, 2024),
+    declared_count: int | None = None,
+) -> bytes:
+    """A `teams.dat` buffer at span fidelity: header, tail, then framed opaque records.
+
+    `records` is `(team_id, body)` per club, ids ascending. Bodies are the caller's —
+    a roster test embeds a membership array (`make_u32_run`) between non-zero filler so
+    the content search has exactly one qualifying run to find. Keep bodies free of long
+    zero runs: nine zeros and a `0x28` *is* the frame, and a body that fabricates one
+    earns a mis-frame the real files never produce.
+
+    `declared_count` defaults to the truth and exists so a test can lie — the span walk
+    must refuse a file that frames fewer records than its header declares.
+    """
+    count = len(records) if declared_count is None else declared_count
+    tail = struct.pack("<IIIIII", 21, 21, 12, 144, count, 3_289_089)
+    body = b"".join(
+        TEAMS_RECORD_FRAME + struct.pack("<I", team_id) + record for team_id, record in records
+    )
+    return make_header(filename="teams.dat", sim_date=sim_date) + tail + body
 
 
 def make_record(

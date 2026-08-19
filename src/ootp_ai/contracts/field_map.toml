@@ -10,8 +10,10 @@
 #   * `teams.dat` landed in Phase 5 and its fields were never added here, because the
 #     contracts directory did not exist yet. That backfill is Phase 8's, which the plan
 #     describes as "complete tables.toml and field_map.toml".
-#   * Only the `players.dat` fixed head is described below. The rest of the player
-#     record sits past a drop-zero region that Phase 6b resolves.
+#   * `players.dat` is described below through the identity tail (the two historical
+#     strings, roughly record+70..100). The rest of each record — including position
+#     and role — is undecoded; the final [[withheld]] entry records how far the decode
+#     got and where it breaks.
 #
 # Nothing reads this file yet. `contracts/loader.py` and `contracts/policy.py` are
 # Phase 8 and Phase 10; until they exist this is a declaration, not a gate.
@@ -32,9 +34,9 @@
 
 [meta]
 schema_version = 1
-updated = "2026-08-17"
-phase = "first-sight Phase 6a"
-covers = ["players.dat"]
+updated = "2026-08-18"
+phase = "first-sight Phase 6b (players.dat identity tail + roster-membership grain)"
+covers = ["players.dat", "teams.dat (roster-membership region only)"]
 incomplete = ["teams.dat", "world.dat", "names.dat"]
 
 # ── players.dat, the fixed head ──────────────────────────────────────────────
@@ -223,7 +225,127 @@ type = "bit 0 of the second mask at record+56"
 category = "identity"
 epistemic = "verified"
 validator = "export-exact-all-rows"
-note = "A boolean carried entirely by its presence bit — under drop-zero a false boolean is simply not written, so the bit IS the value. The remaining bits of that mask are undecoded and deliberately not guessed at."
+note = "A boolean carried entirely by its presence bit — under drop-zero a false boolean is simply not written, so the bit IS the value."
+
+# ── the identity tail, from the masks at record+56 and record+57 ─────────────
+#
+# Decoded 2026-08-18. The second mask's bits 2-7 govern six optional fields written in
+# ascending bit order (nickname index u32, second_nation_id u32, language_ids0 u16,
+# language_ids1 u16, bats u8, throws u8), the third mask's bit 2 governs one
+# unclassified u8 and bit 5 a loan u32, and then two u32-length-prefixed strings follow
+# back to back: historical_id and historical_team_id. Every claim below was scored
+# against ALL 18,072 `retired = 0` export rows, and the same structural rule accepts
+# every record of all three saves (18,077 + 18,077 + 22,046, zero refusals) — see
+# PlayersFile.undecoded_tails. The walk validates the whole tail by lookahead before
+# consuming any of it; a record that fails lands bats/throws/historical_id as None
+# (tail unreadable), which is distinct from "" (structurally absent historical_id).
+
+[[field]]
+name = "bats"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u8 (presence bit 6 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "1 = right, 2 = left, 3 = switch. Drop-DEFAULT, not drop-zero: never zero, and the writer elides the majority value 1 instead — bit set means the byte holds 2 or 3, bit clear means the value IS 1. Absent-means-1 reproduces the export on all 18,072 rows, and the bit-set population equals the not-1 population exactly in all three saves. A drop-zero scorer can never find this field, which is why it survived the Phase 6a sweep."
+
+[[field]]
+name = "throws"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u8 (presence bit 7 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "1 = right, 2 = left. Same drop-default encoding as bats; a written byte is always 2 across all three saves."
+
+[[field]]
+name = "historical_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "string (u32 length + ASCII), first of two after the tail run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "The Lahman/BBRef string join key (e.g. 'deverra01') — AC8's Tier-A anchor. Exact on all 18,072 export rows INCLUDING the empty ones: a fictional player carries a zero-length prefix, not an absent field, so '' is structural absence and never NULL-by-accident. Coverage 1,920 of 18,072 on the probe export and 2,137 of 22,046 on the managed league, all distinct, all Lahman-shaped — an attribute, never a join key in a serving path. The docs' earlier '~1,712 unique' undercounted. A second occurrence sits ~300-450 bytes deeper in the record and is not read."
+
+# ── crossed, classified, and deliberately not exposed ────────────────────────
+#
+# The walk must decode these to reach historical_id — their widths are what the masks
+# govern — but PlayerRecord does not carry them: every exposed field is a maintenance
+# liability somebody re-validates after a game patch, and nothing in this phase needs
+# them. The classifications are recorded so the verification is not lost.
+
+[[field]]
+name = "nickname_index"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u32 (presence bit 2 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-presence-all-rows"
+note = "Crossed, not exposed. Present exactly when the export's nick_name is nonempty — 18,072/18,072 — and every observed value sits inside names.dat's ~264,095-entry range (255,215 / 256,259 / 255,826 sampled). That it is a names.dat INDEX is `inferred` until Phase 7 resolves the name table; the presence rule is what is verified."
+
+[[field]]
+name = "second_nation_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u32 (presence bit 3 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Crossed, not exposed. Written BEFORE the language pair despite the export's column order — ascending bit order is the disk order. Misordering these scored 17,899/18,072 with the 173 failures exactly the records carrying both, which is the 99%-fit trap in miniature."
+
+[[field]]
+name = "language_ids0"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u16 (presence bit 4 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Crossed, not exposed. Elided when the export holds 0."
+
+[[field]]
+name = "language_ids1"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u16 (presence bit 5 of the mask at record+56)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Crossed, not exposed. Elided when the export holds -1, NOT 0 — 0 is a real language id here and is written. Compared as unsigned low 16 bits."
+
+[[field]]
+name = "tail_extra_byte"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u8 (presence bit 2 of the mask at record+57)"
+category = "rating-true"
+epistemic = "unconfirmed"
+validator = "none"
+note = "Crossed, withheld. Takes 1, 2 or 3 (overwhelmingly 2), present on ~6% of records — 1,045 of the probe's 1,874 parseable real players but only 61 fictional ones, so it tracks the real-player minority. No players-table column matches it under identity, minus-one or role-remap transforms; whatever it is, it is not in the export's players table."
+
+[[field]]
+name = "loan_league_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "u32 (presence bit 5 of the mask at record+57)"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Crossed, not exposed. Matches the export on all 18,072 rows (nonzero on 3). loan_team_id was 0 for every loaned player in every save measured, so whether a second u32 appears when it is nonzero is UNOBSERVED — if it does, the tail validation refuses those records loudly rather than misreading them."
+
+[[field]]
+name = "historical_team_id"
+source = "players.dat"
+walker = "ootp_ai.parser.players.read_players"
+type = "string (u32 length + ASCII), second of two after the tail run"
+category = "identity"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Crossed, not exposed. Exact on all 18,072 rows (nonempty on 161). Consumed only so the cursor leaves the decoded region on a field boundary."
 
 # ── crossed but not classified ───────────────────────────────────────────────
 #
@@ -292,14 +414,105 @@ validator = "none"
 note = "record+51. **Not a constant, and this one nearly went wrong.** It reads 203 for every one of the 18,077 records in BOTH test saves — a textbook format constant — while the managed league carries six distinct values. Asserting 203 would have passed every available test and broken on the only save that matters. Vary the save before believing a constant."
 
 [[field]]
-name = "unclassified_before_assignments"
+name = "tail_mask"
 source = "players.dat"
 walker = "ootp_ai.parser.players.read_players"
-type = "1 byte"
+type = "1 byte (bitmask)"
+category = "structural"
+epistemic = "measured"
+validator = "cross-save-parse-zero-refusals"
+note = "record+57 — formerly 'unclassified_before_assignments', now decoded as a third presence mask: its observed values (2, 6, 14, 34, 38) decompose exactly on bits. Bit 1 is set on all 58,200 records of all three saves (meaning unknown; required as a sentinel so a format change degrades loudly). Bit 2 governs tail_extra_byte, bit 5 the loan u32, bit 3 governs NO bytes (proven by the strings behind it parsing exactly), and bits 0/4/6/7 have never been observed — any of them fails the tail scan."
+
+# ── the roster-membership grain (rosters.py, two files at once) ──────────────
+#
+# `team_roster`'s (team_id, player_id, list_id) triple, reconstructed from stored
+# per-player status bits in players.dat cross-checked against the membership array in
+# each teams.dat record. `ootp_ai.parser.rosters` owns the full argument for why the
+# array's ORDER cannot carry the list assignment (measured: identical rosters serialize
+# in different orders across the two test saves) and why the multiplicity is still
+# load-bearing (the managed save carries 154 rostered-but-inactive minor leaguers no
+# per-player bit distinguishes). These are the first teams.dat entries in this file,
+# ahead of the Phase 8 backfill of that walker's own fields.
+
+[[field]]
+name = "roster_membership"
+source = "teams.dat + players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "(team_id, player_id, list_id) rows; list_id 1=assignment 2=active 3=secondary 4=injured"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Reproduces ootp_truth_real.team_roster exactly — all 15,672 rows, no extras, no misses — and per-club array reconciliation runs clean on all three saves (229 + 229 + 299 clubs). List 3 rows land at the player's organization_id (verified 935/935), which is how one player spans two clubs. The enum semantics are the operator-verified reading in reviews/list-id-semantics.md."
+
+[[field]]
+name = "team_membership_array"
+source = "teams.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "contiguous stride-4 u32 array of player ids, in the record's undecoded body (~record+1150..1520, moves per team)"
+category = "structural"
+epistemic = "measured"
+validator = "multiset-equality-all-clubs"
+note = "Its MULTISET equals the club's roster rows plus one entry per assigned-but-unrostered player, on every club of every save measured. Its ORDER is container noise: the two test saves hold identical Boston rosters in different orders (88/97 slots agree, the rest permute in local cycles), so no positional decode exists — consumed as a multiset only. Bounded by the club's finance block before and its coaching-staff id array after."
+
+[[field]]
+name = "roster_status_injured"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "bit 4 of the status byte 22 bytes past historical_team_id"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Equals the export's 330 list_id=4 rows exactly, 18,072/18,072. The only membership evidence for 2-vs-4 at minor-league clubs, where no redundant storage exists to cross-check it — flagged in the walker's docstring."
+
+[[field]]
+name = "roster_status_secondary"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "bit 3 of the status byte"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "Equals the 935 list_id=3 rows exactly among players with a team; also set on 97 league-less free agents with no team, who hold no rows and are excluded by the assignment filter."
+
+[[field]]
+name = "roster_status_active"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "bit 2 of the status byte"
+category = "structural"
+epistemic = "verified"
+validator = "cross-check-vs-multiplicity-solve"
+note = "Set exactly on organisation-top-club active-roster players (the 30x26). Redundant with the multiplicity solve at those clubs and kept as a hard cross-check — 959/956/2,639 agreements across the three saves, zero disagreements, and a planted IL-bit mutation is caught by it. NOT set for minor-league active players, which is why it cannot replace the array."
+
+[[field]]
+name = "roster_status_sixty_day"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "bit 5 of the status byte"
+category = "structural"
+epistemic = "verified"
+validator = "population-exact"
+note = "Equals the 58-player 60-day-IL population the plan measured, exactly. Decoded knowledge, not consumed: the 60-day placement already shows as injured-without-secondary. Bits 0, 1, 6, 7 of this byte are observed but unclassified (bit 6 on 12 records, bit 7 on 9, all league-less or MLB oddities) and are not consulted."
+
+[[field]]
+name = "unrostered_assignment_marker"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "last_organization_id != 0 (assignment mask bit 3), with status byte 0x00"
+category = "structural"
+epistemic = "measured"
+validator = "signature-match-or-refuse"
+note = "DAY-0 BOUNDARY, handled by refusal. The 176 assigned-but-unrostered players (the export's negative league_id population) all carry last_organization_id == their own organisation and last_league_id == 234; zero of the 7,370 rostered players carry any last_organization_id. That separates them perfectly in all three saves on disk — but after the league trades a player across organisations, rostered players with the marker will exist. The walker therefore accepts an m==1 player only when he matches exactly one of the two measured signatures and REFUSES otherwise, so the marker breaking produces a loud AmbiguousRosterMembership, not a silent wrong roster. The residual risk it cannot catch: a future m==1 player matching a measured signature with a different truth (e.g. a traded, rostered, inactive minor leaguer). Re-measure at the first post-transaction snapshot."
+
+[[field]]
+name = "identity_to_status_spans"
+source = "players.dat"
+walker = "ootp_ai.parser.rosters.read_rosters"
+type = "13 + 4 + 5 bytes between historical_team_id and the status byte"
 category = "rating-true"
-epistemic = "unconfirmed"
-validator = "none"
-note = "record+57. Takes 2, 6, 34 and 38 across the saves, so neither a mask this walk understands nor a constant."
+epistemic = "measured"
+validator = "fixed-width-implied-by-exact-bit-match"
+note = "Crossed, not interpreted. The middle 4 are the prone_overall/leg/back/arm quad (byte-exact on all 18,072 rows, per the position/role note below); the 13 before and 5 after are unclassified. That the whole span is fixed-width on every record of every save is implied by the status bits matching at a constant distance on all 18,072 scorable rows."
 
 # ── deliberately NOT landed ──────────────────────────────────────────────────
 #
@@ -312,11 +525,6 @@ source = "players.dat"
 reason = "ADR 0012, permanent. Two lossy transforms sit between a stored rating and any display — scale conversion and scout filtering — so matching a displayed value to a byte identifies the wrong field with no error surfaced. This slice lands no ratings whatever the Phase 2 spike returned."
 
 [[withheld]]
-name = "historical_id"
+name = "position, role"
 source = "players.dat"
-reason = "NOT LANDED, and this entry exists because it nearly went unrecorded. It is named by plan Phase 6 step 1 and it is the join key AC8 depends on — the only Tier-A validation of the names join on the league we actually manage — so its absence is the most consequential gap in this phase and the easiest to miss. Measured: it is a u32-length-prefixed ASCII string (e.g. 'deverra01') appearing TWICE per record, roughly 60 to 80 bytes after the record start, which places it AFTER the drop-zero region and therefore out of reach of this walk for the same reason team_id is. Landing it is Phase 6b's, and AC8 cannot be attempted until it exists. Carrying ~10.6% coverage (1,920 of 18,072), it is a nullable attribute and never a join key in a serving path."
-
-[[withheld]]
-name = "position, role, bats, throws"
-source = "players.dat"
-reason = "Not refused — not yet readable, and NOT for the drop-zero reason the sibling fields had. None of these is ever zero in the export, so no presence mask governs them; they are written unconditionally, past further variable content this walk does not decode. Brute-force scoring against the full answer key, anchored both at the mask run's end and on the historical_id string, peaked at ~48% — a coincidence rate, not a mapping. They are the roster report's remaining gap."
+reason = "Not refused — not yet EXACTLY readable, and landed at less than exact they would be the 97-99% failure this project cannot afford. Measured 2026-08-18, so the next attempt starts here and not at zero: they sit past the historical strings, beyond a 13-byte mostly-zero span, the prone_overall/leg/back/arm quad (byte-exact at that spot on all 18,072 rows), and a flag-byte region (five zeros, then bytes at prone+5/+6/+8/+11/+12 drawn from small sets) that governs a variable-width piece. Within fixed-shape groups keyed on those flag bytes the role byte is EXACT at a group-specific offset — 2,872/2,872, 371/371, 317/317 in the three clean groups — but the shape rule is underived, a fixed offset scores ~50% overall, and hsc_status sits beside role in the one group mapped (2,872/2,872). Two structural warnings for the next session: the export's role=13 (closer) is NOT stored in the role byte — the save holds 12 there for 197 of 229 closers, so 13 looks derived from depth-chart data elsewhere, and export-exact role may be impossible from players.dat alone; and 0xfa bytes recur through the region (rating values of 250), so anchoring on the byte before role fails at ~45%. For pitchers, position is derivable as 1 from role != 0, but deriving is what the plan forbids."

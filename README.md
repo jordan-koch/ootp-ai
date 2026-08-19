@@ -136,26 +136,30 @@ with the phases that need them.
 
 Phase 0 landed the conventions, the format investigation, and the managed league,
 plus a one-time ground-truth export captured from a disposable standard-mode save
-and loaded into MySQL. The parser is now real through **Phase 6a** of feature
-request #1: the spine, an immutable snapshot layer, and walkers for
+and loaded into MySQL. The parser is now real through **Phase 6b** of feature
+request #1: the spine, an immutable snapshot layer, walkers for
 `saved_games.dat`, `human_managers.dat`, `teams.dat`, `world.dat` and
-`players.dat`.
+`players.dat` — and the roster-membership grain.
 
 The `players.dat` walk frames all 18,077 player records in each save and lands a
-deliberately minimal biographical head — id, birth date, age, nationality, birth
-city, height, weight, uniform number, service time — with every one of those
-fields checked against **every** row of the ground-truth export rather than a
-sample. It stops there on purpose: the rest of the record uses a drop-zero
-encoding where a falsy field is simply not written, so a player's team, position
-and handedness sit at an offset that moves from record to record. Reading them at
-a fixed offset happens to be right about 87% of the time, which is exactly the
-kind of nearly-correct that this project treats as worse than an error.
+deliberately minimal field set — the biographical head, the club assignment, a
+player's handedness and his Lahman ID — with every field checked against
+**every** row of the ground-truth export rather than a sample. The record turned
+out to be presence-mask-governed: a falsy field is simply not written (and
+handedness revealed a second pattern, written-unless-default), so those fields
+sit at offsets that move from record to record, and reading them at a fixed
+offset happens to be right about 87% of the time — exactly the kind of
+nearly-correct this project treats as worse than an error. Position and role are
+deliberately **not** landed: the byte the save stores provably disagrees with
+the export's derived closer role, and a mapping below exact does not ship.
 
-Next is finishing that region — team, position, handedness and the Lahman ID —
-together with the roster grain, then resolving names against `names.dat`, the
-step that turns a roster of integers into people, and then bronze landing. **The
-first genuinely useful job is telling the GM who is on its roster, and that is
-still the thing this cannot say.**
+The roster grain — which players sit on which club's active roster, 40-man and
+injured list — reproduces the export's 15,672-row membership table exactly, by
+combining stored per-player status bits with each club's membership array and
+refusing loudly whenever the two files disagree. Next is resolving names against
+`names.dat`, the step that turns a roster of integers into people, and then
+bronze landing. **The first genuinely useful job is telling the GM who is on its
+roster, and the remaining gap is now names alone.**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

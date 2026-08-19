@@ -66,14 +66,66 @@ skipped, each field followed by its `last_` counterpart:
 `verified` — the mask takes exactly six values across all three saves (`0x00`, `0x14`,
 `0x15`, `0x2a`, `0x37`, `0x3f`), each maps to one zero-ness signature with no
 exceptions, and decoding it this way reproduces all six columns on **every** `retired = 0`
-export row. A second mask at record+56 carries `free_agent` in bit 0, also exact on all
-18,072. Its other bits are undecoded and are not guessed at.
+export row.
 
-**Still out of reach: `position`, `role`, `bats`, `throws`, `historical_id`.** None of
-them is ever zero, so no drop-zero mask governs them; they are written unconditionally
-past further variable content this walk does not decode. Brute-force scoring against the
-full answer key — from the mask run's end and from the `historical_id` string anchor —
-peaked at ~48%, which is not a mapping, it is a coincidence rate.
+**The second mask at record+56 is a presence mask too, and it governs the tail.**
+Bit 0 is `free_agent` (`verified` 18,072/18,072). The rest, `verified` the same way —
+every presence bit agrees with the export's zero-ness on every `retired = 0` row, and
+the decoded values match exactly:
+
+| bit | governs | width |
+|---|---|---|
+| 2 | nickname `names.dat` index | `u32` |
+| 3 | `second_nation_id` | `u32` |
+| 4 | `language_ids0` | `u16` |
+| 5 | `language_ids1` | `u16` |
+| 6 | `bats` | `u8` |
+| 7 | `throws` | `u8` |
+
+The fields are written in **ascending bit order**, absent ones skipped — the same
+convention as the assignment mask. Getting that order wrong is exactly a 99%-fit trap:
+an oracle-driven parse that read the languages before the second nation scored
+17,899/18,072 and the 173 failures were precisely the records carrying both.
+
+**`bats` and `throws` are drop-DEFAULT, not drop-zero.** Neither is ever zero; the
+writer instead elides the *majority* value 1 (right-handed). Bit set means the byte is
+written and holds 2 or 3 (`bats`) or 2 (`throws`); bit clear means the value **is** 1.
+`verified`: reconstructing them this way matches the export on all 18,072 rows, and the
+bit-set populations equal the not-1 populations exactly in all three saves.
+
+**The byte at record+57 is a third mask** (it is not a value; its observed values 2, 6,
+14, 34, 38 decompose on bits). Bit 1 is set on every record of every save on disk
+(58,200 of 58,200) — meaning unknown, treated as a shape sentinel. Bit 2 governs one
+unclassified `u8` that takes values 1-3 (present on ~6% of records, overwhelmingly the
+real-player minority; meaning `unconfirmed`, withheld). Bit 5 governs a `u32` that
+matches `loan_league_id` on every export row. Bit 3 appears on a handful of records and
+governs **no bytes** — proven by the strings behind it still parsing exactly.
+
+After that run come **two `u32`-length-prefixed strings, back to back**:
+`historical_id` (the Lahman/BBRef join key, e.g. `deverra01`) and
+`historical_team_id`. Both `verified` against every `retired = 0` export row — empty
+string included: the ~90% of players with no real-world identity carry a zero-length
+prefix, not an absent field. The walk reads `historical_id` and deliberately exposes
+nothing else from this region; the rest is crossed and recorded in the field map.
+
+**The tail is validated before it is consumed.** `_scan_tail` walks the mask-declared
+widths with lookaheads and only then lets the cursor consume them. If anything
+disagrees — an unknown mask bit, a written `bats` outside {2, 3}, a string that is not
+printable ASCII — the walk consumes nothing past the assignment run, reports
+`bats`/`throws`/`historical_id` as `None`, and counts the record in
+`PlayersFile.undecoded_tails`. On every save on disk that count is **zero**; a nonzero
+count means the format changed and the landing gate must refuse, not guess.
+
+**Still out of reach: `position` and `role`.** They sit past the historical strings,
+beyond a 13-byte mostly-zero span (`unconfirmed`), the four injury-proneness bytes
+(`measured` at that spot: they equal `prone_overall/leg/back/arm` on all 18,072 rows),
+and a further mask-shaped region this walk does not decode. Within fixed-shape subsets
+the role byte is exact — three shape groups scored 2,872/2,872, 371/371 and 317/317 at
+group-specific offsets — but the shape rule is not derived, a fixed offset scores ~50%
+across the population, and the export's `role = 13` (closer) is **not stored in that
+byte at all** (the save holds 12 there for 197 of 229 closers, so the export's 13 looks
+derived from depth-chart data elsewhere). Landing either field at less than exact is the
+failure this project cannot afford, so neither is landed.
 
 ## 3. Framing is a search for a zero run, not a separator byte
 
@@ -154,8 +206,10 @@ from ootp_ai.parser.header import read_header_from
 from ootp_ai.parser.lookahead import (
     DATE_WIDTH,
     U8_WIDTH,
+    U16_WIDTH,
     U32_WIDTH,
     peek_date_parts,
+    peek_length_prefixed_ascii,
     peek_u8,
     peek_u32,
     zero_run_width,
@@ -186,19 +240,21 @@ BYTE_ACCOUNTING_TIER = "diagnostic"
 TIER_RATIONALE = (
     "Reached: the header, the version guard, the six-u32 header tail, the file preamble "
     "(a zero run, a u32 constant and a length-prefixed 64-character digest), every "
-    "record's 37-byte fixed head, and the mask-governed club-assignment block that "
-    "follows it, for all 18,077 records of both test saves and all 22,046 of the managed "
-    "league. Not reached: the rest of each record. A record runs "
-    "1,018 to 9,229 bytes and this walk decodes the first 37, crossing the remainder by "
-    "searching forward for the next record's zero-run frame rather than by reading it. "
-    "Calling this walk strict would be a false claim about roughly 97% of the file. "
-    "Two things make the diagnostic assertion weaker here than in teams.dat and both are "
-    "the file's doing rather than the walk's: the header declares 0xFFFFFFFF instead of a "
-    "record count, so there is no in-file oracle to check the framed count against; and "
-    "the residual reported is what remains after the LAST record's head, which is that "
+    "record's 37-byte fixed head, the mask-governed club-assignment block, and the "
+    "mask-governed identity tail through the two historical strings, for all 18,077 "
+    "records of both test saves and all 22,046 of the managed league — roughly the "
+    "first 70 to 100 bytes of each record. Not reached: the rest. A record runs 1,018 "
+    "to 9,229 bytes, and the walk crosses the remainder by searching forward for the "
+    "next record's zero-run frame rather than by reading it. Calling this walk strict "
+    "would be a false claim about roughly 95% of the file. Two things make the "
+    "diagnostic assertion weaker here than in teams.dat and both are the file's doing "
+    "rather than the walk's: the header declares 0xFFFFFFFF instead of a record count, "
+    "so there is no in-file oracle to check the framed count against; and the residual "
+    "reported is what remains after the LAST record's decoded region, which is that "
     "record's own undecoded body plus the file tail. A later attempt at strict has to "
-    "start by resolving the drop-zero region that begins after `experience` — the same "
-    "encoding teams.dat uses, and the reason team_id is not landed here."
+    "start by deriving the shape rule of the region past the historical strings — the "
+    "13-byte span, the proneness quad, and the flag bytes that govern the "
+    "position/role piece, per the module docstring."
 )
 
 #: How many `u32`s follow the header's two wide dates. A width, not an offset.
@@ -308,14 +364,65 @@ _ASSIGNMENT_BITS: tuple[str, ...] = (
     "last_league_id",
 )
 
-#: A second mask at record+56. Only bit 0 is decoded — `free_agent`, `verified`
-#: 18,072/18,072. The remaining bits are **not** understood and are deliberately not
-#: guessed at; several plausible columns were scored against them and none agreed.
+#: The second mask, at record+56. Every bit below is `verified` against all 18,072
+#: `retired = 0` export rows — presence agrees with the export's zero-ness and the
+#: decoded values match exactly. Fields are written in ascending bit order. Bit 1 has
+#: never been observed set (58,200 records, three saves); a record carrying it fails
+#: `_scan_tail` rather than being guessed at.
 _FREE_AGENT_BIT = 0
+_NICKNAME_INDEX_BIT = 2
+_SECOND_NATION_BIT = 3
+_FIRST_LANGUAGE_BIT = 4
+_SECOND_LANGUAGE_BIT = 5
+_BATS_BIT = 6
+_THROWS_BIT = 7
 
-#: One byte between the second mask and the assignment run. Takes 2, 6, 34 and 38 across
-#: the saves, so it is neither a mask this walk understands nor a constant. `unconfirmed`.
-_GAP_BEFORE_ASSIGNMENTS = 1
+_KNOWN_FLAG_BITS = (
+    (1 << _FREE_AGENT_BIT)
+    | (1 << _NICKNAME_INDEX_BIT)
+    | (1 << _SECOND_NATION_BIT)
+    | (1 << _FIRST_LANGUAGE_BIT)
+    | (1 << _SECOND_LANGUAGE_BIT)
+    | (1 << _BATS_BIT)
+    | (1 << _THROWS_BIT)
+)
+
+#: The third mask, at record+55+3 (record+57) — formerly crossed as an unclassified
+#: byte, and its observed values (2, 6, 14, 34, 38) decompose exactly on these bits.
+#: Bit 1 is set on every record of every save measured; its meaning is unknown and it
+#: is required as a sentinel, so a save that stops setting it degrades loudly (every
+#: tail lands `None`) instead of misparsing. Bit 3 governs no bytes — the strings
+#: behind it parse exactly on the records that carry it. Bits 0, 4, 6 and 7 have never
+#: been observed and fail the scan.
+_TAIL_SENTINEL_BIT = 1
+_TAIL_EXTRA_BYTE_BIT = 2
+_TAIL_MARKER_BIT = 3
+_TAIL_LOAN_BIT = 5
+
+_KNOWN_TAIL_BITS = (
+    (1 << _TAIL_SENTINEL_BIT)
+    | (1 << _TAIL_EXTRA_BYTE_BIT)
+    | (1 << _TAIL_MARKER_BIT)
+    | (1 << _TAIL_LOAN_BIT)
+)
+
+#: What an elided `bats`/`throws` byte means. Drop-DEFAULT, not drop-zero: neither
+#: field is ever zero, and the writer skips the majority value instead. `verified` —
+#: absent-means-1 reproduces the export on all 18,072 rows.
+_DEFAULT_SIDE = 1
+
+#: The values a *written* byte may hold, `measured` across all three saves (58,200
+#: records): a written `bats` is 2 or 3, a written `throws` is 2, and the unclassified
+#: bit-2 byte is 1, 2 or 3. Anything else fails the tail scan — these sets are what
+#: makes the validation mean something on a save with no export behind it.
+_WRITTEN_BATS = frozenset({2, 3})
+_WRITTEN_THROWS = frozenset({2})
+_TAIL_EXTRA_VALUES = frozenset({1, 2, 3})
+
+#: Cap on the two historical strings' declared lengths. The longest observed
+#: `historical_id` is 9 characters; 40 is slack without letting a garbage length walk
+#: the file.
+_TAIL_STRING_MAX_LEN = 40
 
 
 class PlayerRecordLayout(SaveFormatError):  # noqa: N818
@@ -329,12 +436,12 @@ class PlayerRecordLayout(SaveFormatError):  # noqa: N818
 
 @dataclass(frozen=True, slots=True)
 class PlayerRecord:
-    """One player's head and club assignment. Deliberately minimal.
+    """One player's head, club assignment, and identity tail. Deliberately minimal.
 
-    No ratings, by design and permanently (ADR 0012). No `position`, `role`, `bats`,
-    `throws` or `historical_id` either — a *this walk* limit rather than a policy one:
-    none of them is ever zero, so the presence masks below do not govern them, and they
-    sit past further variable content this walk does not yet decode.
+    No ratings, by design and permanently (ADR 0012). No `position` or `role` — a *this
+    walk* limit rather than a policy one: they sit past further variable content whose
+    shape rule is not yet derived, and the module docstring records how close the decode
+    got and where it breaks.
     """
 
     player_id: int
@@ -372,6 +479,25 @@ class PlayerRecord:
     #: From bit 0 of the second mask at record+56. `verified` 18,072/18,072.
     free_agent: bool
 
+    # ── the identity tail, validated before it is consumed ───────────────────
+    #
+    # **`None` on any of these three means one thing only: the record's tail did not
+    # match the measured shape and the walk refused to guess.** It is not a default and
+    # it is not structural absence — `PlayersFile.undecoded_tails` counts it, and on
+    # every save on disk that count is zero. Structural absence looks different:
+    # a fictional player's `historical_id` is `""`, never `None`.
+
+    #: 1 = right, 2 = left, 3 = switch. `verified` against every `retired = 0` export
+    #: row. Stored drop-default: the byte exists only when the value is not 1.
+    bats: int | None
+    #: 1 = right, 2 = left. Same encoding, same verification.
+    throws: int | None
+    #: The Lahman/BBRef string join key (`deverra01`). `verified` on all 18,072 export
+    #: rows including the empty ones. **`""` is a fact — this player has no real-world
+    #: identity — and covers ~90% of the population**; a join on this key silently drops
+    #: the fictional majority, which is why it is an attribute here and never a key.
+    historical_id: str | None
+
 
 @dataclass(frozen=True, slots=True)
 class PlayersFile:
@@ -396,6 +522,13 @@ class PlayersFile:
     #: `None` when the header carries the `0xFFFFFFFF` sentinel, which is every save
     #: measured. A count here would mean a later OOTP build started declaring one.
     declared_record_count: int | None
+    #: How many records' identity tails failed `_scan_tail`'s validation and were left
+    #: unconsumed, with `bats`/`throws`/`historical_id` reported as `None`. **Zero on
+    #: every save measured** (58,200 records across three saves). Nonzero means the
+    #: format changed under this walk; a landing gate must treat that as a refusal,
+    #: because the alternative is averaging over records the parser admits it could
+    #: not read.
+    undecoded_tails: int
 
 
 def read_players(data: bytes) -> PlayersFile:
@@ -430,7 +563,7 @@ def read_players(data: bytes) -> PlayersFile:
     start: int | None = cursor.position
     while start is not None:
         cursor.skip(start - cursor.position)
-        players.append(_read_record(cursor))
+        players.append(_read_record(cursor, data))
         previous_id = players[-1].player_id
         start = _next_record_start(data, cursor.position, previous_id, header.sim_date)
 
@@ -440,6 +573,7 @@ def read_players(data: bytes) -> PlayersFile:
         sim_date=header.sim_date,
         content_digest=digest,
         declared_record_count=None if declared == NO_DECLARED_COUNT else declared,
+        undecoded_tails=sum(1 for player in players if player.historical_id is None),
     )
 
 
@@ -472,12 +606,16 @@ def _read_preamble(cursor: Cursor, data: bytes) -> str:
     return digest
 
 
-def _read_record(cursor: Cursor) -> PlayerRecord:
+def _read_record(cursor: Cursor, data: bytes) -> PlayerRecord:
     """Consume one record's fixed head as a plain forward sequence of typed reads.
 
     Every `skip` below crosses bytes the walk does not interpret. They are named rather
     than inlined so the head reads as the field sequence it is, and so a later reader
     who classifies one of them knows exactly where it lives.
+
+    `data` rides along for the identity tail, whose widths are decided by lookahead
+    before the cursor consumes them — the same reconcile-then-consume pattern
+    `teams.py` uses, because the cursor exposes no lookahead by construction.
     """
     player_id = cursor.u32()
     name_indices = (cursor.u32(), cursor.u32())
@@ -502,8 +640,28 @@ def _read_record(cursor: Cursor) -> PlayerRecord:
     cursor.skip(_UNCLASSIFIED_BEFORE_MASKS)
     assignment_mask = cursor.u8()
     flag_mask = cursor.u8()
-    cursor.skip(_GAP_BEFORE_ASSIGNMENTS)
+    tail_mask = cursor.u8()
     assignments = _read_assignments(cursor, assignment_mask)
+
+    bats: int | None
+    throws: int | None
+    historical_id: str | None
+    scan = _scan_tail(data, cursor.position, flag_mask, tail_mask)
+    if scan is None:
+        # The tail is not the measured shape. Consume nothing past the assignment run —
+        # the framing search recovers the next record regardless — and say so with
+        # `None`, never with a default that would read as a fact.
+        bats = None
+        throws = None
+        historical_id = None
+    else:
+        bats, throws, prefix_width = scan
+        cursor.skip(prefix_width)
+        historical_id = cursor.string()
+        # `historical_team_id`, verified against the export but deliberately not
+        # exposed — consumed only so the cursor leaves the record's decoded region
+        # on a field boundary.
+        cursor.string()
 
     return PlayerRecord(
         player_id=player_id,
@@ -517,8 +675,79 @@ def _read_record(cursor: Cursor) -> PlayerRecord:
         uniform_number=uniform_number,
         experience=experience,
         free_agent=bool(flag_mask & (1 << _FREE_AGENT_BIT)),
+        bats=bats,
+        throws=throws,
+        historical_id=historical_id,
         **assignments,
     )
+
+
+def _scan_tail(
+    data: bytes, position: int, flag_mask: int, tail_mask: int
+) -> tuple[int, int, int] | None:
+    """Validate the identity tail at `position` and return `(bats, throws, width)`.
+
+    `width` is the distance from `position` to the `historical_id` length prefix — the
+    bytes the cursor may then consume without interpreting. `None` means the tail does
+    not match the measured shape and **nothing must be consumed**: an unknown mask bit,
+    a written value outside its measured set, or a string that is not printable ASCII
+    all land here, because each one means the widths below are widths of a different
+    format.
+
+    Decide-with-lookahead, then consume-with-cursor: this function reads through the
+    sanctioned seam and moves nothing, so a refusal is free. On every save on disk it
+    accepts all records — 18,077 + 18,077 + 22,046, zero refusals — so a `None` in the
+    wild is a format change, not noise.
+    """
+    if flag_mask & ~_KNOWN_FLAG_BITS:
+        return None
+    if not tail_mask & (1 << _TAIL_SENTINEL_BIT):
+        return None
+    if tail_mask & ~_KNOWN_TAIL_BITS:
+        return None
+
+    at = position
+    if flag_mask & (1 << _NICKNAME_INDEX_BIT):
+        at += U32_WIDTH
+    if flag_mask & (1 << _SECOND_NATION_BIT):
+        at += U32_WIDTH
+    if flag_mask & (1 << _FIRST_LANGUAGE_BIT):
+        at += U16_WIDTH
+    if flag_mask & (1 << _SECOND_LANGUAGE_BIT):
+        at += U16_WIDTH
+
+    bats = _DEFAULT_SIDE
+    if flag_mask & (1 << _BATS_BIT):
+        written = peek_u8(data, at)
+        if written is None or written not in _WRITTEN_BATS:
+            return None
+        bats = written
+        at += U8_WIDTH
+
+    throws = _DEFAULT_SIDE
+    if flag_mask & (1 << _THROWS_BIT):
+        written = peek_u8(data, at)
+        if written is None or written not in _WRITTEN_THROWS:
+            return None
+        throws = written
+        at += U8_WIDTH
+
+    if tail_mask & (1 << _TAIL_EXTRA_BYTE_BIT):
+        written = peek_u8(data, at)
+        if written is None or written not in _TAIL_EXTRA_VALUES:
+            return None
+        at += U8_WIDTH
+
+    if tail_mask & (1 << _TAIL_LOAN_BIT):
+        at += U32_WIDTH
+
+    first = peek_length_prefixed_ascii(data, at, _TAIL_STRING_MAX_LEN)
+    if first is None:
+        return None
+    _, after_first = first
+    if peek_length_prefixed_ascii(data, after_first, _TAIL_STRING_MAX_LEN) is None:
+        return None
+    return bats, throws, at - position
 
 
 def _read_assignments(cursor: Cursor, mask: int) -> dict[str, int]:

@@ -121,7 +121,9 @@ __all__ = [
     "AmbiguousTeamRecord",
     "TeamRecord",
     "TeamRecordLayout",
+    "TeamRecordSpan",
     "TeamsFile",
+    "read_team_record_spans",
     "read_teams",
 ]
 
@@ -284,6 +286,90 @@ class TeamsFile:
     teams: tuple[TeamRecord, ...]
     residual_bytes: int
     sim_date: SaveDate
+
+
+@dataclass(frozen=True, slots=True)
+class TeamRecordSpan:
+    """Where one team record's bytes sit in the file, for walks that go deeper.
+
+    `start` is the position of the record's `team_id` u32 — the first byte after the
+    nine-zeros-and-`0x28` frame. `end` is where the next record's frame begins (or the
+    end of the buffer, for the last record), so `[start, end)` covers the record's head
+    *and* its undecoded body. `read_teams` deliberately stops at `historical_id`; a
+    consumer that needs something from the body — `rosters.py` needs the roster-membership
+    array — bounds its own forward search with a span rather than duplicating the frame
+    search here.
+    """
+
+    team_id: int
+    start: int
+    end: int
+
+
+def read_team_record_spans(data: bytes) -> tuple[TeamRecordSpan, ...]:
+    """Frame every record of a `teams.dat` buffer without decoding any of them.
+
+    The same search `read_teams` runs — nine zero bytes, `0x28`, then a strictly
+    ascending in-range team id, repeated until the header's declared record count is
+    reached — exposed as positions instead of decoded records. A search, never a seek:
+    every candidate is found by scanning forward from the previous one.
+
+    The difference from `read_teams`' loop is only where the search resumes: this walk
+    resumes immediately after a candidate id rather than after a decoded head. A frame
+    pattern inside a record head could therefore be seen here and not there — no such
+    pattern exists in any save on disk (the span walk and `read_teams` frame identical
+    record sets in all three), and a false accept cannot stay quiet: it would break the
+    ascending-id chain and raise below, or desynchronise the roster reconciliation that
+    consumes these spans, which refuses rather than guesses.
+
+    Raises:
+        MalformedHeader: the buffer is truncated, or is not an OOTP record file.
+        UnsupportedSaveVersion: the declared version is not the one we are proven on.
+        SaveFilenameMismatch: the header names a different file.
+        UnexpectedEndOfData: the header tail runs past the end of the buffer.
+        TeamRecordLayout: the declared count is not a league, or fewer records than
+            declared could be framed.
+    """
+    cursor = Cursor(data, label=TEAMS_FILE)
+    read_header_from(cursor, TEAMS_FILE)
+    tail = _read_header_tail(cursor)
+
+    declared = tail.declared_record_count
+    if not 0 < declared <= _MAX_RECORDS:
+        raise TeamRecordLayout(
+            f"{TEAMS_FILE} declares {declared} records, which is not a league. The header "
+            "tail is not where this walk believes it is, and every span computed after it "
+            "would be a span of the wrong bytes."
+        )
+
+    frame_width = len(_RECORD_FRAME)
+    found: list[tuple[int, int]] = []
+    search_from = cursor.position
+    previous_id = 0
+    while len(found) < declared:
+        frame = data.find(_RECORD_FRAME, search_from)
+        if frame < 0:
+            raise TeamRecordLayout(
+                f"{TEAMS_FILE}: framed {len(found)} records but the header declares "
+                f"{declared}. A span list shorter than the league would silently drop "
+                "clubs from every consumer, so this refuses instead."
+            )
+        id_at = frame + frame_width
+        search_from = id_at
+        candidate = peek_u32(data, id_at)
+        if candidate is None or not previous_id < candidate <= declared:
+            # Frame bytes occur inside record bodies too; only an ascending in-range
+            # team id after them marks a real record start.
+            continue
+        found.append((candidate, id_at))
+        previous_id = candidate
+
+    ends = [id_at - frame_width for _, id_at in found[1:]]
+    ends.append(len(data))
+    return tuple(
+        TeamRecordSpan(team_id=team_id, start=start, end=end)
+        for (team_id, start), end in zip(found, ends, strict=True)
+    )
 
 
 @dataclass(frozen=True, slots=True)
