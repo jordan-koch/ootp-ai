@@ -94,6 +94,28 @@ tested by the plan and rejected; none is consulted here. Every emitted row trace
 stored bit, a stored assignment field, or a stored array occurrence — and the one
 measured-not-verified input, the unrostered marker, is fenced by the signature rule and
 the reconciliation above.
+
+## The `players.py` seam stays private — settled Phase 8b, as the plan asked
+
+This module imports thirteen underscore names from `players.py`. Phase 6b's panel (CF-6)
+accepted that as the single-source-of-truth trade and deferred the call to the phase whose
+loader would import record types from both modules. **The call is: they stay private, and
+the reason is that the premise the deferral rested on turned out to be false.**
+
+Nothing outside `parser/` reaches for them. `warehouse/load.py` binds `PlayerRecord` and
+`RosterMembership` — the public dataclasses — through `ingest.ParsedSnapshot`, and never
+touches a private name in either module. So the seam was never actually crossed, and
+promoting it would have widened a supported surface to satisfy an import that does not
+exist.
+
+What the thirteen names are matters as much as who imports them: they are record-head
+widths and the scanning helpers that frame a record, not a data contract. `_scan_tail`
+and `_HEAD_AFTER_ID_WIDTH` describe *how `players.dat` is laid out*, and a public version
+of them would invite a third module to depend on the layout instead of on the records.
+Keeping them private is what makes `players.py` free to re-measure a width without a
+deprecation. The cost is honest and unchanged: an edit to those names must consider this
+module, which is why `_HEAD_AFTER_ID_WIDTH` is *computed* from the named widths rather
+than restated as a number.
 """
 
 from __future__ import annotations
