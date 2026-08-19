@@ -284,9 +284,12 @@ the managed league, having no export either, relies on a record-boundary check a
 sampled): `u32 player_id`, then two `u32`s, then `date_of_birth` (`u8` day, `u8` month,
 `u16` year), `u8 age`, `u8 nation_id`, `u32 city_of_birth_id`, `u16 weight`, `u8 height`,
 `u8 uniform_number`, `u8 experience`, with four short unclassified spans between them.
-The two `u32`s at +4 and +8 are the plausible home of the name indices — both fall inside
-`names.dat`'s index range — but that is `unconfirmed`, and *which* is first and which is
-last is not established at all.
+The two `u32`s at +4 and +8 are `first_name_index` and `last_name_index`, in that order —
+`verified` 2026-08-18 against all 18,072 export rows. They were `unconfirmed` until
+Phase 7 scored every candidate mapping across the full population rather than reading the
+bytes: `+4` as first and `+8` as last matched **18,072 / 18,072 = 100.00%**, the opposite
+assignment matched **1 / 18,072**, and neither direction left an index unresolved. See
+*Names are indirected* below.
 
 **After `experience`, the record is presence-mask-governed, and it is decoded through
 the identity tail.** `verified` 2026-08-18 against every `retired = 0` export row: the
@@ -360,12 +363,48 @@ home of the derived closer role above. Located, not decoded. And per club,
 ### Names are indirected
 
 `verified` — Player names are **not** stored in `players.dat`. It holds indices
-into `names.dat`, a ~264,095-entry string table (the count cross-checks against
-the in-game Database screen). Searching `players.dat` for a player's surname
-returns only their Twitter handle.
+into `names.dat`, a **264,095**-entry string table (the header declares that count,
+the walk frames exactly that many, and it cross-checks against the in-game Database
+screen). Searching `players.dat` for a player's surname returns only their Twitter
+handle.
 
-`unconfirmed` — The index encoding and the `names.dat` table layout. Resolving
-names requires a two-file join that has not been built.
+`verified` 2026-08-18 — **The index encoding and the table layout.** The join is built
+(`ootp_ai.parser.names`) and resolves every name of all 18,072 `retired = 0` export rows
+exactly. The record is a `u8` category, a `u32`-length-prefixed name, a `u32` that is
+always zero, the `u32` index, a `u32` usage count and that many `(u32, u32)` pairs. The
+walk is **strict** — zero residual on all three saves.
+
+Four things about it are worth carrying, because each is a trap someone else would
+otherwise re-enter:
+
+- **The category byte LEADS its record.** Read as a trailing separator the walk finds
+  264,094 records with 8 bytes left over, and mis-stops at index 31,877 — the Dutch
+  surname `'t Hart`, whose first character *is* an apostrophe (`0x27`), the value the
+  byte itself takes in the preceding block. A separator that collides with real data is
+  not a separator.
+- **There is ONE index space**, not a first-name and a last-name table. Indices run
+  1..264,095 with no reset, and **510 of them serve as a first name for one player and a
+  last name for another**, resolving correctly through the same table in both roles.
+- **The category byte is `unconfirmed` and is not a first/last discriminator**, despite
+  looking exactly like one: indices 1..31,876 are `0x27` and 31,877..252,899 are `0x07`,
+  which read as a given-name block and a surname block. Of the indices players use as a
+  **last** name, 6,668 point at `0x27` records.
+- **Encoding is latin-1** (`verified` on the same 18,072 rows). 1,621 entries carry a
+  byte above 0x7F, so strict ASCII refuses the file; cp1252 scores identically on every
+  name a player carries.
+
+`measured` 2026-08-18 — **The table is the same in all three saves.** The files are
+8,642,110 bytes each with three *different* SHA-256 digests, but their record bodies are
+byte-identical; the digests differ only in the header, at the sim date and the wall-clock
+write time. Treat this as a fact about shipped data rather than an invariant — a patch, a
+mod or a custom name master would break it, and the parser keeps the table a per-save
+object for that reason.
+
+⚠️ **`players.csv` is not an exact answer key for names.** It ships **pure ASCII**, with
+every accented character already replaced by `?` — the file literally contains `Rod?n`.
+Validating a name against it requires the same fold; see AC8 in the `first-sight`
+`PROJECT_SCOPE.md`. This is the mirror of the export setting at the *Replace accents* row
+below, and it is the shipped file's property, not something a run can turn off.
 
 ---
 

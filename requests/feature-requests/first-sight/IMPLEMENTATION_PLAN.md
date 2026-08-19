@@ -781,6 +781,62 @@ from it — nothing else.
 
 ### Phase 7 — `names.dat` and the join, against two independent answer keys
 
+> **PHASE 7 LANDED, 2026-08-18 — the join resolved, and four of this phase's own
+> premises were refuted by measurement.** Evidence:
+> `reviews/phase-7-acceptance-panel.md`. The pre-registered decision point fired on the
+> **good** branch: the join resolved, so the `players.csv` render-time fallback
+> (Phase 0's Decisions §5 rule) is **not** live and every later phase inherits real names.
+>
+> - **The record shape in step 1 is wrong, and the correction is load-bearing.** There is
+>   no `0x27` separator. The byte **leads** each record and is a per-record *category*;
+>   the step's "three u32s" is really a `u32` count followed by that many `(u32, u32)`
+>   pairs. Read as a trailing separator the walk finds 264,094 records with 8 bytes left
+>   over **and mis-stops at index 31,877** — the Dutch surname `'t Hart`, whose first
+>   character *is* an apostrophe (`0x27`). Read correctly it consumes all three files to
+>   **zero residual** and frames exactly the 264,095 records each header declares.
+> - **The key space is ONE, settled as step 2 required — before any DDL.** Three
+>   independent measurements: `index == position + 1` for every record with no reset;
+>   both player slots resolving against the one table at 18,072/18,072; and **510 indices
+>   used as a first name by one player and a last name by another**, both correct, which
+>   two spaces could not produce. `bronze_name` keeps the pre-registered
+>   `(save_id, sim_date, ingest_seq, name_space, name_index)` key with `name_space`
+>   taking the single literal value `"all"`.
+> - **Step 3's brute force ran and was decisive.** `+4` as first / `+8` as last scored
+>   **18,072 / 18,072 = 100.00%**; the opposite assignment scored **1 / 18,072**. Zero
+>   unresolved indices either way. `players.py` names the two fields as a result, and the
+>   swapped reading is kept as a **live negative control** in `test_names_join.py` rather
+>   than merely being unchosen.
+> - **Step 4's premise is refuted, and step 9 would have failed on correct code.** The
+>   three `names.dat` files do carry three different SHA-256 digests — but their **record
+>   bodies are byte-identical**; all 264,095 index→string mappings agree, and the digests
+>   differ only in the header, at the sim date (byte 75) and the wall-clock write time
+>   (bytes 99–110). So step 9's *"assert the same index is **not** expected to resolve
+>   identically across the two saves"* asserts the opposite of the truth and is
+>   **retired**, replaced by a test asserting the measured identity. The *structural*
+>   rule of step 4 is kept and strengthened: `names.py` holds **no cache at all**, a
+>   `NameTable` carries the `save_id` it was built from, and `for_save()` refuses a
+>   mismatch. Shipped-data identity is not an invariant — a patch, a mod or a custom name
+>   master breaks it — and the failure it would produce is silent.
+> - **AC8's "100% exact" is unachievable on correct data, and the scope is amended
+>   (operator, 2026-08-18).** `players.csv` ships **pure ASCII**, with every accented
+>   character already replaced by `?` — the file literally contains `Rod?n`, zero bytes
+>   above 0x7F. The substitute enforced instead is stronger than a softened percentage:
+>   one declared accent fold, and every remaining disagreement required to be either
+>   inside a league the data itself shows to carry fictionalised identities, or a member
+>   of a residual set **identical to the export-verified probe's**. A real parse fault
+>   cannot make two universes' residuals line up. See `PROJECT_SCOPE.md` AC8.
+> - **Encoding is latin-1**, `verified` on all 18,072 export rows. cp1252 scores
+>   identically; the two disagree on exactly one entry in the table, which is
+>   already-corrupt mojibake in OOTP's shipped data and wrong under both. latin-1 wins on
+>   being total.
+> - **The category byte is NOT a first/last discriminator**, though its block structure
+>   makes it look like one. Of the indices players use as a **last** name, 6,668 point at
+>   `0x27` (given-name-block) records. It lands `unconfirmed` and nothing joins on it.
+> - Offline coverage was added beyond this phase's step list, because §4.1 binds: the
+>   steps name only `-m gamedata` tests, which would have left the whole names walk with
+>   **zero CI signal**. `tests/test_parse_names.py` carries the refusal lattice and an
+>   offline two-file join.
+
 **Goal.** Resolve the largest single unknown in the request. `docs/data-access.md:234-238` records that names are indices into a ~264,095-entry table and labels *"the index encoding and the `names.dat` table layout"* **`unconfirmed`** — and `docs/data-access.md:14` is explicit that *"an unconfirmed claim is a task, not a fact."* A roster report of integers is not a roster report.
 
 **Steps.**

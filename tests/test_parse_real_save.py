@@ -50,8 +50,11 @@ promise no longer describes the tree:
 * **The roster clauses are not written yet.** They belong to Phase 6b along with
   `parser/rosters.py`; Boston's per-list counts cannot be asserted before the roster
   grain exists.
-* **AC9's display-name clause is Phase 7's**, and cannot pass before the `names.dat`
-  join exists.
+* **AC9's display-name clause landed in Phase 7**, at the end of this module, because
+  no display name existed until the `names.dat` join did. Asserting it in Phase 6 would
+  have failed on a *correct* parse — the most expensive kind of wrong test, since it
+  sends the next agent hunting a bug in working code. **AC9 is fully green as of
+  Phase 7**, not at the end of Phase 6.
 """
 
 from __future__ import annotations
@@ -65,6 +68,9 @@ import pytest
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
 from ootp_ai.db import connect_truth
 from ootp_ai.parser.human_managers import HUMAN_MANAGERS_FILE, read_human_manager
+from ootp_ai.parser.names import NAMES_FILE, UnknownNameIndex, build_name_table
+from ootp_ai.parser.players import PLAYERS_FILE, read_players
+from ootp_ai.parser.rosters import read_rosters
 from ootp_ai.parser.saved_games import SAVED_GAMES_FILE, read_saved_games
 from ootp_ai.parser.teams import TEAMS_FILE, TeamRecord, TeamsFile, read_teams
 from ootp_ai.parser.world import WORLD_FILE, WorldFile, read_world
@@ -640,3 +646,87 @@ def test_the_manager_file_alone_produces_boston_boston_chicago() -> None:
     ]
     assert ids[0] == ids[1] != ids[2], f"expected Boston, Boston, Chicago and got team ids {ids}"
     assert ids[0] == BOSTON_TEAM_ID
+
+
+# ── AC9's display-name clause, moved here by the MERGE-03 correction ──────────
+
+
+def test_no_roster_row_carries_a_null_or_blank_display_name() -> None:
+    """AC9's last clause, and the one that makes the roster report worth rendering.
+
+    The scope's wording is *"**zero** roster rows carry a null or blank display name"*,
+    so this walks the actual roster grain — every `(team_id, player_id, list_id)` row
+    `rosters.py` yields for the managed league — rather than the player population. A
+    player with no roster row cannot appear on a roster report, and a report full of
+    integers is what this clause exists to prevent.
+
+    Every failure is enumerated by player. A count would let a single unnamed row hide.
+    """
+    settings = _settings()
+    save = settings.managed
+    for filename in (NAMES_FILE, PLAYERS_FILE, TEAMS_FILE):
+        if not (save.path / filename).is_file():
+            pytest.skip(f"{save.league} has no {filename} on this machine")
+
+    table = build_name_table(save.save_id, (save.path / NAMES_FILE).read_bytes())
+    rosters = read_rosters(
+        (save.path / TEAMS_FILE).read_bytes(),
+        (save.path / PLAYERS_FILE).read_bytes(),
+    )
+    players = {
+        player.player_id: player
+        for player in read_players((save.path / PLAYERS_FILE).read_bytes()).players
+    }
+
+    assert rosters.memberships, "the managed league yielded no roster rows at all"
+
+    unnamed: list[str] = []
+    for row in rosters.memberships:
+        player = players.get(row.player_id)
+        if player is None:
+            unnamed.append(f"player {row.player_id} (team {row.team_id}): no player record")
+            continue
+        try:
+            display = table.display_name(player.first_name_index, player.last_name_index)
+        except UnknownNameIndex as exc:
+            unnamed.append(f"player {row.player_id} (team {row.team_id}): {exc}")
+            continue
+        if not display.strip() or display.strip() == "":
+            unnamed.append(f"player {row.player_id} (team {row.team_id}): display {display!r}")
+
+    assert not unnamed, (
+        f"{len(unnamed)} of {len(rosters.memberships)} roster rows have no usable display name. "
+        "A roster report cannot render these as anything but an integer:\n"
+        + "\n".join(unnamed[:25])
+    )
+
+
+def test_every_managed_player_resolves_to_two_non_empty_name_parts() -> None:
+    """The wider population, so the clause above cannot pass by having few roster rows.
+
+    ~10,700 active players carry no roster row at all (free agents, draft-eligible,
+    international, unassigned), and every one of them still has to have a name before a
+    later slice can show the GM a free-agent list.
+    """
+    settings = _settings()
+    save = settings.managed
+    for filename in (NAMES_FILE, PLAYERS_FILE):
+        if not (save.path / filename).is_file():
+            pytest.skip(f"{save.league} has no {filename} on this machine")
+
+    table = build_name_table(save.save_id, (save.path / NAMES_FILE).read_bytes())
+    players = read_players((save.path / PLAYERS_FILE).read_bytes()).players
+
+    bad: list[str] = []
+    for player in players:
+        first = table.entries.get(player.first_name_index)
+        last = table.entries.get(player.last_name_index)
+        if first is None or last is None:
+            bad.append(f"player {player.player_id}: unresolved index")
+        elif not first.strip() or not last.strip():
+            bad.append(f"player {player.player_id}: resolved ({first!r}, {last!r})")
+
+    assert not bad, (
+        f"{len(bad)} of {len(players)} managed-league players cannot be named:\n"
+        + "\n".join(bad[:25])
+    )

@@ -244,10 +244,34 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
 8. `uv run pytest -m gamedata tests/test_names_join_boston.py` is green — **the Tier-A
    chain that validates our own league, added by finding F8.** For every player in
    `OOTP-AI.lg/players.dat` carrying a non-empty `historical_id`, the
-   `names.dat`-resolved first and last name equals `players.csv`'s `FirstName` /
-   `LastName` joined on `LahmanID`, 100% exact, every failure enumerated. This runs
+   `names.dat`-resolved first and last name is checked against `players.csv`'s
+   `FirstName` / `LastName` joined on `LahmanID`, every failure enumerated. This runs
    against **Boston**, not the Cubs probe, and is the only validation of the join on
    the league we actually manage.
+
+   > **Amended 2026-08-18, at the operator's direction, after Phase 7 measured the
+   > answer key.** This criterion originally read *"100% exact"*. That is **unachievable
+   > on correct data**, and a parser scoring it would be the suspicious one:
+   > `players.csv` ships **pure ASCII**, with every accented character already replaced
+   > by `?` — the file literally contains `Rod?n`, and carries zero bytes above 0x7F. So
+   > 25 players per save cannot match a correctly-parsed name, and five more disagree in
+   > renderings the shipped CSV and the save simply differ on (a short-form given name
+   > against a formal one, a generational suffix, a surname particle's capitalisation,
+   > and two fictionalised identities).
+   >
+   > **The replacement is stronger than a softened percentage, not weaker.** It is:
+   > every resolved name must equal the CSV after **one declared, mechanical
+   > normalization** — non-ASCII to `?`, which is what the CSV provably does — and every
+   > remaining disagreement must be either inside a league the data itself shows to
+   > carry fictionalised identities (bounded by pinned constants, no league id named in
+   > the test), or a member of a residual set **identical to the one the standard-mode
+   > probe shows**. That probe's parse is independently verified at 18,072/18,072
+   > against the export, so a disagreement surviving there is the CSV's, not the
+   > parser's — and a real parse fault could not make two universes' residual sets line
+   > up. Zero unresolved indices and zero blank names remain absolute.
+   >
+   > Evidence: `requests/feature-requests/first-sight/reviews/phase-7-acceptance-panel.md`,
+   > and the module docstring of `tests/test_names_join_boston.py`.
 9. `uv run pytest -m gamedata tests/test_parse_real_save.py` is green against
    `OOTP-AI.lg`: exactly 30 teams extract at MLB level with correct abbreviations;
    `player_id` is unique per snapshot; Boston's roster rows number **>= 26** (not

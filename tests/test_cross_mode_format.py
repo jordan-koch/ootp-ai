@@ -16,7 +16,9 @@ save, and the managed league's file set is identical to the Challenge probe's.
 
 This module grows: Phase 5a adds `teams.dat`, Phase 5b `world.dat`, Phase 6
 `players.dat`, Phase 7 `names.dat`, each asserting the same walker yields the same record
-shape on both.
+shape on both. Those four have record-level sections below. `saved_games.dat` and
+`human_managers.dat` are walked by this slice and are covered only by the file-set and
+header assertions at the top — stated so the list above is not read as complete.
 """
 
 from __future__ import annotations
@@ -27,6 +29,7 @@ import pytest
 
 from ootp_ai.config import Settings, load_settings
 from ootp_ai.parser.header import read_header
+from ootp_ai.parser.names import NAMES_FILE, NamesFile, read_names
 from ootp_ai.parser.players import PLAYERS_FILE, PlayersFile, read_players
 from ootp_ai.parser.primitives import SaveDate
 from ootp_ai.parser.teams import TEAMS_FILE, TeamsFile, read_teams
@@ -230,9 +233,11 @@ def test_the_same_walker_reads_players_dat_in_both_modes() -> None:
 
 #: Fields that cannot legitimately differ between two saves of the same universe at the
 #: same sim date. A birth city or a nationality is not a roster decision. `measured`
-#: 2026-08-17: all seven agree on every one of the 18,077 shared records.
+#: 2026-08-17: all agree on every one of the 18,077 shared records. Phase 7 split the
+#: opaque `name_indices` pair into the two named slots, so the count is now eight.
 IMMUTABLE_PLAYER_FIELDS = (
-    "name_indices",
+    "first_name_index",
+    "last_name_index",
     "age",
     "nation_id",
     "city_of_birth_id",
@@ -254,12 +259,12 @@ LEAP_DAY_MONTH = 2
 
 
 def test_the_player_head_decodes_identically_in_both_modes() -> None:
-    """The seven fields that cannot differ, checked on every shared record.
+    """The head fields that cannot differ, checked on every shared record.
 
     This is the assertion that rules out a mode-dependent record width. If the head's
-    widths differed by mode, essentially every record would disagree in every field —
-    so seven fields agreeing across 18,077 records is strong evidence the format is one
-    format, which is the claim the export-backed validation depends on.
+    widths differed by mode, essentially every record would disagree in every field — so
+    all of `IMMUTABLE_PLAYER_FIELDS` agreeing across 18,077 records is strong evidence
+    the format is one format, which is the claim the export-backed validation depends on.
     """
     challenge, standard = _matched_players(_settings())
     by_id = {p.player_id: p for p in standard.players}
@@ -389,3 +394,89 @@ def test_world_dat_is_identical_in_both_modes_down_to_the_row() -> None:
     # same 3,058 events and differs on 233 `deleted` flags, so the equality above is a
     # cross-MODE claim, not a cross-save one. `tests/test_parse_world.py` holds the
     # managed league to the weaker statement that is actually true of it.
+
+
+# ── record level: names.dat, Phase 7 ─────────────────────────────────────────
+
+
+def _matched_names(settings: Settings) -> tuple[NamesFile, NamesFile]:
+    assert settings.probe_save is not None and settings.truth_save is not None
+    return (
+        read_names((settings.probe_save.path / NAMES_FILE).read_bytes()),
+        read_names((settings.truth_save.path / NAMES_FILE).read_bytes()),
+    )
+
+
+def test_the_same_walker_reads_names_dat_in_both_modes() -> None:
+    """The completing file, and the one where the cross-mode claim is cheapest to make.
+
+    `names.dat` is walked at the **strict** tier, so "the same walker succeeds on both"
+    is a much stronger statement here than for `teams.dat` or `players.dat`: the walk
+    consumes every byte of each file. A single mode-dependent field width anywhere in
+    264,095 records would desynchronise the next length prefix and the walk could not
+    reach the end at all.
+    """
+    challenge, standard = _matched_names(_settings())
+
+    assert challenge.residual_bytes == 0
+    assert standard.residual_bytes == 0
+    assert len(challenge.names) == len(standard.names)
+    assert challenge.declared_record_count == standard.declared_record_count
+    assert len(challenge.names) == challenge.declared_record_count
+    assert str(challenge.sim_date) == str(standard.sim_date) == "2024-03-18"
+
+
+def test_the_name_table_is_identical_in_both_modes_down_to_the_string() -> None:
+    """Equality, not merely equivalence — and the evidence is stronger than world.dat's.
+
+    A name table holds no per-manager and no per-league state, so as with `world.dat`
+    there is no field with a licence to differ. What makes this the strongest cross-mode
+    assertion in the suite is that it also holds against the **managed** save: measured
+    2026-08-18, all three files' record bodies are byte-identical and only their headers
+    differ, at the sim date and the wall-clock write time.
+
+    That refutes the plan's expectation that the table was per-save populated, and the
+    per-save *structure* in `names.py` is kept anyway for the reason recorded there —
+    shipped-data identity is not an invariant.
+    """
+    challenge, standard = _matched_names(_settings())
+
+    assert challenge.names == standard.names, (
+        "the two modes decode different name tables from the same universe at the same "
+        "sim date, so either the walk entered at a different place or the record shape "
+        "is mode-dependent"
+    )
+
+
+def test_the_managed_league_resolves_the_same_names_as_the_probes() -> None:
+    """The claim that actually matters: production shares the probes' table.
+
+    **This is a cross-SAVE assertion in the cross-MODE module, and it is here on
+    purpose** — the same deliberate exception the `world.dat` section closes with, where
+    byte-identity between the two probes is noted as *not* extending to the managed
+    league. Everything else here compares two saves that differ only in mode; this one
+    compares two different universes, and it earns its place because every exact
+    validation of the names join runs on the standard-mode probe. If the managed
+    league's table differed, all of that would validate names the Red Sox front office
+    never sees.
+
+    Compared as decoded records rather than as digests: the three files' **digests do
+    differ**, entirely in the header — the sim date and the wall-clock write time.
+    """
+    settings = _settings()
+    assert settings.truth_save is not None
+    managed_bytes = (settings.managed.path / NAMES_FILE).read_bytes()
+    standard_bytes = (settings.truth_save.path / NAMES_FILE).read_bytes()
+
+    # The control that keeps this a cross-save claim. Deliberately NOT a sim-date
+    # comparison: the managed league sims forward and would eventually reach the probes'
+    # 2024-03-18, turning a correct parse red for a calendar reason. Distinct bytes is
+    # the property that actually means "two different files", and it does not rot.
+    assert managed_bytes != standard_bytes, (
+        "the managed save and the standard probe hold byte-identical names.dat files, so "
+        "this is not comparing two saves and proves nothing about production"
+    )
+    assert read_names(managed_bytes).names == read_names(standard_bytes).names, (
+        "the managed league's name table differs from the export-verified probe's, so "
+        "the names join is validated against a table the league we manage does not use"
+    )
