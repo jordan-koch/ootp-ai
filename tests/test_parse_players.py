@@ -305,6 +305,92 @@ def test_the_mask_governs_the_read_even_when_it_disagrees_with_the_values() -> N
     assert parsed[0].organization_id == 0, "a clear bit must not consume a value"
 
 
+# ── offline: the identity tail ───────────────────────────────────────────────
+#
+# The tail is validate-then-consume: `_scan_tail` accepts only the measured shape, and
+# anything else must land `None` + a counted `undecoded_tails` while the framing search
+# carries on to the next record. Both halves need offline pins — the accept path because
+# it is the decode, and the refuse path because a degrade that silently stopped counting
+# would let a format change read as a league full of nameless right-handers.
+
+
+def test_a_valid_identity_tail_round_trips() -> None:
+    head = make_player_head(
+        player_id=17,
+        sim_date=SIM,
+        tail=True,
+        bats=2,
+        throws=2,
+        historical_id="deverra01",
+        historical_team_id="BOS",
+    )
+    parsed = read_players(make_players_file((head,), sim_date=SIM))
+    (player,) = parsed.players
+    assert player.bats == 2
+    assert player.throws == 2
+    assert player.historical_id == "deverra01"
+    assert parsed.undecoded_tails == 0
+
+
+def test_an_elided_side_reads_as_the_default_and_an_empty_id_as_a_fact() -> None:
+    """Drop-DEFAULT: a clear bit means the value IS 1, and `""` means no real identity.
+
+    Neither may surface as `None` — `None` is reserved for a tail the walk refused, and
+    conflating it with the fictional majority's empty string would make the degrade
+    counter unreadable.
+    """
+    head = make_player_head(player_id=19, sim_date=SIM, tail=True)
+    parsed = read_players(make_players_file((head,), sim_date=SIM))
+    (player,) = parsed.players
+    assert player.bats == 1
+    assert player.throws == 1
+    assert player.historical_id == ""
+    assert parsed.undecoded_tails == 0
+
+
+def test_a_legacy_tail_is_refused_counted_and_does_not_break_framing() -> None:
+    """The degrade path itself, pinned.
+
+    The default fixture record is the pre-decode legacy shape — its third-mask byte is
+    the gap fill, which lacks the sentinel bit. The walk must answer it with `None`
+    three times over, count it, and still frame the record that follows.
+    """
+    data = make_players_file(
+        (
+            make_player_head(player_id=23, sim_date=SIM),
+            make_player_head(player_id=29, sim_date=SIM),
+        ),
+        sim_date=SIM,
+    )
+    parsed = read_players(data)
+    assert [p.player_id for p in parsed.players] == [23, 29]
+    assert all(p.bats is None for p in parsed.players)
+    assert all(p.throws is None for p in parsed.players)
+    assert all(p.historical_id is None for p in parsed.players)
+    assert parsed.undecoded_tails == 2
+
+
+def test_a_written_side_outside_its_measured_set_degrades_to_none() -> None:
+    """A written `bats` of 5 is a format change, not a value — refuse, count, continue.
+
+    The fixture writes the out-of-set byte exactly as asked; sanitising it there would
+    make this test impossible to express.
+    """
+    data = make_players_file(
+        (
+            make_player_head(player_id=31, sim_date=SIM, tail=True, bats=5),
+            make_player_head(player_id=37, sim_date=SIM, tail=True, bats=3),
+        ),
+        sim_date=SIM,
+    )
+    parsed = read_players(data)
+    assert [p.player_id for p in parsed.players] == [31, 37]
+    assert parsed.players[0].bats is None
+    assert parsed.players[0].historical_id is None
+    assert parsed.players[1].bats == 3, "refusing one tail must not poison the next"
+    assert parsed.undecoded_tails == 1
+
+
 def test_a_non_ascending_id_is_not_a_record() -> None:
     data = make_players_file(
         (
@@ -673,6 +759,70 @@ def test_the_club_assignment_matches_the_export_on_every_row() -> None:
         "set the export marks as attached-but-not-rostered, and a change in it is a "
         "change in what the sign means."
     )
+
+
+@_gamedata
+def test_the_identity_tail_matches_the_export_on_every_row() -> None:
+    """`bats`, `throws`, `historical_id` — Tier A, all 18,072 rows, failures named."""
+    settings = _settings()
+    if settings.truth_save is None:
+        pytest.skip("no standard-mode save configured")
+    parsed = {p.player_id: p for p in _walk(settings.truth_save).players}
+
+    with _truth_cursor(settings) as cursor:
+        cursor.execute(
+            "SELECT player_id, bats, throws, historical_id FROM players WHERE retired = 0"
+        )
+        rows = cursor.fetchall()
+
+    mismatches: list[str] = []
+    for row in rows:
+        player = parsed[row["player_id"]]
+        wanted = {
+            "bats": row["bats"],
+            "throws": row["throws"],
+            "historical_id": row["historical_id"] or "",
+        }
+        actual = {
+            "bats": player.bats,
+            "throws": player.throws,
+            "historical_id": player.historical_id,
+        }
+        mismatches.extend(
+            f"player {row['player_id']}: {field} parsed {actual[field]!r}, export {wanted[field]!r}"
+            for field in wanted
+            if actual[field] != wanted[field]
+        )
+
+    assert len(rows) == TRUTH_ACTIVE_PLAYERS
+    assert not mismatches, "identity tail disagrees with the export:\n" + "\n".join(mismatches[:20])
+
+
+@_gamedata
+def test_no_save_leaves_an_identity_tail_undecoded() -> None:
+    """`undecoded_tails` must be zero everywhere — nonzero is a format change, and this
+    is the test that turns it into a red build instead of a league of `None`s.
+
+    The value-range and distinctness clauses are the halves that still bite on
+    `OOTP-AI.lg`, where no export exists: a decode that drifted would surface as an
+    impossible side value or a duplicated join key long before anyone read a report.
+    """
+    settings = _settings()
+    for label, save in _saves(settings):
+        parsed = _walk(save)
+        assert parsed.undecoded_tails == 0, (
+            f"{label}: {parsed.undecoded_tails} records' identity tails were refused — "
+            "the format changed under the walk, and landing this save would average "
+            "over records the parser admits it could not read"
+        )
+        bad_sides = [
+            p.player_id for p in parsed.players if p.bats not in (1, 2, 3) or p.throws not in (1, 2)
+        ]
+        assert not bad_sides, f"{label}: impossible bats/throws on {bad_sides[:5]}"
+        nonempty = [p.historical_id for p in parsed.players if p.historical_id]
+        assert len(nonempty) == len(set(nonempty)), (
+            f"{label}: duplicate historical_id values — the join key is not a key"
+        )
 
 
 @_gamedata

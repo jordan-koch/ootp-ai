@@ -117,16 +117,23 @@ as a live feed, and using it as one would silently serve stale data.
 `verified` — `players.csv` carries `LahmanID`, `RetroID`, `BBRefID`,
 `BBRefMinorID`, `gracenote_id`, `chadwick_id`, `mlb_id`, `fangraphs_id`, and
 others. `verified` — the **Lahman/BBRef ID is also embedded in `players.dat`
-itself** as a length-prefixed string (e.g. `deverra01`), ~1,712 unique values,
-each appearing twice per file.
+itself** as a length-prefixed string (e.g. `deverra01`), readable by
+`ootp_ai.parser.players.read_players` and exact against every `retired = 0`
+export row. `measured` 2026-08-18 — the earlier "~1,712 unique" undercounted:
+the probe save holds **1,920** nonempty values (matching the export's 1,920
+exactly) and the managed league holds **2,137**, all distinct, all
+Lahman-shaped. Each value's second occurrence sits ~300–450 bytes deeper in the
+**same record**, not elsewhere in the file.
 
 `inferred` — This cross-walks OOTP league state to Retrosheet, the Chadwick
 Register, FanGraphs, and Baseball Savant. Real-world priors on real players are
 available to us and not to the in-game AI.
 
-`unconfirmed` — Whether generated (fictional) players receive any stable external
-identifier. Observed real-player IDs number ~1,712 against ~18,000 active
-players, so most players almost certainly have none.
+`verified` — Generated (fictional) players carry **no** external identifier:
+their `historical_id` is a zero-length string — structural absence, an empty
+string rather than a missing field — covering ~90% of the population. A join on
+this key silently drops the fictional majority, so it is an attribute, never a
+serving-path join key.
 
 ### Engine constants
 
@@ -281,15 +288,31 @@ The two `u32`s at +4 and +8 are the plausible home of the name indices — both 
 `names.dat`'s index range — but that is `unconfirmed`, and *which* is first and which is
 last is not established at all.
 
-**After `experience`, the record uses the same drop-zero encoding `teams.dat` uses** — a
-field whose value is falsy is not written. The natural experiment: `last_team_id` sits
-immediately before `team_id`, and for a player who never changed clubs it is absent, so
-`team_id` lands four bytes earlier. `measured` — `team_id` sits at record+58 for 86.9% of
-rostered players and record+62 for the rest, splitting exactly on that. **Reading
-`team_id` at a constant offset therefore scores ~87%**, which is high enough to pass a
-spot-check and wrong for one club in eight. `team_id`, `organization_id`, `league_id`,
-`position`, `role`, `bats`, `throws` and `historical_id` all live past that boundary and
-are consequently **not yet readable**.
+**After `experience`, the record is presence-mask-governed, and it is decoded through
+the identity tail.** `verified` 2026-08-18 against every `retired = 0` export row: the
+byte at record+55 is a six-bit mask over the club-assignment `i32`s (`team_id`,
+`organization_id`, `league_id` and their `last_` twins, written in bit order, absent
+means zero); record+56's bit 0 is `free_agent` and its bits 2–7 govern six optional
+fields in ascending bit order (nickname index, second nation, two language ids,
+`bats`, `throws`); record+57 is a third mask (bit 1 a required sentinel, bit 2 one
+unclassified byte, bit 5 a loan `u32`); then `historical_id` and `historical_team_id`
+follow as consecutive length-prefixed strings, empty-string for players without one.
+The original natural experiment stands as the warning: `team_id` sits at record+58 for
+86.9% of rostered players and record+62 for the rest, so **a constant-offset read
+scores ~87%** — high enough to pass a spot-check and wrong for one club in eight.
+
+**A second elision pattern exists: drop-DEFAULT.** `verified` — `bats` and `throws`
+are never zero; the writer instead elides the majority value **1** (right-handed),
+with the presence bit carrying the elision. A drop-zero scorer structurally cannot
+find such a field — the mask bit, not the value rule, is the invariant to hunt first.
+
+**Still not readable: `position` and `role` — and the export's closer role is not in
+the file.** `measured` — the save stores 12 (RP) in the role byte for 197 of 229
+export closers, so the export's `role = 13` appears **derived** from depth-chart data
+outside `players.dat` (`inferred`). The four `prone_*` bytes sit 13 bytes past
+`historical_team_id` (byte-exact on all 18,072 rows; ratings-adjacent, withheld), and
+`hsc_status` sits beside the role byte within the one decoded shape group — both
+located, neither landed.
 
 **The age byte is an invariant, not just a field.** `measured` — it equals the whole years
 between `date_of_birth` and the save's sim date, exactly, for all 18,072 records with zero
@@ -297,6 +320,42 @@ exceptions. That three-way agreement is what makes record framing exact on a fil
 declared count: an ascending id plus a parseable date alone accepted a false record start
 and silently truncated a walk to 2,693 records, with every field it did read decoding
 perfectly.
+
+### The roster-membership grain spans two files
+
+`verified` 2026-08-18 — `team_roster`'s `(team_id, player_id, list_id)` triple is
+recoverable **exactly** from save structure: a per-player **roster-status byte** in
+`players.dat` (22 bytes past `historical_team_id`; bit 2 = org-top-club active,
+bit 3 = secondary/40-man, bit 4 = injured list, bit 5 = 60-day placement) combined
+with the **membership array** each `teams.dat` record carries, consumed as a
+multiset. `ootp_ai.parser.rosters.read_rosters` reproduces the export 15,672/15,672
+and reconciles every club's array against the reconstruction, refusing on any
+disagreement.
+
+`measured` — the membership array (stride-4 `u32`s, ~record+1150..1520, moves per
+team) equals the club's roster rows plus one entry per assigned-but-unrostered
+player, on every club of every save. **Its order is container noise and carries no
+information**: the two test saves hold identical Boston rosters serialized in
+different orders, so no positional decode exists — recorded so no later session
+re-attempts one. The multiplicity is load-bearing: only it distinguishes a
+rostered-but-inactive minor leaguer from an active one, a state with 154 instances
+in the managed save and zero in either test save.
+
+`measured` — the **176 assigned-but-unrostered players** (rendered with a negative
+`league_id` by the exporter; the save stores it positive) are marked by
+`last_organization_id == own organisation` + `last_league_id == 234` + a zero status
+byte. This is a **day-0 fact**: after a cross-organisation transaction, rostered
+players with a non-zero `last_organization_id` will exist, so the parser matches the
+full signature or refuses — re-measure the marker at the first post-transaction
+snapshot.
+
+`measured` — two more structures bound the array inside a team record: the club's
+**coaching-staff id array** immediately after it (Boston standard: 10 ids, exact set
+match against the export's `coaches` for team 4, owner and GM included), and the
+**depth-chart/lineup region** at ~record+260..990 (four lineup groups of
+`u32 player_id + u8 fielding position` at stride 5 near record+800) — the likeliest
+home of the derived closer role above. Located, not decoded. And per club,
+`list2 = list1 − list4 − {1}-only` holds with zero exceptions in the export.
 
 ### Names are indirected
 

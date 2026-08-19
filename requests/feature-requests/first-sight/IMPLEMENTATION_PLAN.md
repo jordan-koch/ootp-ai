@@ -561,6 +561,56 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 > 1,158-3,163 plus a `33`, which is Boston's list-1 size); and why the maximal-run scan
 > stops early on 19 clubs, since whatever id breaks it is itself a fact about the array.
 
+> **PHASE 6b LANDED, 2026-08-18 — both halves, and the two blockers above resolved in
+> opposite directions.** This amendment supersedes two sentences the acceptance panel
+> found still asserting the opposite of the tree beside them: *"AC8 still cannot be
+> attempted"* (first 2026-08-18 blockquote) and *"So `rosters.py` cannot be written
+> yet"* (the reconnaissance). Evidence: `reviews/handoff-phase-6b-players.md`,
+> `reviews/handoff-phase-6b-rosters.md`, `reviews/phase-6b-acceptance-panel.md`.
+>
+> - **The identity tail decoded** — the third variable region is presence-mask-governed
+>   all the way down, and `bats`/`throws` revealed a second encoding pattern,
+>   **drop-DEFAULT** (the writer elides the majority value 1), which is why every
+>   drop-zero sweep had plateaued at ~48%. `bats`, `throws` and `historical_id` land
+>   `verified` on all 18,072 export rows; an unreadable tail degrades to `None` plus a
+>   counted `PlayersFile.undecoded_tails` (zero on every save on disk). **AC8 is now
+>   attemptable.** `position`/`role` were **refused** under exact-or-nothing: the best
+>   population-wide rule scored 53.6%, and the export's `role = 13` (closer) is not
+>   stored in the role byte at all — the save holds 12 for 197 of 229 closers, so the
+>   export's value appears derived from depth-chart data outside `players.dat`.
+> - **`rosters.py` landed, and the array-only reading was refuted, not solved.** The two
+>   test saves hold identical Boston rosters serialized in **different orders** (88/97
+>   slots agree, the rest permute in local cycles), so the array's order carries no list
+>   information for anyone, the game included. The grain is recovered instead from
+>   **stored per-player status bits** in `players.dat` (bit 2 = org-top-club active,
+>   bit 3 = 40-man, bit 4 = IL, each `verified` 18,072/18,072, 22 bytes past
+>   `historical_team_id`) plus the array's **multiplicity** — load-bearing, because the
+>   managed save carries 154 rostered-but-inactive minor leaguers no bit marks — with
+>   every club's array multiset reconciled exactly against the reconstruction and any
+>   disagreement refused by name. Result: `ootp_truth_real.team_roster` reproduced
+>   **15,672/15,672**, and Boston in `OOTP-AI.lg` matches the operator screenshot —
+>   33 / 26 / 30 / 7 over 96 rows, 34 distinct players.
+> - **Operator ratification, 2026-08-18:** the stored-bits + multiplicity +
+>   reconciliation mechanism is **ratified** as satisfying *"read structure, derive
+>   nothing"* — every emitted row traces to a stored bit, a stored field, or a stored
+>   array occurrence, and none of the plan's rejected 97-99% correlates is consulted.
+> - **`position`/`role` disposition, operator, 2026-08-18: Phase 10 is gated on ONE
+>   bounded decode attempt** against the `teams.dat` depth-chart region
+>   (~record+260..990, located in the rosters handoff) at the same exact-or-nothing
+>   standard. If it fails, the roster report ships **without** the position column, the
+>   catalog names the gap in its withheld section, and a follow-up research request is
+>   filed. This qualifies the unconditioned position promise in Phase 10 step 2.
+> - **Post-panel hardening:** the unrostered-marker fence now requires the **full**
+>   measured signature — own organisation, `last_league_id` 234, zero status byte, one
+>   array entry — and refuses anything else. The panel's probe showed non-zero-ness
+>   alone silently misclassifies a cross-organisation traded, rostered-but-inactive
+>   player, the one wrong call the multiset reconciliation provably cannot catch.
+>   **Re-measure the marker at the first snapshot after any cross-org transaction.**
+> - The roster tests live in `tests/test_parse_rosters.py` (an offline refusal lattice
+>   plus the gamedata oracle, invariant and Boston pins); the identity-tail tests in
+>   `tests/test_parse_players.py` and `tests/fixtures/synthetic.py` — the same
+>   relocation note 6a carries for its own modules.
+
 **Goal.** Land the deliberately minimal player field set and the **roster-membership grain** — the fan-out the request never names, and the one that bites *today*, on an unsimmed save with no trade in sight, because a player sits on the active list **and** the 40-man simultaneously — and, as the amendment above records, under two different clubs at once.
 
 **Steps.**
@@ -601,7 +651,9 @@ Fourteen phases (0–13). Each ends at a `/commit` gate on a green local run of 
 
 **6a (met).** AC9's `player_id` uniqueness clause green — in `tests/test_parse_players.py`, not `test_parse_real_save.py`, because the players walk needed an offline half and that module is `gamedata` end to end; AC12 green at the diagnostic tier with the residual **recorded and bounded as a fraction of the file**, not against a mean record; **`tests/test_cross_mode_format.py` extended to `players.dat`** — identical record counts and id lists across both test saves, with the seven fields that cannot legitimately differ asserted equal on all 18,077 (§2.5); the population claim **measured and the plan corrected** (18,077, not 18,072); `test_read_only.py` re-run green after the largest read this project performs.
 
-**6b (outstanding).** The three `list_id` invariants against the standard-mode export (26 exactly, 40 not exceeded, list 1 is 1:1) and Boston's exact counts against `OOTP-AI.lg` — **both need `parser/rosters.py`, which does not exist yet**; `historical_id` landed, without which **AC8 cannot be attempted at all**; `position`, `bats`/`throws` and the team/organisation assignment out of the drop-zero region; and the **USER-RUN screenshot check** below, which is a check *of the roster grain* and so has nothing to verify until 6b lands it.
+**6b (outstanding — CLOSED 2026-08-18; the landing amendment at the head of this phase
+carries what actually happened, including the `position`/`role` disposition).** The
+three `list_id` invariants against the standard-mode export (26 exactly, 40 not exceeded, list 1 is 1:1) and Boston's exact counts against `OOTP-AI.lg` — **both need `parser/rosters.py`, which does not exist yet**; `historical_id` landed, without which **AC8 cannot be attempted at all**; `position`, `bats`/`throws` and the team/organisation assignment out of the drop-zero region; and the **USER-RUN screenshot check** below, which is a check *of the roster grain* and so has nothing to verify until 6b lands it.
 
 **USER-RUN — ask for the Boston organization screenshot FIRST, before writing the walker.**
 *Amended 2026-08-17: this replaces "an early operator spot-check of ~5 Boston players", which

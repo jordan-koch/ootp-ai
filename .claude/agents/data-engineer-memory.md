@@ -354,3 +354,62 @@ is the one you are already following.
   tests green. Pair every whole-tree assertion with a planted offender written to disk and
   removed in `finally`, and mutate the rule itself to watch the module go red before trusting
   it. · evidence: `tests/test_fixed_offset_guard_scope.py` · tag: harness
+- **2026-08-18** · `verified` · **When a run of optional small fields defies column matching,
+  correlate candidate mask BITS with oracle-nonzero indicators — `(mask >> b) & 1` against
+  `col != default` — instead of matching values.** Four fields of the `players.dat` identity
+  tail identified in one pass, each bit agreeing 1,874/1,874, after value-based sweeps over
+  116 columns found nothing. And sweep defaults beyond 0: `bats`/`throws` are
+  written-unless-**1** (drop-DEFAULT), so every drop-zero scorer had structurally missed them
+  and their fixed-offset scores sat at the ~50% "coincidence rate" the plan kept reporting. ·
+  evidence: `src/ootp_ai/parser/players.py` `_scan_tail` and the Phase 6b handoff · tag: harness
+- **2026-08-18** · `verified` · **Extending a parser deeper into a record than
+  `tests/fixtures/synthetic.py` builds must not raise on the old fixtures — the fixture is
+  deny-set, so raise-on-invalid bricks the offline suite with no legal fix.** The shape that
+  works: validate the new region wholly through the lookahead seam, consume only on success,
+  and degrade to `None` plus a `PlayersFile.undecoded_tails` counter. The fixture's `0xCD`
+  gap-fill at record+57 lacks the always-set bit 1, so every legacy synthetic record takes
+  the `None` path deterministically and the offline suite stays green with zero fixture
+  edits; the fixture upgrade (set bit 1, append a valid tail) is the main thread's. ·
+  evidence: `src/ootp_ai/parser/players.py` `_scan_tail` · tag: harness
+- **2026-08-18** · `measured` · **A tuple subscript inside a lookahead's position argument
+  trips the fixed-offset guard**: `peek_length_prefixed_ascii(data, first[1], limit)` is
+  flagged because `_judge_position` walks the whole position expression and sees the literal
+  `1`. Unpack first — `_, after_first = first` — and pass the name. The third (`limit`)
+  argument is never judged. · evidence: `tests/test_no_fixed_offsets.py` `_judge_position` ·
+  tag: tooling
+- **2026-08-18** · `verified` · **When a known field sits somewhere downstream, search each
+  record for its expected VALUE (from the oracle) and histogram the gap to your last decoded
+  anchor** — the `historical_id` needle bounded the undecoded region to 0–14 bytes across
+  1,920 records in one pass, turning "decode the region" into "explain fifteen gap values",
+  which mask-bit correlation then closed. Far cheaper than offset sweeps, and it works
+  per-record rather than on averages. · evidence: the Phase 6b handoff's method section;
+  scripts under `var/tmp/p6b/` (gitignored) · tag: harness
+- **2026-08-18** · `verified` · **A maximal stride-N run scan over a LARGE id set splits on
+  unaligned coincidental hits — group hits by `pos % N` (phase) before chaining.** The prior
+  session's "roster array scan stops early on 19 of 26 clubs" was entirely this artifact:
+  with an 18,077-id needle set a coincidental hit at the wrong alignment lands between two
+  aligned hits and breaks the chain builder. Phase-grouped chaining located the full run on
+  229/229 clubs in one pass, no format change involved. · evidence: the Phase 6b rosters
+  handoff; `var/tmp/p6b-rosters/07_all_clubs.py` (gitignored) · tag: harness
+- **2026-08-18** · `verified` · **Before cracking a container's order, diff the same content
+  across two independently-created saves.** Identical Boston rosters serialized 88/97
+  slots identical with the rest permuting in local cycles — the fingerprint of
+  insertion-history-dependent collision placement, which means NO content-based positional
+  decode can exist and every hash/interleave/heap hypothesis is dead on arrival. One
+  comparison replaced what was heading toward days of hash sweeps. · evidence:
+  `var/tmp/p6b-rosters/08_order.py` (gitignored) · tag: harness
+- **2026-08-18** · `verified` · **An oracle of SETS cannot validate an assignment of
+  occurrences.** `team_roster` gives each player's list-set, so ANY mapping of his array
+  occurrences to those lists reproduces the table 100% — the scoring is vacuous over
+  exactly the question being asked. Catch this before trusting a positional decode: ask
+  whether the answer key can even distinguish two candidate readings. · evidence: the
+  Phase 6b rosters handoff's refutation section · tag: harness
+- **2026-08-18** · `verified` · **A state unpopulated in the oracle save makes a wrong rule
+  score 100% — vary the save before trusting a rule, not just a constant.** Both 2024-03-18
+  test saves contain zero rostered-but-inactive minor leaguers, so "rostered ⇒ active
+  unless IL" validated 15,672/15,672 and green on the challenge save too; the managed
+  2024-03-07 save carries 154 such players and refuted it on 41 clubs. The fix consumed the
+  array's per-player multiplicity as an equation instead of deriving the state. This is the
+  rule-shaped sibling of the "constant 203" trap already recorded above. · evidence:
+  `var/tmp/p6b-rosters/20_diag194.py` (gitignored); `src/ootp_ai/parser/rosters.py`
+  `_solve_membership` · tag: harness
