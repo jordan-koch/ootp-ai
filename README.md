@@ -26,8 +26,9 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > validation save matches the game's own export field-by-field, so does every
 > entry of the league calendar, so does every biographical field of all 18,072
 > players the export knows about — plus five it does not — and so does every
-> player's **name**, resolved through a two-file join. No warehouse and no reports
-> yet, so the GM still cannot see its own club.
+> player's **name**, resolved through a two-file join. All of it now lands in a
+> local MySQL warehouse — eight tables, two universes — and the reports the GM
+> actually reads are the one thing still missing.
 
 ## Why it's interesting
 
@@ -76,7 +77,7 @@ simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 
 ## Design decisions
 
-Nineteen are recorded in [`docs/decisions/`](docs/decisions/) — seventeen live, two
+Twenty-one are recorded in [`docs/decisions/`](docs/decisions/) — nineteen live, two
 superseded. The ones that shape everything else:
 
 | ADR | Decision | Why |
@@ -137,13 +138,14 @@ with the phases that need them.
 
 Phase 0 landed the conventions, the format investigation, and the managed league,
 plus a one-time ground-truth export captured from a disposable standard-mode save
-and loaded into MySQL. The parser is now real through **Phase 6b** of feature
-request #1: the spine, an immutable snapshot layer, walkers for
-`saved_games.dat`, `human_managers.dat`, `teams.dat`, `world.dat` and
-`players.dat` — and the roster-membership grain.
+and loaded into MySQL. Feature request #1 is now real through **Phase 8b**: the
+spine, an immutable snapshot layer, walkers for `saved_games.dat`,
+`human_managers.dat`, `teams.dat`, `world.dat`, `players.dat` and `names.dat`, the
+roster-membership grain, and the warehouse those all land in.
 
-The `players.dat` walk frames all 18,077 player records in each save and lands a
-deliberately minimal field set — the biographical head, the club assignment, a
+The `players.dat` walk frames every player record on disk — 18,077 in each test save
+and 22,046 in the managed league, which carries 337 clubs rather than 259 — and lands
+a deliberately minimal field set — the biographical head, the club assignment, a
 player's handedness and his Lahman ID — with every field checked against
 **every** row of the ground-truth export rather than a sample. The record turned
 out to be presence-mask-governed: a falsy field is simply not written (and
@@ -167,19 +169,36 @@ validation save rather than by reading the bytes, since the correct assignment s
 100% and the reverse one scores 0.01%. Names resolve exactly against the export, and
 against `players.csv` for the real players on Boston.
 
-**The warehouse now has a shape, and it is declared rather than written.** Eight
+**The warehouse has a shape, and it is declared rather than written.** Eight
 tables state their grain as a sentence — *"one row per player per team per roster
 list per save per snapshot"* — and the loader parses that sentence, resolves each
 dimension to columns, and requires the union to equal the declared key exactly. The
-same declaration emits the `CREATE TABLE`s, so the schema MySQL will hold is the
-schema the sentence describes, and prose-versus-enforcement drift fails at load time
-rather than failing to be noticed. Every landed field carries an epistemic label
-checked against a declared vocabulary, because until now nothing read those labels at
-all and a mistyped one would have shipped green.
+same declaration emits the `CREATE TABLE`s, so the schema MySQL holds is the schema
+the sentence describes, and prose-versus-enforcement drift fails at load time rather
+than failing to be noticed. Every landed field carries an epistemic label checked
+against a declared vocabulary, because until it did, nothing read those labels at all
+and a mistyped one would have shipped green.
 
-Next is bronze landing. **The first genuinely useful job is telling the GM who is on
-its roster, and what remains between here and that is the warehouse, not the
-parser.**
+**Bronze is landed.** Two universes sit in the warehouse — the managed league at
+2024-03-07 and its Challenge-mode twin eleven days later — 337 and 259 clubs, 22,046
+and 18,077 players, 20,016 and 15,721 roster rows, 264,095 names apiece, keyed on
+`(save_id, sim_date, ingest_seq)` so two states of the same in-game date can both be
+kept. The store is **append-only**: re-landing a triple refuses loudly, a second look
+at an unchanged sim date takes the next sequence, and nothing is ever overwritten —
+which is what lets the club immediately before and immediately after an executed
+decision both be retrieved and diffed. Every column the loader binds comes from the
+declaration and every table is counted back out of the schema before the transaction
+commits, so a provenance row cannot misdescribe its own landing.
+
+The join works end to end: Boston's roster at 2024-03-07 resolves to 33 / 26 / 30 / 7
+across assignment, active, 40-man and injured lists — the split the operator verified
+by hand — with real names, uniform numbers and ages.
+
+**Next are the two reports.** The GM does not read the warehouse
+([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)), so bronze existing
+is not yet the GM seeing its club — a rendered roster is. Between here and there sit
+the parser-versus-export differential, which proves the landed rows field by field
+against the game's own export, and the report layer that reads them.
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

@@ -1246,6 +1246,12 @@ Ordered by expected cost, not by likelihood.
 - [ ] `tests/test_parse_teams_synthetic.py` · `test_parse_real_save.py`
 - [ ] `tests/test_names_join.py` · `test_names_join_boston.py`
 - [ ] `tests/test_grain_contracts.py` · `test_withheld_fields.py`
+- [ ] `tests/test_bronze_landing.py` · `tests/fixtures/warehouse.py`
+      *(added Phase 8b. The first is §4.1's answer to "a phase proved only by `gamedata`
+      tests has zero CI signal" — it drives the loader through a recording connection, so
+      the column binding, the append-only scan and the refusal paths run in CI. The second
+      is the shared landing fixture the two `gamedata` modules use, kept out of a
+      `conftest.py` so each module names what it sets up.)*
 - [ ] `tests/test_parser_vs_export.py` · `test_extraction_cost.py`
 - [ ] `tests/test_reports.py` · `test_catalog.py`
 - [ ] `tests/test_no_leaks.py` — **extend**, do not rewrite; reuse the existing `PATTERNS`

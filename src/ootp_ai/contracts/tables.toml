@@ -31,8 +31,14 @@
 [meta]
 schema_version = 1
 updated = "2026-08-19"
-phase = "first-sight Phase 8a (contracts, DDL, and the offline grain guards)"
+phase = "first-sight Phase 8b (bronze landing, the ingest run, and the first ingest)"
 tables_declared = 8
+# Phase 8b corrected four coverage statements against what the first ingest actually
+# landed. Three of them described "each save" from numbers only two saves had been
+# measured on, and the managed league is the larger of the three — 337 clubs and 22,046
+# players against the probes' 259 and 18,077. A coverage statement that is right about the
+# development target and wrong about the club we manage is the exact shape of the error
+# this project treats as worse than a gap.
 
 # Every bronze key carries the universe, the in-game date, and which attempt at that date
 # (§2.3(d) of the plan). `sim_date` is the LEAGUE's date, never wall-clock: you snapshot
@@ -215,7 +221,7 @@ key = ["save_id", "sim_date", "ingest_seq", "player_id"]
 source = ["players.dat"]
 walker = "ootp_ai.parser.players.read_players"
 collation = "utf8mb4_bin"
-coverage = """Every record the walk frames — 18,077 in each save on disk, of which the export's `retired = 0` population is 18,072. A deliberately minimal field set: the biographical head, the club assignment, handedness, and the Lahman id.
+coverage = """Every record the walk frames — 18,077 in each test save, of which the export's `retired = 0` population is 18,072, and 22,046 in the managed league, which carries 337 clubs rather than 259. A deliberately minimal field set: the biographical head, the club assignment, handedness, and the Lahman id.
 
 Absences come in two kinds and the difference matters. **Ratings, position and role** carry a [[withheld]] entry in field_map.toml arguing why each is out. **Six crossed-but-unexposed fields** — second_nation_id, the two language ids, the nickname index, loan_league_id and historical_team_id — are ordinary [[field]] entries the walker verified and chose not to surface, because every exposed field is a field a report may print and none of the six has a consumer."""
 note = """The name INDICES land, not the names. A display name exists only once a `NameTable` built from the SAME save resolves them (`bronze_name`), which is why the two tables are useless apart.
@@ -354,8 +360,10 @@ key = ["save_id", "sim_date", "ingest_seq", "team_id", "player_id", "list_id"]
 source = ["teams.dat", "players.dat"]
 walker = "ootp_ai.parser.rosters.read_rosters"
 collation = "utf8mb4_bin"
-coverage = "15,672 rows on the standard-mode probe, reproducing `ootp_truth_real.team_roster` exactly. Covers 7,370 DISTINCT players, not 18,072: roughly 10,700 active players — free agents, draft-eligible, international, unassigned — carry no roster row at all, and that absence is the data, not a gap."
-note = "The key is the whole point of the table. `(sim_date, player_id)` would be wrong: 935 players hold a list-3 row at their organisation AND a row at another club in the same snapshot, so a player-grained key silently collapses them."
+coverage = "15,672 rows on the standard-mode probe, reproducing `ootp_truth_real.team_roster` exactly; measured on landing, 15,721 on the Challenge-mode twin and 20,016 in the managed league, whose 337 clubs carry more rosters. Covers 7,370 DISTINCT players on the probe, not 18,072: roughly 10,700 active players — free agents, draft-eligible, international, unassigned — carry no roster row at all, and that absence is the data, not a gap."
+note = """The key is the whole point of the table. `(sim_date, player_id)` would be wrong: 935 players hold a list-3 row at their organisation AND a row at another club in the same snapshot, so a player-grained key silently collapses them.
+
+**176 players per save are assigned to a club and hold no list membership**, and they are absent from this table by design — a different absence from the ~10,700 above, who are assigned to nobody. The export marks the population with a negative `league_id`; `parser/rosters.py` surfaces it as `RostersFile.unrostered` and the loader drops it, because a roster-LIST table has no row to give a player who is on no list. **A query asking "who is in Boston's organisation" from this table alone misses them**; club assignment lives in `bronze_player.team_id` / `organization_id`."""
 
 [[table.column]]
 name = "save_id"
@@ -398,7 +406,7 @@ key = ["save_id", "sim_date", "ingest_seq", "name_space", "name_index"]
 source = ["names.dat"]
 walker = "ootp_ai.parser.names.read_names"
 collation = "utf8mb4_bin"
-coverage = "All 264,095 entries the file declares and the walk frames, per save per snapshot — roughly fourteen times the combined row count of the other bronze tables. The volume is knowingly accepted (field_map.toml records the decision and its named fallback); uniform bronze grain is worth more than the disk."
+coverage = "All 264,095 entries the file declares and the walk frames, per save per snapshot — measured on landing, roughly seven times the combined row count of the other bronze tables on a probe and six times in the managed league. The volume is knowingly accepted (field_map.toml records the decision and its named fallback); uniform bronze grain is worth more than the disk."
 note = "`name_space` is the pre-registered discriminator and takes the single literal value 'all'. It stays in the key even though ONE space was measured: the key is correct under both outcomes and costs one column, while the wrong key would collide two spaces silently. The variable-length usage pairs are consumed for byte accounting and land nowhere — a repeating group with no confirmed meaning is not a column."
 
 [[table.column]]
@@ -449,7 +457,7 @@ key = ["save_id", "sim_date", "ingest_seq", "league_id", "sub_league_id", "divis
 source = ["world.dat"]
 walker = "ootp_ai.parser.world.read_world"
 collation = "utf8mb4_bin"
-coverage = "MLB's SIX divisions only — the thirty clubs those arrays name. The other fourteen leagues each sit behind their own unmapped scalar block in `world.dat` and are not reached; thirty rows against a club count of 259 is the documented reach of the walk, not a parse fault. The four All-Star sides appear in no division array at all: structurally absent, never division zero."
+coverage = "MLB's SIX divisions only — the thirty clubs those arrays name. The other fourteen leagues each sit behind their own unmapped scalar block in `world.dat` and are not reached; thirty rows against a club count of 259 on the probes and 337 in the managed league is the documented reach of the walk, not a parse fault. The four All-Star sides appear in no division array at all: structurally absent, and absence here is a MISSING ROW — never division zero, because `division_id` counts from 0 within its sub-league and East really is division 0."
 note = "`teams.division_id` is DERIVED from this array in silver and never parsed — `teams.dat` provably does not carry it (0 of 140 on the clubs with a non-zero one), so a division stamped onto a team record could only have come from a join, and bronze does not join. This table is therefore the only division source in the warehouse."
 
 [[table.column]]
@@ -533,9 +541,14 @@ type = "u16"
 null = false
 field = "calendar_event_type"
 [[table.column]]
+# NULLABLE, corrected in Phase 8b. `parser/world.py`'s event scanner accepts `year == 0`
+# on purpose and says why: "a calendar record with no date is structural absence; a player
+# record framed on a zero year is a mis-frame." Declared NOT NULL, a single date-less event
+# had nowhere to land, and the strict date converter aborted the whole ~300,000-row ingest
+# over it — structural absence becoming neither NULL nor zero but a crash.
 name = "start_date"
 type = "date"
-null = false
+null = true
 field = "calendar_start_date"
 [[table.column]]
 name = "name"
@@ -573,7 +586,7 @@ key = ["save_id", "sim_date", "ingest_seq", "table_name", "column_name"]
 source = ["contracts/field_map.toml"]
 walker = "ootp_ai.contracts.loader.load_contracts"
 collation = "utf8mb4_0900_ai_ci"
-coverage = "Every column of every bronze table this ingest wrote, with the epistemic label the field map carried ON THE DAY IT LANDED. Not a game fact — a record of what we believed about one."
+coverage = "Every column of every table this ingest wrote — 96 of them, all eight tables including this one and `ingest_run` — with the epistemic label the field map carried ON THE DAY IT LANDED. Not a game fact: a record of what we believed about one. `ingest_run` is in rather than out because its `human_team_id` resolves from `human_managers.dat` and carries a real label, and a rule that skipped the table would drop that belief on a technicality about the table's name."
 note = "This table exists so a future data incident can ask *what did we believe about this field the day it landed?* as a query rather than as archaeology through the git history of `docs/data-access.md`. It is the one table whose source is a tracked file rather than a save."
 
 [[table.column]]
@@ -647,7 +660,7 @@ collation = "utf8mb4_0900_ai_ci"
 coverage = "One row per landing. The triple is IMMUTABLE once written: re-loading an already-landed triple refuses loudly, while a new snapshot of an already-ingested `sim_date` allocates the next `ingest_seq` and lands a fresh row set alongside the previous one. Nothing is ever overwritten, which is what makes AC10's byte-identity clause hold trivially."
 note = """The repeating groups land as JSON rather than as a child table: the phase declares eight tables and a ninth would be one the plan never sequenced, while flattening them into fixed columns would bake today's file list into a schema that changes whenever SNAPSHOT_FILES does. Flagged for the operator as a judgment call, not slipped in. The wall-clock ingestion timestamp is an ATTRIBUTE and never part of the key.
 
-`residual_bytes` is JSON for the same reason and it was a scalar BIGINT until review caught it: `IngestRun.residual_bytes` is a `Mapping[str, int]`, and the accounting TIER differs per file by design — strict zero-residual for teams.dat and names.dat, diagnostic for players.dat, region-accounted for world.dat. Summing across files makes a strict-tier FAILURE arithmetically indistinguishable from an expected diagnostic residual, and the incident question *which walker left bytes unaccounted for* stops being answerable from the warehouse.
+`residual_bytes` is JSON for the same reason and it was a scalar BIGINT until review caught it: `IngestRun.residual_bytes` is a `Mapping[str, int]`, and the accounting TIER differs per file by design — strict zero-residual for names.dat ALONE, diagnostic for teams.dat and players.dat, region-accounted for world.dat. (Corrected in Phase 8b: this said "strict for teams.dat and names.dat", while `parser/teams.py` declares `diagnostic` and the landed residual is 2,274 managed / 1,137 probe. Two diagnostic files make the argument stronger — a sum would never be zero, so nobody could tell which file moved.) Summing across files makes a strict-tier FAILURE arithmetically indistinguishable from an expected diagnostic residual, and the incident question *which walker left bytes unaccounted for* stops being answerable from the warehouse.
 
 `parse_seconds` is NULLABLE, and that is the structural-absence rule rather than laziness: `IngestRun.parse_seconds` is `float | None` and the plan fills it in Phase 9, AFTER 8b writes the first rows. NOT NULL would leave 8b writing 0.000, which is indistinguishable from an instantaneous parse.
 

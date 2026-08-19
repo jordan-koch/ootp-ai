@@ -406,6 +406,77 @@ Validating a name against it requires the same fold; see AC8 in the `first-sight
 `PROJECT_SCOPE.md`. This is the mirror of the export setting at the *Replace accents* row
 below, and it is the shipped file's property, not something a run can turn off.
 
+### `world.dat` — one record, entered by landmark, mostly unread
+
+**There is no `leagues.dat`.** The league structure lives here, and this section replaces
+the assumption that it did not.
+
+`measured` 2026-08-19 — **The file is 8,898,534 bytes in the managed league and 8,657,715
+in the probe, and declares exactly ONE record.** That single fact drives the whole reading
+strategy: a one-record file has no record loop to walk and no count to iterate, so a
+sequential walk from the header reaches the interesting regions only by crossing megabytes
+of undecoded bytes. The walker instead **enters at landmarks** — unique byte patterns it
+requires to resolve to exactly one position, refusing rather than guessing when a pattern
+matches zero times or several.
+
+`measured` — **The walk therefore reads 199,832 bytes and leaves ~8.5 MB untouched**, and
+the walked span is *identical* in both saves. That is why the byte-accounting tier is
+**`region-accounted`** rather than strict or diagnostic: "residual" is not the right
+question for a walk that never claimed to read the file. Zero residual is required *within*
+each region, each region's own declared count must match what the walk produced, and the
+un-walked remainder is recorded as a number rather than waved at. The tier vocabulary
+(`tests/fixtures/tiers.py`) keeps `region-accounted` a separate word from `diagnostic`
+precisely so the weaker claim cannot be read as the stronger one.
+
+Two regions are mapped, and both land in the warehouse.
+
+`verified` 2026-08-19 — **The division hierarchy.** The nest is
+league → sub-league → division → `u32` count + an explicit `team_id` array, and the array
+is the point: a division that knew only its own id would prove nothing. It reproduces the
+export's club-side `division_id` exactly, which is worth more than an ordinary match
+because **the two were written from opposite sides** — ours from the league's membership
+array, the export's from each club's own record.
+
+⚠️ **`teams.dat` does not carry `division_id` at all** — `measured`, 0 of 140 on the clubs
+that have a non-zero one. A division stamped onto a team record could therefore only have
+come from a join, so `bronze_division_team` is the warehouse's **only** division source and
+`teams.division_id` is a silver derivation.
+
+**Reach: MLB's six divisions and its thirty clubs, and no further.** The other fourteen
+leagues each sit behind their own unmapped scalar block. Thirty rows against a club count
+of 259 (probe) or 337 (managed) is the documented reach of the walk, not a parse fault.
+The four All-Star sides appear in no division array at all and are **structurally absent —
+a missing row, never division zero**, because `division_id` counts from 0 within its
+sub-league and East really is division 0.
+
+`verified` 2026-08-19 — **The league calendar.** 3,058 entries in every save on disk,
+spanning 60 distinct `league_id` values, of which **2,259 (managed) / 2,492 (probe) carry a
+`deleted` flag**. Bronze lands all of them; a walk that dropped the deleted ones would
+return 566 rows and look perfectly consistent. Eight of its nine fields match the export
+row for row.
+
+Two traps in that record, each one someone else would otherwise re-enter:
+
+- **The key is the file's own `seq`, which the export does not expose.** The readable
+  alternative — `(league_id, start_date, event_type, name)` — collapses 3,058 rows to
+  2,600, losing 458 with nothing raised. The key had to be settled from the bytes because
+  the answer key has no column for it.
+- **`year == 0` is legitimate here**, and is rejected in `players.dat` for the opposite
+  reason. A calendar record with no date is structural absence; a player record framed on
+  a zero year is a mis-frame. A landing that refuses the zero rather than storing NULL
+  turns one absent date into a failed ingest.
+
+`unconfirmed` — **`real_sim_date`**, the `u16` closing each event, reads 0 on all 3,058
+entries of all three saves **and** 0 in the export. A row-for-row match therefore proves
+nothing about it: a parser reading an adjacent zero `u16` scores identically. It lands, and
+`contracts/policy.py` renders it only behind an uncertainty banner until a mid-season save
+with a partially-simulated calendar says what it means.
+
+**Still unread: the ~1,200-byte scalar block holding the league rules themselves** —
+roster limits, service-time thresholds, the schedule shape. That block is what
+[`league-rules.md`](league-rules.md) §1 would be verified against, which is why that
+verification remains deferred rather than merely unscheduled.
+
 ---
 
 ## 5. Ratings are shown through filters — a correctness trap

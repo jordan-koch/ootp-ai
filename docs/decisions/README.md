@@ -28,6 +28,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0018](0018-retention-is-infrastructure.md) | Retention is infrastructure; analysis over history is commissioned | Accepted |
 | [0019](0019-reading-costs-an-action.md) | Reading costs an action; a report is built once and read for free | Accepted |
 | [0020](0020-sanctioned-lookahead-seam.md) | One sanctioned seam may index a save buffer; everywhere else walks | Accepted |
+| [0021](0021-bronze-landing-is-append-only.md) | Bronze landing is append-only; a landed snapshot is never modified | Accepted |
 
 ## Format
 

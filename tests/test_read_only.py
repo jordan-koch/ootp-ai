@@ -43,7 +43,7 @@ from pathlib import Path
 import pytest
 
 from ootp_ai.config import ConfigError, Settings, load_settings
-from ootp_ai.ingest import ingest_save
+from ootp_ai.ingest import ingest_save, parse_snapshot
 
 _DIGEST_CHUNK = 1 << 20
 
@@ -225,6 +225,15 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
 
     The post-probe manifest is the pre-managed baseline, so the roots are walked
     three times rather than four.
+
+    **Each run parses as well as snapshotting.** `ingest_save` alone stops at the copy, so
+    a version of this test that called only it would run a strictly smaller pipeline than
+    the one that exists and still read like a full-run proof — the failure mode this
+    module's own docstring warns about. `parse_snapshot` is what opens the 32 MB files, and
+    it is the code most likely to grow a stray write, so it belongs inside the diff rather
+    than beside it. Landing is deliberately *not* included: it writes to MySQL, not to the
+    game, and pulling a warehouse dependency into ADR 0001's guard would let an unrelated
+    outage silence the one test the project cannot afford to lose.
     """
     settings = _settings(tmp_path)
     if settings.probe_save is None:
@@ -236,11 +245,11 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
 
     baseline = _manifests(settings)
 
-    ingest_save(settings.probe_save, settings=settings)
+    parse_snapshot(ingest_save(settings.probe_save, settings=settings).snapshot)
     after_probe = _manifests(settings)
     _assert_untouched(baseline, after_probe, what="ingesting the disposable probe save")
 
-    ingest_save(settings.managed, settings=settings)
+    parse_snapshot(ingest_save(settings.managed, settings=settings).snapshot)
     _assert_untouched(after_probe, _manifests(settings), what="ingesting the managed league")
 
 

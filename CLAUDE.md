@@ -35,12 +35,13 @@ date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
 the game's own export. [`README.md`](README.md) carries what has landed and what
 is next.
 
-**The warehouse schema is declared and emitted, and nothing is landed in it yet** —
-so the GM still cannot see its own club
-([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). Phase 8a of
-[`first-sight`](requests/feature-requests/first-sight/) landed the eight-table
-declaration, the DDL it emits and the offline guards; **8b is bronze landing** and is
-the first phase to open a database.
+**Bronze is landed, and the GM still cannot see its own club** — the gap is now the
+report layer, not the warehouse
+([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads
+reports, never a query). Phase 8b of
+[`first-sight`](requests/feature-requests/first-sight/) filled the eight declared
+tables from two real saves, every column bound from the declaration and every row
+counted back out of the schema before commit. **Phase 10 is the two reports.**
 
 ## Stack
 
@@ -72,7 +73,7 @@ docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
   game-mechanics.md   How the OOTP engine behaves — free to the GM, thin on purpose
-  decisions/          ADRs — nineteen calls, two superseded, seventeen live
+  decisions/          ADRs — twenty-one calls, two superseded, nineteen live
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
@@ -80,6 +81,7 @@ requests/           Intake — feature-requests / bugfix-requests / data-inciden
 src/ootp_ai/        Parser, landing, warehouse loading
   contracts/          TRACKED field + grain declarations — derived schema, ours to keep
                       — plus the loader that validates them and the serving gate
+  warehouse/          DDL emitted from that declaration, and append-only bronze landing
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
 var/                GITIGNORED — save snapshots, warehouse files, scratch
@@ -128,6 +130,9 @@ Verified 2026-08-15; detail and epistemic labels in
   the league is simulated?* No → builder + `datasets/`. Yes → parser + dbt.
 - **GM memory is tracked in git** (0011). `gm/` is the one inversion of the
   "local state is disposable" rule. `var/` holds only what rebuilds from the save.
+- **Bronze landing is append-only** (0021). Re-landing a `(save_id, sim_date,
+  ingest_seq)` refuses; a second look at an unchanged date takes the next seq. A
+  correction is a new landing, never an edit — so read `max(ingest_seq)` and say so.
 
 **The GM-facing decisions — 0012 through 0017 — live in
 [`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
@@ -179,3 +184,12 @@ way to silently corrupt every downstream recommendation. The scales, the ground
 truth and the withhold-if-unclassified rule are owned by
 [`docs/data-access.md`](docs/data-access.md) §5 and
 [ADR 0012](docs/decisions/0012-scouted-ratings-only.md); the rulebook binds them.
+
+## One MySQL belief that was wrong, so don't re-derive it
+
+**`SELECT … FOR UPDATE` does not serialise two allocators.** InnoDB's gap locks are
+mutually compatible, so two loaders reading `MAX(ingest_seq)` for the same
+`(save_id, sim_date)` both get the same answer without blocking — measured twice, at
+0.000 s — and the loser deadlocks on the insert. **The primary key is what actually
+prevents an overwrite.** `warehouse/ingest_run.py` carries the detail; it is here
+because the plan asserted the opposite and the assertion read as obviously true.

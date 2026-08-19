@@ -1,8 +1,12 @@
-"""AC4 — the declared grain, the emitted key, and the one id that must never be a join key.
+"""AC4 and AC5 — the declared grain, the emitted key, and the grain the warehouse holds.
 
-Two guards, both offline, both about the same failure: a table whose prose says one thing
-and whose key does another, so a query returns fewer rows than the data holds and looks
-like it worked.
+Three guards about the same failure: a table whose prose says one thing and whose key does
+another, so a query returns fewer rows than the data holds and looks like it worked.
+
+Two of them are offline and run in CI — the declaration against the emitted DDL, and the
+`historical_id` join scan. The third is `-m gamedata` and lands a real snapshot, because
+the declaration agreeing with the DDL says nothing about whether the loader wrote the rows
+that shape describes.
 
 ## Why the grain check reads two artifacts and not one
 
@@ -50,15 +54,29 @@ from __future__ import annotations
 
 import ast
 import re
+from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import pytest
+from pymysql.connections import Connection
+from pymysql.cursors import DictCursor
 
+from fixtures.warehouse import landed_probe, settings_or_skip, warehouse_or_skip
+from ootp_ai.config import Settings
 from ootp_ai.contracts.loader import Contracts, load_contracts
+from ootp_ai.ingest import IngestRun, ParsedSnapshot
 from ootp_ai.warehouse.ddl import create_all_statements, create_table_statement
+from ootp_ai.warehouse.ingest_run import as_sql_date
+from ootp_ai.warehouse.load import landed_tables
+from ootp_ai.warehouse.sql import quote_ident
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCAN_ROOT = REPO_ROOT / "src" / "ootp_ai"
+
+#: `world.dat` reaches MLB's six divisions and stops. Pinned so a walk that started
+#: finding more — or fewer — says so rather than quietly changing the table's meaning.
+MLB_DIVISIONS = 6
 
 #: The eight tables Phase 8a promised. Spelled out rather than counted, because "eight
 #: tables" is satisfied by eight wrong ones.
@@ -375,3 +393,270 @@ def test_the_guard_would_flag_the_test_that_legitimately_joins() -> None:
     assert scan_source(boston.read_text(encoding="utf-8"), boston.name), (
         "the Tier A test no longer joins on the LahmanID"
     )
+
+
+# ── AC5: the grain, asserted against rows that are really in MySQL ───────────
+#
+# Everything above compares two artifacts and needs no database. What follows lands a real
+# snapshot and asks the warehouse itself, because the declaration agreeing with the DDL
+# says nothing about whether the loader wrote the rows that shape describes.
+
+
+@pytest.fixture(scope="module")
+def settings() -> Settings:
+    return settings_or_skip()
+
+
+@pytest.fixture(scope="module")
+def warehouse(settings: Settings) -> Iterator[Connection[DictCursor]]:
+    with warehouse_or_skip(settings) as connection:
+        yield connection
+
+
+@pytest.fixture(scope="module")
+def landed(
+    settings: Settings, warehouse: Connection[DictCursor]
+) -> Iterator[tuple[ParsedSnapshot, IngestRun]]:
+    """One real landing, shared by every test below and removed afterwards."""
+    with landed_probe(settings, warehouse) as pair:
+        yield pair
+
+
+def _scalars(
+    connection: Connection[DictCursor], statement: str, params: tuple[object, ...]
+) -> dict[str, Any]:
+    with connection.cursor() as cursor:
+        cursor.execute(statement, params)
+        row = cursor.fetchone()
+    assert row is not None, f"no row from: {statement}"
+    return dict(row)
+
+
+def _triple(run: IngestRun) -> tuple[object, ...]:
+    return (run.save_id, as_sql_date(run.sim_date), run.ingest_seq)
+
+
+_WHERE_TRIPLE = "WHERE save_id = %s AND sim_date = %s AND ingest_seq = %s"
+
+
+@pytest.mark.gamedata
+def test_the_schema_holds_exactly_the_declared_tables(
+    warehouse: Connection[DictCursor],
+) -> None:
+    """The phase's acceptance, read from the server rather than from the emitter.
+
+    "Exactly" in both directions: a declared table missing means the loader wrote
+    somewhere it should not have, and an extra one means something landed that no
+    declaration describes — which is the state `contracts/tables.toml` exists to make
+    impossible.
+    """
+    assert landed_tables(warehouse) == tuple(sorted(DECLARED_TABLES))
+
+
+@pytest.mark.gamedata
+def test_every_landed_column_is_a_declared_column(
+    contracts: Contracts, warehouse: Connection[DictCursor]
+) -> None:
+    """The declaration, the emitted DDL and the live schema, all one column list.
+
+    The Phase 8a panel recorded that nothing tied a declared column set to anything real
+    (CF22). The offline half now ties the declaration to the emitted SQL; this ties it to
+    the table MySQL actually holds, which is the copy the loader binds against.
+    """
+    with warehouse.cursor() as cursor:
+        cursor.execute(
+            "SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name "
+            "FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() "
+            "ORDER BY TABLE_NAME, ORDINAL_POSITION"
+        )
+        live: dict[str, list[str]] = {}
+        for row in cursor.fetchall():
+            live.setdefault(str(row["table_name"]), []).append(str(row["column_name"]))
+
+    for table in contracts.tables:
+        assert tuple(live[table.name]) == tuple(column.name for column in table.columns), (
+            f"{table.name} in the schema does not carry the declared columns in order"
+        )
+
+
+@pytest.mark.gamedata
+def test_the_live_primary_key_is_the_declared_key(
+    contracts: Contracts, warehouse: Connection[DictCursor]
+) -> None:
+    """**The last open link in declaration → emitted DDL → live schema.**
+
+    The offline half proves the declaration against the SQL the emitter writes, and the
+    column check above proves the declaration against the columns MySQL holds. Neither
+    reads the live PRIMARY KEY — and the key is what actually enforces every declared
+    grain, so a table created once with a weaker one would stay wrong forever: `ensure_tables`
+    skips a table that already exists, by design, because dropping one would destroy landed
+    rows a `gm/decisions/` record may cite. The only symptom would be duplicate rows in a
+    table whose declaration claims uniqueness.
+
+    Order included. A primary key is ordered and MySQL indexes it that way, so the
+    leftmost-prefix behaviour every later query depends on is part of the claim.
+    """
+    with warehouse.cursor() as cursor:
+        cursor.execute(
+            "SELECT TABLE_NAME AS table_name, COLUMN_NAME AS column_name "
+            "FROM information_schema.STATISTICS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND INDEX_NAME = 'PRIMARY' "
+            "ORDER BY TABLE_NAME, SEQ_IN_INDEX"
+        )
+        live: dict[str, list[str]] = {}
+        for row in cursor.fetchall():
+            live.setdefault(str(row["table_name"]), []).append(str(row["column_name"]))
+
+    for table in contracts.tables:
+        assert tuple(live.get(table.name, ())) == table.key, (
+            f"{table.name} is keyed {live.get(table.name)} in the schema but declares "
+            f"{list(table.key)} — the grain the declaration claims is not the grain MySQL "
+            "enforces"
+        )
+
+
+@pytest.mark.gamedata
+def test_roster_grain_is_not_player_grain(
+    warehouse: Connection[DictCursor], landed: tuple[ParsedSnapshot, IngestRun]
+) -> None:
+    """**AC5, and it asserts the positive rather than the absence of a problem.**
+
+    `player_id` is *not* unique within one snapshot's roster rows, and that is the whole
+    reason the table is keyed `(team_id, player_id, list_id)`. A later refactor that
+    "simplified" the key to `(sim_date, player_id)` would collapse the players who hold a
+    row at two clubs at once, and the roster report would lose them with nothing raised.
+    Asserting non-uniqueness is what makes that refactor fail here instead of in a report
+    nobody can check.
+
+    The second clause is the same claim from the other side: roster rows cover far fewer
+    distinct players than the player table holds, because roughly ten thousand active
+    players — free agents, draft-eligible, international, unassigned — carry no roster row
+    at all. A loader that invented a row per player would satisfy the first clause and
+    fail this one.
+    """
+    _, run = landed
+    roster = _scalars(
+        warehouse,
+        f"SELECT COUNT(*) AS rows_landed, COUNT(DISTINCT player_id) AS players "
+        f"FROM {quote_ident('bronze_team_roster')} {_WHERE_TRIPLE}",
+        _triple(run),
+    )
+    players = _scalars(
+        warehouse,
+        f"SELECT COUNT(*) AS rows_landed FROM {quote_ident('bronze_player')} {_WHERE_TRIPLE}",
+        _triple(run),
+    )
+
+    assert roster["rows_landed"] > 0, "nothing landed, so nothing below proves anything"
+    assert roster["players"] < roster["rows_landed"], (
+        "player_id is unique within the snapshot's roster rows, so the membership grain "
+        "has collapsed into a player grain — the cross-club rows are gone"
+    )
+    assert 0 < roster["players"] < players["rows_landed"] * 3 // 4, (
+        f"{roster['players']} distinct rostered players against "
+        f"{players['rows_landed']} players: the unrostered majority has vanished"
+    )
+
+
+@pytest.mark.gamedata
+def test_a_club_sits_in_exactly_one_division(
+    warehouse: Connection[DictCursor], landed: tuple[ParsedSnapshot, IngestRun]
+) -> None:
+    """The division twin — the opposite shape, catching the opposite fault.
+
+    Where the roster grain fans out on purpose, this one must not: a club sits in one
+    division, so `team_id` **is** unique within a snapshot. A membership array consumed
+    twice, or a nest walked from the wrong anchor, is precisely what would put a club in
+    two divisions, and it would look like more data rather than like a bug.
+    """
+    _, run = landed
+    counts = _scalars(
+        warehouse,
+        f"SELECT COUNT(*) AS rows_landed, COUNT(DISTINCT team_id) AS clubs "
+        f"FROM {quote_ident('bronze_division_team')} {_WHERE_TRIPLE}",
+        _triple(run),
+    )
+    assert counts["rows_landed"] > 0, "no division rows landed"
+    assert counts["clubs"] == counts["rows_landed"], (
+        f"{counts['rows_landed']} division rows over {counts['clubs']} clubs — a club is "
+        "in two divisions, which means an array was consumed twice"
+    )
+
+
+@pytest.mark.gamedata
+def test_the_division_table_lands_only_the_reach_of_the_walk(
+    warehouse: Connection[DictCursor], landed: tuple[ParsedSnapshot, IngestRun]
+) -> None:
+    """Thirty rows against 259 clubs is the documented reach, not a parse fault.
+
+    `world.dat`'s other fourteen leagues each sit behind their own unmapped scalar block,
+    and the four All-Star sides appear in no division array at all. **Structural absence
+    is a missing row here, never a zero**: `division_id` counts from 0 within its
+    sub-league, so East is genuinely division 0 and a loader that wrote 0 to mean "none"
+    would file every unplaced club into the AL East with nothing raised. The absence is
+    therefore asserted as a row count, which is the only form it can take in this table.
+
+    Six divisions, and the count is over the whole `(league, sub_league, division)` triple
+    rather than over `division_id` alone — which takes only three values, because the two
+    sub-leagues each number their divisions from zero.
+    """
+    _, run = landed
+    counts = _scalars(
+        warehouse,
+        "SELECT COUNT(*) AS rows_landed, COUNT(DISTINCT team_id) AS clubs, "
+        "COUNT(DISTINCT league_id, sub_league_id, division_id) AS divisions "
+        f"FROM {quote_ident('bronze_division_team')} {_WHERE_TRIPLE}",
+        _triple(run),
+    )
+    teams = _scalars(
+        warehouse,
+        f"SELECT COUNT(*) AS rows_landed FROM {quote_ident('bronze_team')} {_WHERE_TRIPLE}",
+        _triple(run),
+    )
+    assert counts["divisions"] == MLB_DIVISIONS
+    assert counts["clubs"] < teams["rows_landed"], (
+        f"every one of the {teams['rows_landed']} clubs landed a division row, so the "
+        "walk is reaching further than the six MLB divisions it is proven on — or the "
+        "loader invented rows for clubs no array names"
+    )
+
+
+@pytest.mark.gamedata
+def test_the_field_labels_record_what_was_believed_on_the_day(
+    contracts: Contracts,
+    warehouse: Connection[DictCursor],
+    landed: tuple[ParsedSnapshot, IngestRun],
+) -> None:
+    """`bronze_field_label` is a record *about* a landing, and it must be complete.
+
+    One row per column of every table the ingest wrote — including the provenance columns,
+    whose NULL labels are themselves the answer to *"where did this come from"*. The point
+    of the table is that a future incident asks what we believed about a field the day it
+    landed as a **query**, rather than as archaeology through the git history of
+    `docs/data-access.md`, and a partial record cannot answer that.
+    """
+    _, run = landed
+    declared = {(table.name, column.name) for table in contracts.tables for column in table.columns}
+    with warehouse.cursor() as cursor:
+        cursor.execute(
+            f"SELECT table_name, column_name, field_name, source_file, category, "
+            f"epistemic, validator FROM {quote_ident('bronze_field_label')} {_WHERE_TRIPLE}",
+            _triple(run),
+        )
+        rows = {(str(r["table_name"]), str(r["column_name"])): r for r in cursor.fetchall()}
+
+    assert set(rows) == declared, (
+        f"labels missing for {sorted(declared - set(rows))}; "
+        f"labels for undeclared columns {sorted(set(rows) - declared)}"
+    )
+
+    landed_label = rows[("bronze_player", "player_id")]
+    entry = contracts.field("player_id")
+    assert landed_label["field_name"] == entry.name
+    assert landed_label["source_file"] == entry.source
+    assert landed_label["epistemic"] == entry.epistemic
+    assert landed_label["validator"] == entry.validator
+
+    provenance = rows[("bronze_player", "save_id")]
+    assert provenance["field_name"] is None, "save_id is ours; no walker produced it"
+    assert provenance["epistemic"] is None

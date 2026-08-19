@@ -629,6 +629,13 @@ note = "Resolves both player slots exactly on all 18,072 export rows. Encoding i
 
 [[field]]
 name = "name_category"
+# WHY A NAME BYTE IS FILED AS A RATING, since Phase 8b persists this label into
+# `bronze_field_label` where a reader will meet it without this file open. It is not a
+# rating and nothing here thinks it is. `rating-true` is what CLAUDE.md's corollary to
+# ADR 0012 assigns to an UNCLASSIFIED field — "probably fine" is not a classification —
+# so the category is doing withhold-by-default duty rather than describing the byte. The
+# alternative, a distinct `unclassified` member of the category vocabulary, is a change to
+# the serving gate's posture and belongs to whoever revisits ADR 0012, not to a loader.
 source = "names.dat"
 walker = "ootp_ai.parser.names.read_names"
 type = "u8, leading each record"

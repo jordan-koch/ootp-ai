@@ -296,6 +296,28 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
     **terminates on a record boundary**, with the residual byte count *recorded* in the
     ingest-run row rather than asserted to be zero. Full byte accounting on
     `players.dat` is a research task, not a counter, and the tier rationale says so.
+
+    > **Amended 2026-08-19, at the operator's direction, after Phase 8b landed the first
+    > ingest and measured the residual.** This criterion says the strict form applies to
+    > `teams.dat` **and** `names.dat`. **Only `names.dat` reaches it.** `parser/teams.py`
+    > declares `BYTE_ACCOUNTING_TIER = "diagnostic"` — a Phase 5 decision, pre-registered
+    > in the plan's Phase 0 pivot rules rather than a demotion made under pressure — and
+    > the landed `ingest_run.residual_bytes` records **2,274 bytes for the managed league
+    > and 1,137 for the probe**, both far under one mean record. The team record's *body*
+    > is 1.5 KB to 60 KB of undecoded bytes per record, so reaching strict would mean
+    > decoding it, which is a parser project nothing in this feature needs.
+    >
+    > **The mechanism is right and the wording was stale**, which is the direction that
+    > matters: the residual is *recorded per file* in the ingest-run row rather than
+    > hidden, `tests/fixtures/tiers.py` refuses an under-claim as firmly as an over-claim,
+    > and `tests/test_byte_accounting.py` skips its strict assertion **by name** ("the
+    > teams walk is declared 'diagnostic', not strict") rather than passing vacuously.
+    >
+    > Read the criterion as: **the strict form — zero unaccounted bytes — applies to
+    > `names.dat`. `teams.dat` and `players.dat` are diagnostic**, with the residual
+    > recorded in the ingest-run row rather than asserted to be zero. If `teams.dat` is
+    > ever to be strict, that is a separate request with an owner, not an unmet clause
+    > sitting here in the present tense.
 13. `uv run pytest tests/test_withheld_fields.py` is green **offline**, keyed on the
     field map's declared **category** — not on column-name globs (finding F9). Asserts:
     no field whose category is `rating-true`, and no field whose epistemic label is
