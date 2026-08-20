@@ -35,13 +35,15 @@ date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
 the game's own export. [`README.md`](README.md) carries what has landed and what
 is next.
 
-**Bronze is landed, and the GM still cannot see its own club** — the gap is now the
-report layer, not the warehouse
+**Bronze is landed and proven, and the GM still cannot see its own club** — the gap is
+now the report layer, not the warehouse
 ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads
 reports, never a query). Phase 8b of
 [`first-sight`](requests/feature-requests/first-sight/) filled the eight declared
-tables from two real saves, every column bound from the declaration and every row
-counted back out of the schema before commit. **Phase 10 is the two reports.**
+tables from two real saves; Phase 9 then diffed the landed rows against the probe
+save's export **per field by name** — 33 keyed columns and 5 tables, zero unexplained
+differences — so the field map's labels are findings rather than beliefs. **Phase 10
+is the two reports.**
 
 ## Stack
 
@@ -82,6 +84,7 @@ src/ootp_ai/        Parser, landing, warehouse loading
   contracts/          TRACKED field + grain declarations — derived schema, ours to keep
                       — plus the loader that validates them and the serving gate
   warehouse/          DDL emitted from that declaration, and append-only bronze landing
+  validate/           Tier B — landed rows diffed against the export, per field by name
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
 var/                GITIGNORED — save snapshots, warehouse files, scratch

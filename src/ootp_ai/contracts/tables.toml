@@ -151,20 +151,24 @@ length = 255
 null = false
 field = "team_full_name"
 [[table.column]]
+# One field entry per slot since Phase 9, which identified the first and third against the
+# export on 259 of 259 clubs and could not identify the second against any of the export's
+# eight colour columns. A single `team_colors` entry would have to carry one label for a
+# proven claim and an unproven one at the same time.
 name = "color_1"
 type = "u32"
 null = false
-field = "team_colors"
+field = "team_color_background"
 [[table.column]]
 name = "color_2"
 type = "u32"
 null = false
-field = "team_colors"
+field = "team_color_slot_2"
 [[table.column]]
 name = "color_3"
 type = "u32"
 null = false
-field = "team_colors"
+field = "team_color_text"
 [[table.column]]
 name = "city_id"
 type = "u32"
