@@ -138,10 +138,11 @@ with the phases that need them.
 
 Phase 0 landed the conventions, the format investigation, and the managed league,
 plus a one-time ground-truth export captured from a disposable standard-mode save
-and loaded into MySQL. Feature request #1 is now real through **Phase 8b**: the
+and loaded into MySQL. Feature request #1 is now real through **Phase 9**: the
 spine, an immutable snapshot layer, walkers for `saved_games.dat`,
 `human_managers.dat`, `teams.dat`, `world.dat`, `players.dat` and `names.dat`, the
-roster-membership grain, and the warehouse those all land in.
+roster-membership grain, the warehouse those all land in, and the differential that
+proves the landed rows against the game's own export.
 
 The `players.dat` walk frames every player record on disk — 18,077 in each test save
 and 22,046 in the managed league, which carries 337 clubs rather than 259 — and lands
@@ -194,11 +195,32 @@ The join works end to end: Boston's roster at 2024-03-07 resolves to 33 / 26 / 3
 across assignment, active, 40-man and injured lists — the split the operator verified
 by hand — with real names, uniform numbers and ages.
 
+**And the landing is now proven, not merely green.** The differential parses the one save
+that has an export, lands it, and compares the *warehouse* against `ootp_truth_real` —
+so the loader is under test alongside the walk. It runs to zero unexplained differences
+over 33 keyed columns and five tables: 259 clubs, 18,072 players, 15,672 roster rows,
+3,058 calendar events, 30 division memberships. Every disagreement it can report is
+named **per field, with its key** — never as a pass rate, because 99.99% looks like
+rounding and is 1,800 wrong players.
+
+Three places a *correct* parse disagrees with the export are carried as named rules with
+exact populations, because a CSV-shaped export cannot write NULL and fills the gap
+instead: 26 clubs whose city the export replaces with a nickname, 229 with no
+real-world counterpart, and four all-star sides that sit in no division. A rule that
+could suppress any number of rows would be a mute button; each of these fires on exactly
+as many rows as it declares, in either direction. The comparison also runs in Python
+rather than SQL — the schemas are accent- *and* case-insensitive, so `Ramírez == Ramirez`
+would score as a match on precisely the names most likely to be mis-decoded.
+
+Two limits are permanent and stated rather than left for a green suite to imply. Challenge
+Mode has no export, so **nothing here validates the club we actually manage** — that falls
+to `players.csv`, byte accounting, cross-mode equivalence and the operator's own eyes. And
+the export writes display-scale ratings, so this can never be a rating validator; the
+suite fails if anyone tries to make it one.
+
 **Next are the two reports.** The GM does not read the warehouse
 ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)), so bronze existing
-is not yet the GM seeing its club — a rendered roster is. Between here and there sit
-the parser-versus-export differential, which proves the landed rows field by field
-against the game's own export, and the report layer that reads them.
+is not yet the GM seeing its club — a rendered roster is.
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

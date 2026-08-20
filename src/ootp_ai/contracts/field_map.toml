@@ -57,7 +57,10 @@
 [meta]
 schema_version = 1
 updated = "2026-08-19"
-phase = "first-sight Phase 8a (contracts, DDL, and the offline grain guards)"
+# The phase whose work last CHANGED this file, not the schema revision — `schema_version`
+# is that. Said out loud because it read "Phase 8a" through a substantive Phase 9 rewrite,
+# and the next reader will keep treating it as a changelog either way.
+phase = "first-sight Phase 9 (the parser-vs-export differential and the labels it earned)"
 covers = ["players.dat", "teams.dat", "names.dat", "world.dat", "human_managers.dat (club id only)"]
 # CORRECTED at the Phase 8a panel, which caught this as an empty list. Two files ARE
 # parsed and have no field entries here, and one of them feeds a declared column, so
@@ -81,6 +84,14 @@ validator = [
     "export-exact-all-events",
     "export-exact-single-row",
     "export-exact-magnitude-all-rows",
+    # Exact on every row the export can represent, with a NAMED, BOUNDED population where
+    # it cannot. Added in Phase 9: a CSV-shaped export has no NULL to write, so it writes
+    # `''` or a filler string where the save carries nothing at all, and the differential
+    # carries one absence rule per case with an exact row count
+    # (`validate/export_diff.py::ABSENCE_RULES`). This token exists so those columns are
+    # not labelled `export-exact-all-rows`, which would be a small over-claim in the one
+    # file whose labels decide what a report may print.
+    "export-exact-modulo-absence",
     "export-presence-all-rows",
     "cross-save-comparison",
     "cross-save-parse-zero-refusals",
@@ -708,8 +719,8 @@ walker = "ootp_ai.parser.teams.read_teams"
 type = "string (u32 length + ASCII), droppable slot 1 of 5"
 category = "identity"
 epistemic = "verified"
-validator = "export-exact-all-rows"
-note = "`TeamRecord.city`. Compared against the export's `teams.name` on every record that carries one; the 26 that do not are the minor-league All-Star sides, and their absence is asserted separately by count rather than compared, because the export renders that absence as the club's display name and a direct comparison would fail on a CORRECT parse. Lands `None`, never `\"\"` — the writer drops a falsy slot, so an empty string and an absent one are indistinguishable on disk and \"not present\" is the only reading that asserts nothing the bytes never said."
+validator = "export-exact-modulo-absence"
+note = "`TeamRecord.city`. Compared against the export's `teams.name` on every record that carries one; the 26 that do not are the minor-league All-Star sides, and their absence is asserted separately by count rather than compared, because the export renders that absence as the club's display name and a direct comparison would fail on a CORRECT parse. The validator token was `export-exact-all-rows` until Phase 9, which contradicted this note's own second clause; it now names the bounded exception the differential enforces as a population of exactly 26. Lands `None`, never `\"\"` — the writer drops a falsy slot, so an empty string and an absent one are indistinguishable on disk and \"not present\" is the only reading that asserts nothing the bytes never said."
 
 [[field]]
 name = "team_abbr"
@@ -750,15 +761,43 @@ epistemic = "measured"
 validator = "none"
 note = "`TeamRecord.full_name`. The export's `teams` table carries `name`, `nickname` and `abbr` but no assembled full name, so this slot has NO independent answer key and is deliberately not claimed as verified. It is the fifth string of a signature `docs/data-access.md` records as verified, and it reproduces on 259 of 259 records in two saves — strong, and not the same thing as being scored against a source we did not write."
 
+# The three colour slots were ONE entry until Phase 9, labelled `measured` with the note
+# "WHICH of the three is primary, secondary or trim is `unconfirmed`". The differential
+# answered that for two of the three and not for the middle one, so the entry is split:
+# a single label covering one proven and one unproven claim is the imprecision this file
+# exists to prevent. The structural claim — three u32s in a row, alpha 0xff, never zero,
+# which is what lets the walk frame the record at all — is unchanged and now lives on the
+# slot that still carries it.
+
 [[field]]
-name = "team_colors"
+name = "team_color_background"
 source = "teams.dat"
 walker = "ootp_ai.parser.teams.read_teams"
-type = "exactly three u32 ARGB values, alpha 0xff"
+type = "u32 ARGB, alpha 0xff, first of three consecutive colour slots"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.colors[0]`, landed as `color_1`. Phase 9 identified it: the low 24 bits equal the export's `teams.background_color_id` on **259 of 259** clubs. The alpha byte is 0xff on every slot of every record and the export has no alpha, so the comparison is over the colour and says so."
+
+[[field]]
+name = "team_color_slot_2"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 ARGB, alpha 0xff, second of three consecutive colour slots"
 category = "structural"
 epistemic = "measured"
 validator = "inverse-model-reproduces-every-record"
-note = "`TeamRecord.colors`. Load-bearing structurally before it is interesting visually: colours are never zero, so they are never dropped, and three of them in a row is the specific signature that lets the walk decide how many strings and how many integers the record carried. WHICH of the three is primary, secondary or trim is `unconfirmed` and nothing renders them — bronze lands them as `color_1..color_3` in file order rather than inventing names for slots nobody has read."
+note = "`TeamRecord.colors[1]`, landed as `color_2`, and the one slot Phase 9 could NOT identify. Every one of the export's eight colour columns was scored against it over all 259 clubs; the best, `ballcaps_visor_color_id`, reaches 237 of 259 and nothing reaches 259. So it is deliberately absent from the differential: comparing it against its best candidate would ship a 22-row failure as the harness's normal state, and an absence rule would be an allowlist standing in for an unfinished decode. It still carries the structural claim the three slots were landed for — colours are never zero, so they are never dropped, and three in a row is the signature that tells the walk how many strings and how many integers the record held."
+
+[[field]]
+name = "team_color_text"
+source = "teams.dat"
+walker = "ootp_ai.parser.teams.read_teams"
+type = "u32 ARGB, alpha 0xff, third of three consecutive colour slots"
+category = "structural"
+epistemic = "verified"
+validator = "export-exact-all-rows"
+note = "`TeamRecord.colors[2]`, landed as `color_3`. The low 24 bits equal the export's `teams.text_color_id` on **259 of 259** clubs — measured in Phase 9 over every colour column the export exposes, so it is an identification rather than a plausible pairing."
 
 [[field]]
 name = "team_city_id"
@@ -835,8 +874,8 @@ walker = "ootp_ai.parser.teams.read_teams"
 type = "derived from the drop-zero u32 organisation-link array"
 category = "identity"
 epistemic = "verified"
-validator = "mutual-link-agreement"
-note = "`TeamRecord.parent_team_id`, and it reproduces the export's column for all 259 rows WITHOUT consulting the export: the link array is one array with two meanings — a club lists its affiliates, an affiliate lists its parent — and nothing in the bytes says which, so the parent is taken only where both records agree (b in a's links AND a in b's), with `level` giving the direction. The mutual test is also what discards the spurious links the array's soft end swallows (only ever 1 and 257, measured, neither of which points back). 0 means \"no parent\" on all 34 top-level clubs and it is a VALUE, not structural absence — this field and `team_level` are not optional, which is the opposite of the rule that governs the string slots."
+validator = "export-exact-all-rows"
+note = "**The validator token was `mutual-link-agreement` until Phase 9**, which named how the parse DERIVES the value rather than the strongest evidence that it is right; the differential now scores this column against the export on every run, so the token names that. The derivation is unchanged and still matters, because it is the only check available on a Challenge-mode save, where there is no export at all: it reproduces the export's column for all 259 rows WITHOUT consulting the export — the link array is one array with two meanings — a club lists its affiliates, an affiliate lists its parent — and nothing in the bytes says which, so the parent is taken only where both records agree (b in a's links AND a in b's), with `level` giving the direction. The mutual test is also what discards the spurious links the array's soft end swallows (only ever 1 and 257, measured, neither of which points back). 0 means \"no parent\" on all 34 top-level clubs and it is a VALUE, not structural absence — this field and `team_level` are not optional, which is the opposite of the rule that governs the string slots."
 
 [[field]]
 name = "team_historical_id"
@@ -844,9 +883,9 @@ source = "teams.dat"
 walker = "ootp_ai.parser.teams.read_teams"
 type = "string (u32 length + ASCII), empty on all but 30 clubs"
 category = "identity"
-epistemic = "measured"
-validator = "none"
-note = "The franchise code, and the walk stops here. Not carried by the export's `teams` table, so it has no independent answer key and is not claimed as verified. Like the player-level `historical_id` it is a NULLABLE ATTRIBUTE and never a join key."
+epistemic = "verified"
+validator = "export-exact-modulo-absence"
+note = "The franchise code. **This entry said \"Not carried by the export's `teams` table\" until Phase 9, and that was simply wrong** — the export carries `teams.historical_id`, and the differential scores all 30 non-empty values exactly, on 30 of 30. The other 229 clubs have no real-world counterpart: we land NULL, the export writes `''`, and one bounded absence rule covers exactly those 229. Note the asymmetry with the player-level field, which lands `''` for a fictional player and reserves NULL for an undecoded tail — two facts the player walk keeps apart and the team walk has no way to distinguish. Like it, this is a NULLABLE ATTRIBUTE and never a join key."
 
 [[field]]
 name = "team_pre_colour_run"

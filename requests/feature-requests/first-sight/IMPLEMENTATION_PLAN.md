@@ -977,6 +977,49 @@ from it — nothing else.
    > — the two were written from opposite sides, which is what makes their agreement worth
    > something — and `bronze_league_event`'s 3,058 rows against `ootp_truth_real.league_events` on
    > the eight columns the export exposes, `seq` excepted, since the export does not carry it.
+   >
+   > **SETTLED 2026-08-19 when the phase started, as the flag asked. Measured, not argued.**
+   >
+   > **(i) "15 leagues" is struck rather than restated, and the restatement would have been
+   > wrong.** `ootp_truth_real.leagues` holds 15 rows and nothing in the warehouse answers for
+   > them — no walker lands a league dimension, so there is no column to compare. The obvious
+   > substitute is worse than useless: `COUNT(DISTINCT league_id)` over `bronze_team` is
+   > **17**, not 15, because two league ids (215 and 219) appear on clubs and have no row in
+   > `leagues` at all. Writing "15" against that column would have made a *correct* parse
+   > produce a failing count, which is precisely the shape of error this phase exists to
+   > prevent. What replaces the clause is the claim the landed data can actually support and
+   > which the differential now enforces on every run: `bronze_team.league_id` matches the
+   > export's `teams.league_id` on **259 of 259 clubs**. Landing a league dimension is
+   > separate work, and it is **filed as its own feature request** rather than left as an
+   > unmet clause here in the present tense — the same disposition AC12 takes for strict
+   > byte accounting on `teams.dat`. *`PROJECT_SCOPE.md` AC6 amended in place, at the
+   > operator's direction, 2026-08-19; recorded in `reviews/handoff-phase-9.md`.*
+   >
+   > *(The sentence above read "a separate request with an owner" when this settlement was
+   > first written, and the acceptance panel checked: no such request existed. Asserting an
+   > owner that does not exist is the drift `requests/` is supposed to prevent, so the
+   > request was filed rather than the sentence softened.)*
+   >
+   > **(ii) Both `world.dat` tables are in the differential, as the flag directed.**
+   > `bronze_division_team`'s 30 memberships against the export's club-side `teams.division_id`
+   > — scoped to the one league the walk reaches, with the four all-star sides carried by a
+   > bounded absence rule because the export writes division 0 where a club is in no division.
+   > `bronze_league_event`'s 3,058 rows against `league_events` on all eight exposed columns,
+   > `seq` excepted, compared as a **multiset**: measured, keying those eight columns collapses
+   > 3,058 rows to **2,733**, so a set difference would cancel **325** genuine duplicates
+   > against each other and report a clean run over a walk that had lost them.
+   >
+   > *(Corrected at the Phase 9 acceptance panel, which re-measured it. This clause first
+   > said 2,600 / 458 — true figures for the **four-column** human-readable key
+   > `(league_id, start_date, type, name)`, which is what the Phase 5b grain argument at
+   > line 373 uses and which is right where it stands. Carrying a true number across to a
+   > different key is how a `measured` label goes wrong, and the conclusion is unaffected:
+   > 325 duplicates is ample reason for a multiset.)*
+   >
+   > **A third number in this clause was checked and is correct as written.** `15,672
+   > team_roster rows` is exact — `information_schema.TABLE_ROWS` estimates it at 13,552, which
+   > is an InnoDB estimate and not a count. The Challenge-mode twin's 15,721 belongs to a
+   > different save.
 4. **Add an explicit structural-absence allowlist.** The export writes `0` where the value is structurally absent (`rules_active_roster_limit` and the service-time columns on all 14 non-MLB league rows); our parser lands NULL. Without a **named per-column allowlist, each entry carrying its reason**, a *correct* parse produces 14 false mismatches — and the tempting fix is to make the parser write 0, committing precisely the error `.claude/agents/data-engineer.md:110-112` warns about.
 5. Compare strings in Python on decoded `str`, per Phase 7's collation finding.
 6. **Document Tier B's limits inside the test**, so a later agent extending the harness to ratings does not inherit false confidence from a green suite: Tier B is **exact** for ids, names, strings, dates, roster lists, team dimension and league config, and **bucketed** for ratings — measured, `players_batting.batting_ratings_overall_contact` has exactly **12 distinct values across 20–80**. The export is display scale and can never be an exact rating validator; a bucketed check can pass a parser reading the *adjacent* u16, which is CLAUDE.md's named correctness trap in its most dangerous form. `players.csv` (Tier A) stays load-bearing permanently.
@@ -1253,6 +1296,14 @@ Ordered by expected cost, not by likelihood.
       is the shared landing fixture the two `gamedata` modules use, kept out of a
       `conftest.py` so each module names what it sets up.)*
 - [ ] `tests/test_parser_vs_export.py` · `test_extraction_cost.py`
+- [ ] `tests/test_export_diff.py`
+      *(added Phase 9, with the §4.1 argument Phase 8b used for `test_bronze_landing.py`.
+      Both of this phase's planned modules are `gamedata`, so without it the entire
+      comparison layer — the absence rules, their populations, the two row-set mechanisms
+      and the multiset/set distinction — would have **zero CI signal** and could be broken
+      by a later refactor with nothing going red until somebody ran the local suite. It
+      drives the pure half of `validate/export_diff.py` on synthetic rows and also carries
+      the cross-check tying each compared column to its `field_map.toml` validator token.)*
 - [ ] `tests/test_reports.py` · `test_catalog.py`
 - [ ] `tests/test_no_leaks.py` — **extend**, do not rewrite; reuse the existing `PATTERNS`
 - [ ] `tests/test_repo_structure.py` — add the catalog to required-docs **in Phase 11 only** (P5)

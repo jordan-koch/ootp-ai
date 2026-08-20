@@ -221,10 +221,16 @@ def _assert_untouched(
 
 @pytest.mark.gamedata
 def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -> None:
-    """AC11. The probe first, then the managed league — in that order, in one test.
+    """AC11. The probe, then the truth save, then the managed league — in that order.
 
-    The post-probe manifest is the pre-managed baseline, so the roots are walked
-    three times rather than four.
+    Each run's post-manifest is the next run's baseline, so the roots are walked once per
+    leg plus one, rather than twice per leg.
+
+    **The truth save joined the sequence in Phase 9**, which made it a routinely parsed save
+    rather than a one-time export source: `tests/test_parser_vs_export.py` snapshots and
+    parses it on every `-m gamedata` run. A read-only proof that covered the two saves the
+    pipeline used to touch, while a third was being opened on every run, would be asserting
+    less than it appeared to.
 
     **Each run parses as well as snapshotting.** `ingest_save` alone stops at the copy, so
     a version of this test that called only it would run a strictly smaller pipeline than
@@ -246,11 +252,21 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
     baseline = _manifests(settings)
 
     parse_snapshot(ingest_save(settings.probe_save, settings=settings).snapshot)
-    after_probe = _manifests(settings)
-    _assert_untouched(baseline, after_probe, what="ingesting the disposable probe save")
+    latest = _manifests(settings)
+    _assert_untouched(baseline, latest, what="ingesting the disposable probe save")
+
+    if settings.truth_save is not None:
+        # Conditional rather than a `pytest.skip`: skipping would drop the probe and managed
+        # legs too, which is strictly worse than covering two saves out of three. On a
+        # machine where `OOTP_TRUTH_LEAGUE` is unset this leg does not run, and the test
+        # asserts exactly what it did before Phase 9 — no less, and no false coverage.
+        parse_snapshot(ingest_save(settings.truth_save, settings=settings).snapshot)
+        after_truth = _manifests(settings)
+        _assert_untouched(latest, after_truth, what="ingesting the standard-mode truth save")
+        latest = after_truth
 
     parse_snapshot(ingest_save(settings.managed, settings=settings).snapshot)
-    _assert_untouched(after_probe, _manifests(settings), what="ingesting the managed league")
+    _assert_untouched(latest, _manifests(settings), what="ingesting the managed league")
 
 
 @pytest.mark.gamedata

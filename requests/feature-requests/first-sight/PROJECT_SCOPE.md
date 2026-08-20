@@ -235,6 +235,40 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
    test **first** asserts provenance: the parsed save's sim date is 2024-03-18 and its
    human team is the Chicago Cubs, matching `ootp_truth_real` — proving the binaries
    and the export describe the same universe.
+
+   > **Amended 2026-08-19, at the operator's direction, after Phase 9 measured the
+   > answer key.** Two of this criterion's four populations describe something the
+   > landed field set does not contain. The other two — 259 teams and 15,672
+   > `team_roster` rows — were re-measured and are exact as written.
+   >
+   > **"15 leagues" is struck rather than restated, and the obvious restatement would
+   > have been wrong.** No walker lands a league dimension: Phase 5b reached division
+   > membership and the calendar and stopped short of `world.dat`'s per-league scalar
+   > blocks, so nothing in the warehouse answers for the export's `leagues` table. The
+   > substitute a reader would reach for is worse than useless — `ootp_truth_real.leagues`
+   > holds **15** rows while `COUNT(DISTINCT league_id)` over `bronze_team` is **17**,
+   > because league ids **215** and **219** sit on clubs that have no `leagues` row at
+   > all. Writing "15" against that column would make a *correct* parse produce a failing
+   > count, which is the exact shape of error this criterion exists to catch. What
+   > replaces it is the claim the landed data supports and the differential enforces on
+   > every run: **`bronze_team.league_id` matches the export's `teams.league_id` on 259 of
+   > 259 clubs.** Landing a league dimension is genuinely separate work and is now filed
+   > as its own feature request rather than left as an unmet clause here in the present
+   > tense — the same disposition AC12 takes for strict byte accounting on `teams.dat`.
+   >
+   > **The row-count clause reads "zero UNEXPLAINED row-count differences."**
+   > `bronze_player` lands **18,077** rows against the export's 18,072 `retired = 0`
+   > population. The five extras are records the export carries in **no** form at all —
+   > not as retired rows, not under any predicate — measured in Phase 6a, which is where
+   > the plan's Risk 11 fired and the plan's own assumption turned out to be the wrong
+   > one. They are pinned by **id**, not by count (`PARSED_ONLY_PLAYER_IDS`), because
+   > five lost players and five invented records also total five.
+   >
+   > Nothing else in the criterion moves: zero **value** differences over the landed field
+   > set still holds absolutely, per field by name, with no aggregate.
+   >
+   > Evidence: `requests/feature-requests/first-sight/reviews/handoff-phase-9.md` and
+   > `reviews/phase-9-acceptance-panel.md`.
 7. `uv run pytest -m gamedata tests/test_names_join.py` is green: every name index the
    parser resolves out of the probe save's `players.dat` matches
    `ootp_truth_real.players.first_name` / `.last_name` by exact string equality, 100%

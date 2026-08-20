@@ -249,8 +249,45 @@ signing date, contract end year, and the Lahman ID string. Twitter handle is a
 length-prefixed string (it is *not* a name — see below).
 
 `verified` — For `teams.dat`: a 5-string signature (city, abbreviation, nickname,
-logo filename, full name) followed by team colors as u32 ARGB. All 30 MLB clubs
-extract cleanly with correct abbreviations and colors.
+logo filename, full name) followed by three u32 ARGB colors. **Scope corrected
+2026-08-19: all 259 clubs, not the 30 MLB ones** — Phase 9's differential compares
+every landed team column against `ootp_truth_real.teams` on every record, so the
+claim now rests on the whole file rather than on the league we looked at first.
+
+`verified` — **Two of the three color slots are identified**, measured over all 259
+clubs against every color column the export exposes: the **first** equals
+`background_color_id` and the **third** equals `text_color_id`, 259 of 259 each. Alpha
+is `0xff` on every slot of every record, so the comparison checks it rather than
+masking it — a walk reading one byte early would otherwise match any club whose color
+survived the shift.
+
+`measured` — **The middle color slot is not identified.** Its best candidate,
+`ballcaps_visor_color_id`, reaches 237 of 259 and nothing reaches 259. It is
+deliberately excluded from the differential: comparing it against a near-miss would
+ship a 22-row failure as the harness's normal state, and an allowlist entry would be an
+allowlist standing in for an unfinished decode. The next attempt starts from 237.
+
+`verified` — **`teams.historical_id` IS carried by the export**, 30 of 30 non-empty
+values exact. `contracts/field_map.toml` asserted the opposite for months and Phase 9's
+differential caught it; the correction is recorded here because a *refuted* claim is
+more useful written down than deleted. The other 229 clubs have no real-world
+counterpart: the save carries nothing, the export writes `''`, and a bounded rule covers
+exactly those 229. Note the asymmetry with the player-level field, which lands `""` for a
+fictional player and reserves NULL for an undecoded tail — two facts the player walk
+keeps apart and the team walk has no way to distinguish.
+
+`verified` — `parent_team_id` now carries export-exact evidence on all 259 clubs in
+addition to the mutual-link derivation that produced it. The derivation still matters:
+it is the only check available on a Challenge-mode save, where there is no export at all.
+
+`unconfirmed`, and **reaffirmed** 2026-08-19 rather than upgraded — three fields the
+differential compares and still cannot settle, because the oracle cannot discriminate:
+`team_human_flag` (both `human_team` and `human_id` are 1 on the single managed club and
+0 everywhere else, so 18 field orders fit equally well), `human_manager_team_id` (three
+consecutive identical `u32`s; nothing says which slot is which), and
+`calendar_real_sim_date` (exact on all 3,058 events — and 0 on **both sides of every
+row**, so a parser reading an adjacent zero scores identically). A green comparison is
+not evidence when the answer key holds one value.
 
 `unconfirmed` — Everything else. The overwhelming majority of both files is still
 unmapped.
@@ -272,6 +309,11 @@ like an unrevealed amateur or international pool; *which* filter the export appl
 `unconfirmed`. **The practical consequence: "row count equals 18,072" is the wrong
 assertion, and a coverage statement built on it describes a population the warehouse does
 not hold.**
+
+Since Phase 9 those five are pinned **by id** rather than by count
+(`validate/export_diff.py::PARSED_ONLY_PLAYER_IDS`), because a count of five also passes
+for a walk that lost five real players and invented five garbage records — a mis-framing
+that shifts identity need not drop a row.
 
 **The file does not declare its record count.** `measured`, all three saves — where
 `teams.dat` puts a record count in the fifth `u32` of its header tail, `players.dat` puts
