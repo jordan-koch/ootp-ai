@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-19 · open · next: scope
+> **Status:** scoped · created 2026-08-19 · decided · next: plan
 
 # Feature Request — Open the Front Office
 
