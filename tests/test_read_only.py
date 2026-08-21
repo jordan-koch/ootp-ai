@@ -291,11 +291,24 @@ def test_the_manifest_is_not_vacuous(tmp_path: Path) -> None:
 
 SRC = Path(__file__).resolve().parent.parent / "src" / "ootp_ai"
 
-#: The one module allowed to open a file for writing. It writes the snapshot copy
-#: and its manifest, both under `snapshot_root`, and never under a game root. If a
-#: second name has to be added here, that is a decision worth making in the open —
+#: The modules allowed to open a file for writing, as paths relative to the package
+#: root. If a name has to be added here, that is a decision worth making in the open —
 #: which is the whole reason the list is asserted rather than described.
-WRITERS = {"snapshot.py"}
+#:
+#: **Paths, not bare filenames, since Phase 10.** The list matched `path.name` until the
+#: roster report arrived, and allowlisting a bare `__main__.py` would have released every
+#: `__main__.py` in the tree — including `catalog/__main__.py`, which Phase 11 adds and
+#: nobody has reviewed yet. A guard that widens itself to cover files that do not exist
+#: is not a guard.
+WRITERS = {
+    # The snapshot copy and its manifest, both under `snapshot_root`, never under a game
+    # root.
+    "snapshot.py",
+    # The rendered reports, under `output_root` — the first thing in this project to write
+    # game-derived content to a file. It creates the snapshot-partitioned directory and
+    # writes `roster.md`; `tests/test_no_leaks.py` pins that both are git-ignored.
+    "reports/__main__.py",
+}
 
 #: Verbs that mutate or destroy something that already exists. None has a use in
 #: this pipeline at all — a snapshot copies, and never disturbs what it copied from —
@@ -341,9 +354,9 @@ def _writes_in(text: str) -> list[tuple[int, str]]:
 
 def test_only_allowlisted_modules_can_write_a_file() -> None:
     offenders = [
-        f"{path.name}:{line}: {what}"
+        f"{path.relative_to(SRC).as_posix()}:{line}: {what}"
         for path in _source_files()
-        if path.name not in WRITERS
+        if path.relative_to(SRC).as_posix() not in WRITERS
         for line, what in _writes_in(path.read_text(encoding="utf-8"))
     ]
     assert not offenders, (

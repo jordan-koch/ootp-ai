@@ -159,6 +159,58 @@ def test_a_snapshot_root_inside_onedrive_is_refused(tmp_path: Path) -> None:
         load_settings(env)
 
 
+@pytest.mark.parametrize("key", ["OOTP_SNAPSHOT_ROOT", "OOTP_OUTPUT_ROOT"])
+@pytest.mark.parametrize("game_key", ["OOTP_INSTALL", "OOTP_SAVED_GAMES"])
+def test_a_root_inside_a_game_directory_is_refused(tmp_path: Path, key: str, game_key: str) -> None:
+    """ADR 0001's unrecoverable failure, fenced where it can still be caught.
+
+    Both roots are written to — `snapshot.py` copies into one, `reports/__main__.py`
+    renders into the other — and a mistyped `.env` pointing either inside the game is the
+    one mistake this project cannot recover from: a Challenge Mode save carries an
+    integrity hash that a single write destroys for good. Four cases because there are two
+    writable roots and two game roots, and any of the four is the same accident.
+    """
+    env = _env(tmp_path)
+    inside = Path(env[game_key]) / "oops"
+    env[key] = str(inside)
+    with pytest.raises(ConfigError, match="game directory"):
+        load_settings(env)
+
+
+def test_an_output_root_inside_the_repo_that_is_not_ignored_is_refused(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """ADR 0006: a rendered roster names every player, and this repo is public.
+
+    `.env.example` states the requirement in capitals and nothing enforced it, so
+    `OOTP_OUTPUT_ROOT=docs/reports` — a plausible typo — would write real player data into
+    a tracked directory. The leak guard cannot catch that: `roster.md` is not a banned name
+    and `.md` is not a banned suffix, so the file would be scanned, found clean, and
+    committed.
+    """
+    monkeypatch.chdir(Path(__file__).resolve().parent.parent)
+    env = _env(tmp_path, OOTP_OUTPUT_ROOT="docs/reports")
+    with pytest.raises(ConfigError, match="git-ignored"):
+        load_settings(env)
+
+
+def test_the_default_output_root_is_accepted_because_it_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The positive half — a fence that refused everything would pass the negative alone."""
+    monkeypatch.chdir(Path(__file__).resolve().parent.parent)
+    settings = load_settings(_env(tmp_path))
+    assert settings.output_root == DEFAULT_OUTPUT_ROOT
+
+
+def test_an_output_root_outside_the_worktree_is_allowed(tmp_path: Path) -> None:
+    """The safer configuration `.env.example` already blesses; git cannot answer for it."""
+    outside = tmp_path / "reports"
+    outside.mkdir()
+    settings = load_settings(_env(tmp_path, OOTP_OUTPUT_ROOT=str(outside)))
+    assert settings.output_root == outside
+
+
 def test_a_snapshot_root_outside_onedrive_is_allowed(tmp_path: Path) -> None:
     onedrive = tmp_path / "OneDrive"
     onedrive.mkdir()

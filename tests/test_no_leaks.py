@@ -198,3 +198,86 @@ def test_game_data_is_not_tracked() -> None:
     """OOTP's shipped data and saves are theirs, not ours (ADR 0006)."""
     offenders = game_data_offenders()
     assert not offenders, "OOTP game data must never enter this repo:\n" + "\n".join(offenders)
+
+
+# ── rendered game data, which is a newer hole than the two above ─────────────
+#
+# Everything above bans OOTP's files by NAME and by SUFFIX. First-sight Phase 10 renders
+# player data to a Markdown file for the first time in this project's history, and
+# `roster.md` is caught by neither: it is not a banned name, `.md` is not a banned suffix,
+# and `.md` IS in the scanned `keep` set, so a roster written anywhere tracked would be
+# opened, scanned for machine paths, found clean, and committed with 226 real players in it.
+#
+# What actually stops that is the output root being git-ignored. That is a real control
+# rather than a convention — but nothing asserted it, so it could be undone by an edit to
+# `.gitignore` with no test going red. These two close that.
+
+
+def is_git_ignored(rel: str) -> bool:
+    """Whether git would ignore `rel`, **without the file needing to exist**.
+
+    `--no-index` deliberately: the obvious implementation writes a probe file under the
+    real output root and deletes it afterwards. An interrupted run then leaves the probe
+    behind and reddens a later, unrelated run — a hazard the Phase 9 acceptance panel
+    raised against exactly that pattern (CF24). Asking git about a path costs nothing and
+    cannot litter.
+    """
+    return (
+        subprocess.run(
+            ["git", "check-ignore", "--no-index", "-q", rel],
+            cwd=REPO_ROOT,
+            capture_output=True,
+        ).returncode
+        == 0
+    )
+
+
+def test_the_report_output_root_is_git_ignored() -> None:
+    """The default root, which is what CI can prove — it has no `.env`.
+
+    A configured root may legitimately sit outside the worktree entirely, and
+    `tests/test_reports.py` checks the resolved one under `-m gamedata`. This is the half
+    that holds with no game, no save and no database.
+    """
+    from ootp_ai.config import DEFAULT_OUTPUT_ROOT
+
+    assert is_git_ignored(DEFAULT_OUTPUT_ROOT.as_posix()), (
+        f"the default report output root {DEFAULT_OUTPUT_ROOT} is not git-ignored. "
+        "Reports render real player data to real files; this repo is public (ADR 0006)"
+    )
+
+
+def test_a_rendered_report_could_never_be_committed() -> None:
+    """The actual artifact, at the actual path shape, rather than only its root.
+
+    `<output_root>/<save_id>/<sim_date>/<ingest_seq>/roster.md` — the partitioning
+    `reports/resolve.py` produces. Checking the root alone would miss a `.gitignore` whose
+    pattern stopped matching at depth.
+    """
+    from ootp_ai.config import DEFAULT_OUTPUT_ROOT
+
+    rendered = DEFAULT_OUTPUT_ROOT / "Some-Save" / "2024-03-07" / "1" / "roster.md"
+    assert is_git_ignored(rendered.as_posix()), (
+        f"a rendered roster at {rendered} is NOT git-ignored, and `.md` is in this "
+        "guard's scanned suffix set — so it would be committable game data"
+    )
+
+
+def test_markdown_is_scanned_so_the_ignore_rule_is_load_bearing() -> None:
+    """Anti-vacuity for the two above: they only matter because `.md` is scanned.
+
+    If `.md` ever left the `keep` set, the tests above would still pass while quietly
+    guarding nothing. Pinning the pairing keeps the argument honest — the ignore rule is
+    what stands between a rendered roster and this public repo *because* Markdown is the
+    format reports are written in and the format this guard reads.
+    """
+    tracked_markdown = [path for path in scannable_text_files() if path.suffix.lower() == ".md"]
+    assert tracked_markdown, "no .md file is scanned, so the report-root guards protect nothing"
+
+    # And the helper must be able to say NO. A `check-ignore` invocation that returned 0
+    # for everything — a bad flag, a path git cannot parse — would make both guards above
+    # pass while asserting nothing at all.
+    assert not is_git_ignored("docs/data-access.md"), (
+        "is_git_ignored() reports a tracked doc as ignored, so it cannot distinguish "
+        "an ignored path from any other and the guards built on it are vacuous"
+    )

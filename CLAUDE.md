@@ -35,15 +35,16 @@ date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
 the game's own export. [`README.md`](README.md) carries what has landed and what
 is next.
 
-**Bronze is landed and proven, and the GM still cannot see its own club** — the gap is
-now the report layer, not the warehouse
-([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads
-reports, never a query). Phase 8b of
-[`first-sight`](requests/feature-requests/first-sight/) filled the eight declared
-tables from two real saves; Phase 9 then diffed the landed rows against the probe
-save's export **per field by name** — 33 keyed columns and 5 tables, zero unexplained
-differences — so the field map's labels are findings rather than beliefs. **Phase 10
-is the two reports.**
+**The GM can see its own club.** Phase 10 of
+[`first-sight`](requests/feature-requests/first-sight/) renders the roster report — 226
+players, real names, by club and roster list, every column routed through the serving
+gate ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads
+reports, never a query). It stands on Phase 8b's landing of the eight declared tables
+and Phase 9's diff of those rows against the export **per field by name** — 33 keyed
+columns, 5 tables, zero unexplained differences. **The standings report was retired,
+not deferred:** no declared table carries a win-loss column, since the standings region
+is not in `teams.dat` and `world.dat` yielded divisions and the calendar. **Phases
+11–13 are the catalog, the doc truth-up and the USER-RUN acceptance.**
 
 ## Stack
 
@@ -80,14 +81,15 @@ gm/                 TRACKED GM memory — charter, standing orders, ledger, deci
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
 .claude/agents/     Subagents — the write-capable builder, and the read-only GM
-src/ootp_ai/        Parser, landing, warehouse loading
+src/ootp_ai/        Parser, landing, warehouse loading, reporting
   contracts/          TRACKED field + grain declarations — derived schema, ours to keep
                       — plus the loader that validates them and the serving gate
   warehouse/          DDL emitted from that declaration, and append-only bronze landing
   validate/           Tier B — landed rows diffed against the export, per field by name
+  reports/            The GM's only surface — every column gated by contracts/policy.py
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
-var/                GITIGNORED — save snapshots, warehouse files, scratch
+var/                GITIGNORED — snapshots, warehouse files, RENDERED REPORTS, scratch
 ```
 
 Directories appear when their phase does. `build/`, `datasets/` and `transform/`
