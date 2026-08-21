@@ -1040,9 +1040,42 @@ from it — nothing else.
 **Steps.**
 1. `reports/__main__.py` exposing `render`, so that `uv run python -m ootp_ai.reports render` is the real entry point AC14 invokes. Output to `<output_root>/<save_id>/<sim_date>/<ingest_seq>/` per §2.4.
 2. `reports/roster.py` — the **configured organization only**, grouped by roster list, carrying position, age, bats/throws and uniform number, with the **club, `sim_date` and the `ingest_seq` it rendered from on line one** so staleness and provenance are visible on sight. The org filter lives here, never at bronze. Honour Phase 7's `list_id` disposition: no human label for a mapping below `inferred`.
-3. `reports/standings.py` — 30 MLB clubs by division with W-L-pct-GB. **Expect it to carry no signal:** measured, all 259 `team_record` rows are 0-0-0 and 0 of 12,961 games are played, because both saves sit before opening day. Emit a **structural-absence marker rather than `.000`** for pct when games played is zero.
+3. ~~`reports/standings.py` — 30 MLB clubs by division with W-L-pct-GB. **Expect it to carry no signal:** measured, all 259 `team_record` rows are 0-0-0 and 0 of 12,961 games are played, because both saves sit before opening day. Emit a **structural-absence marker rather than `.000`** for pct when games played is zero.~~
+
+   > **RETIRED 2026-08-20, at the operator's direction, before this phase was built.** This
+   > step is unbuildable as written and the step itself is what is wrong, not the code.
+   >
+   > **No declared table carries wins, losses, games played or pct.** The standings region
+   > is not in `teams.dat` — `parser/teams.py` records it in the record docstring, and the
+   > Phase 5 amendment at `:287-319` above measured it — and Phase 5b's `world.dat` walk
+   > reached division membership and the league calendar rather than team records.
+   >
+   > **The `team_record` figure this step cites is the *export's* table, never landed.**
+   > That is what made the step look satisfiable: it reads as though the data is present
+   > and merely zero. Rendering four columns backed by no declared column would be
+   > inventing a schema, which this project treats as worse than an honest absence.
+   >
+   > **Root cause, and it is about phase acceptance rather than about standings.** Step 1
+   > of Phase 5 (`:324`) assigned *"the win-loss fields the standings report needs"* to
+   > that phase, and Phase 5's acceptance never asserted them. The gap survived five phases
+   > and surfaced here. `PROJECT_SCOPE.md` AC14 carries the full amendment; a team-record
+   > source is owed as its own request, with `world.dat`'s unmapped per-league blocks as
+   > the candidate.
 4. Route **every** report column through `contracts/policy.py::is_renderable()`. There is no second path to the page.
-5. **MAIN THREAD:** `tests/test_reports.py` (`-m gamedata`, **AC14**) — the resolved output root is git-ignored, proven by `git check-ignore -q` exiting 0 **and** `git ls-files` listing nothing under it; the roster report contains rows for exactly the configured organization and **zero** belonging to any other; every player row's name matches `^[A-Za-z][A-Za-z .'-]+$` (a name, not an integer); the standings report contains 30 MLB rows grouped by division with W-L-pct-GB columns present; both files carry the club, `sim_date` and `ingest_seq` on line one — the seq clause matters, because once any date has been ingested twice a report that does not name its seq points at a moving target. **Assert standings content structurally, never by value** — asserting a nonzero win total would fail on a *correct* parse, the most expensive kind of wrong test, because it sends the next agent hunting a bug in working code.
+5. **MAIN THREAD:** `tests/test_reports.py` (`-m gamedata`, **AC14**) — the resolved output root is git-ignored, proven by `git check-ignore -q` exiting 0 **and** `git ls-files` listing nothing under it; the roster report contains rows for exactly the configured organization and **zero** belonging to any other; every player row's name matches ~~`^[A-Za-z][A-Za-z .'-]+$`~~ **`^[^\W\d_][\w .'-]+$` with `re.UNICODE`** (a name, not an integer); ~~the standings report contains 30 MLB rows grouped by division with W-L-pct-GB columns present;~~ both files carry the club, `sim_date` and `ingest_seq` on line one — the seq clause matters, because once any date has been ingested twice a report that does not name its seq points at a moving target. ~~**Assert standings content structurally, never by value** — asserting a nonzero win total would fail on a *correct* parse, the most expensive kind of wrong test, because it sends the next agent hunting a bug in working code.~~
+
+   > **Amended 2026-08-20 with step 3, at the operator's direction.** The standings clause
+   > goes wherever the standings report goes, which is nowhere this phase.
+   >
+   > **The regex widened because the ASCII form is itself an instance of the failure this
+   > step's own struck-out last sentence warns about.** `names.dat` is latin-1 and the
+   > landed table holds **1,623 entries carrying an accented character — every one of which
+   > the ASCII pattern rejects.** It is green today only because this organisation happens
+   > to hold none; the first international signing, draft class or DSL promotion turns it
+   > red on a *correct* render. The widened form keeps the only property the assertion
+   > exists for — it must begin with a letter, so no id can satisfy it — and
+   > `tests/fixtures/reports.py` holds it so **CI** guards the widening rather than only
+   > the `gamedata` run.
 6. **MAIN THREAD:** extend `tests/test_no_leaks.py` (folded-in §1). The existing guard bans four filenames and two suffixes at `:106-107`; a Markdown roster sails straight through. Add: the report and catalog output roots resolve to git-ignored paths; and the tracked half of the catalog and field map may name source **files** (`players.dat`) but **never absolute paths** — reuse the existing `PATTERNS` at `:24-28` rather than inventing a second set. ~~Note in a comment the known local-feedback gap...~~ **Amended 2026-08-17: that gap is closed.** The follow-up this step said to file became `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/`, and the guard now enumerates `--cached --others --exclude-standard`, so an untracked artifact **is** visible locally. The function is called `scannable_text_files()` and its enumeration seam is `git_paths()`; do not re-add a comment describing the old limitation. Running the guard after staging is still the habit — `/commit` now says so explicitly — but it is no longer load-bearing for detection.
 
 **Acceptance.** `uv run python -m ootp_ai.reports render` writes both reports; AC14 green on all five clauses; AC13 still green offline including the negative renderable case. Read the roster report by eye once and confirm it contains recognisable Boston names, not integers — an informal check that the name-regex assertion is testing what it claims. `test_no_leaks.py::test_patterns_still_catch_real_leaks` (`:51-78`) still green — *"a guard that has been loosened until it passes is not a guard."*
@@ -1275,7 +1308,13 @@ Ordered by expected cost, not by likelihood.
 - [ ] `src/ootp_ai/contracts/loader.py` · `policy.py`
 - [ ] `src/ootp_ai/warehouse/sql.py` · `ddl.py` · `load.py` · `ingest_run.py`
 - [ ] `src/ootp_ai/validate/export_diff.py`
-- [ ] `src/ootp_ai/reports/__main__.py` · `roster.py` · `standings.py`
+- [ ] `src/ootp_ai/reports/__main__.py` · `roster.py` · `resolve.py`
+      ~~· `standings.py`~~
+      *(amended 2026-08-20 with Phase 10 step 3: `standings.py` is retired — no declared
+      table carries a win-loss column. `resolve.py` replaces it on this list: it holds
+      snapshot resolution and the output-path partitioning, which the plan assumed each
+      report would carry itself. Splitting it out gives the catalog a seam to reuse and is
+      the one place a future compare-two-dates report would hook into.)*
 - [ ] `src/ootp_ai/catalog/__main__.py` · `generate.py`
 - [ ] `src/ootp_ai/__init__.py` — replace the docstring, false from Phase 3 onward
 
@@ -1304,7 +1343,13 @@ Ordered by expected cost, not by likelihood.
       by a later refactor with nothing going red until somebody ran the local suite. It
       drives the pure half of `validate/export_diff.py` on synthetic rows and also carries
       the cross-check tying each compared column to its `field_map.toml` validator token.)*
-- [ ] `tests/test_reports.py` · `test_catalog.py`
+- [ ] `tests/test_reports.py` · `test_report_rendering.py` · `tests/fixtures/reports.py`
+      · `test_catalog.py`
+      *(`test_report_rendering.py` and `fixtures/reports.py` added Phase 10, on §4.1's
+      argument — the same one that added `test_bronze_landing.py` in 8b and
+      `test_export_diff.py` in 9. `test_reports.py` is entirely `gamedata`, so without them
+      the serving gate, the club grouping, the structural-absence markers, the handedness
+      mapping and AC14's own name pattern would have **zero CI signal**.)*
 - [ ] `tests/test_no_leaks.py` — **extend**, do not rewrite; reuse the existing `PATTERNS`
 - [ ] `tests/test_repo_structure.py` — add the catalog to required-docs **in Phase 11 only** (P5)
 - [ ] `pyproject.toml` — widen the marker **first**; deps; update the comment at `:11-15`

@@ -372,6 +372,44 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
     carry `snapshot_date` and sim date on line one. **Standings content is asserted
     structurally** — measured, all 259 `team_record` rows are 0-0-0 and 0 of 12,961
     games are played, so asserting a nonzero win total would fail on a *correct* parse.
+
+    > **Amended 2026-08-20, at the operator's direction, after Phase 10 measured that no
+    > declared table carries a win-loss column.**
+    >
+    > **The standings clause is retired, and the criterion is met by the roster report
+    > alone.** The standings region is **not in `teams.dat`** — `parser/teams.py` says so
+    > in the record's own docstring, and Phase 5's amendment measured it: inserting
+    > `division_id` scores 0 of 140 and appending `allstar_team` scores 0 of 30, on exactly
+    > the subsets that could refute them. Phase 5b's `world.dat` walk then reached division
+    > membership and the league calendar, not team records. So none of the eight declared
+    > tables carries wins, losses, games played or pct.
+    >
+    > **The "all 259 `team_record` rows are 0-0-0" figure above describes the *export*,
+    > which this project never landed.** That is the transposition this clause was built
+    > on: it reads as though the data is landed and merely empty, when in fact it was never
+    > walked. Building the page anyway would mean either inventing a schema or rendering
+    > four columns backed by no declared column — both of which this project treats as
+    > worse than an honest absence. The rendered roster names the gap explicitly under
+    > *"What this page does not show"*, so the GM prices it rather than discovering it.
+    >
+    > **The name regex is widened to `^[^\W\d_][\w .'-]+$` with `re.UNICODE`.** The ASCII
+    > form quoted above admits nothing over U+007F, while `names.dat` is latin-1 and the
+    > landed table holds **1,623 entries carrying an accented character — every one of
+    > which fails it.** It is green today only because this organisation happens to hold
+    > none; the first international signing would turn it red on a *correct* render, which
+    > the plan names twice as the most expensive kind of wrong test. The widened form keeps
+    > the only property the assertion exists for: it must begin with a letter, so no id can
+    > satisfy it.
+    >
+    > **Root cause, recorded because it is a lesson about phase acceptance rather than
+    > about standings.** `IMPLEMENTATION_PLAN.md` line 324 assigned *"the win-loss fields
+    > the standings report needs"* to Phase 5, and Phase 5's acceptance criteria never
+    > checked for them. The gap therefore survived five phases and surfaced only when Phase
+    > 10 tried to render. A phase that is handed a field list should assert that list.
+    >
+    > **Follow-up owed:** a team-record source. `world.dat`'s unmapped per-league scalar
+    > blocks are the candidate, which pairs it with the `league-dimension` request already
+    > at intake for the same blocks.
 15. `uv run python -m ootp_ai.catalog` regenerates the catalog, and
     `uv run pytest -m gamedata tests/test_catalog.py` asserts: the structural section is
     regenerated during the test and is byte-identical to the committed copy (proving it
@@ -495,6 +533,19 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
     configured organization only, grouped by roster list, `snapshot_date` and sim date on
     line one. Standings: 30 MLB clubs by division with W-L-pct-GB — shipped, but its
     acceptance is structural because measured today every club is 0-0.
+
+    > **Amended 2026-08-20, at the operator's direction — this ships as ONE report, not
+    > two.** The standings half is retired for the reason recorded in full under AC14: no
+    > declared table carries a win-loss column, because the standings region is not in
+    > `teams.dat` and `world.dat` yielded divisions and the calendar instead. The roster
+    > report ships and names the missing standings on its own face. A team-record source
+    > is owed as a separate request.
+    >
+    > The roster report also **groups every list by club** rather than rendering flat, and
+    > that is a correctness fix rather than a layout choice: rendered flat, its first run
+    > announced *"Active roster — 213"* for a club whose active roster holds 26. The figure
+    > was arithmetically right — an organisation's seven affiliates each carry their own
+    > active list — and read as a plain falsehood.
 14. **A generated catalog** built from `information_schema` plus the **same tracked
     contract declaration** the DDL and the uniqueness tests read — one declaration, three
     consumers, so drift is structurally impossible. Includes a **withheld** section

@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import os
 import re
+import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,8 +119,10 @@ def load_settings(env: Mapping[str, str] | None = None) -> Settings:
     _ = managed.save_id
 
     onedrive = _optional(values, "OneDrive")
-    snapshot_root = _root(values, "OOTP_SNAPSHOT_ROOT", DEFAULT_SNAPSHOT_ROOT, onedrive)
-    output_root = _root(values, "OOTP_OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT, onedrive)
+    game_roots = (install, saved_games)
+    snapshot_root = _root(values, "OOTP_SNAPSHOT_ROOT", DEFAULT_SNAPSHOT_ROOT, onedrive, game_roots)
+    output_root = _root(values, "OOTP_OUTPUT_ROOT", DEFAULT_OUTPUT_ROOT, onedrive, game_roots)
+    _check_never_tracked(output_root, "OOTP_OUTPUT_ROOT")
 
     return Settings(
         install=install,
@@ -184,8 +187,9 @@ def _root(
     key: str,
     default: Path,
     onedrive: str | None,
+    game_roots: tuple[Path, ...] = (),
 ) -> Path:
-    """Resolve an output root, refusing a cloud-synced or unusable location.
+    """Resolve an output root, refusing a cloud-synced, in-game, or unusable location.
 
     Not created here. Configuration that mkdirs as a side effect of being read
     scatters directories during test collection.
@@ -202,7 +206,52 @@ def _root(
         synced = Path(onedrive).expanduser()
         if _is_within(root, synced):
             raise ConfigError(f"{key} sits under OneDrive; snapshots must be on local disk")
+
+    # ADR 0001's unrecoverable failure, fenced at the only place that can see it. Both
+    # roots are written to — `snapshot.py` copies into one and `reports/__main__.py`
+    # renders into the other — and a mistyped `.env` pointing either inside the game is
+    # the one mistake this project has no recovery from: a Challenge Mode save carries an
+    # integrity hash that a single write destroys for good. Refusing costs two lines; the
+    # alternative was trusting the operator's typing.
+    for game_root in game_roots:
+        if _is_within(root, game_root):
+            raise ConfigError(
+                f"{key} resolves inside a game directory ({game_root}). Nothing this "
+                "project runs may write under the install or the saved games (ADR 0001); "
+                "one write to a Challenge Mode save is unrecoverable"
+            )
     return root
+
+
+def _check_never_tracked(root: Path, key: str) -> None:
+    """Refuse an output root inside the worktree that git would not ignore (ADR 0006).
+
+    A rendered roster names every player in the organisation. `.env.example` states in
+    capitals that the root must be git-ignored and, until this check, nothing enforced it —
+    so `OOTP_OUTPUT_ROOT=docs/reports`, a plausible typo or a deliberate "I want to read
+    these in my editor", would write real player data into a tracked directory of a public
+    repo. The leak guard could not catch it: `roster.md` is not a banned name and `.md` is
+    not a banned suffix, so the file would be opened, found free of machine paths, and
+    reported clean.
+
+    A root **outside** the worktree passes unconditionally — that is the safer
+    configuration `.env.example` already blesses, and git cannot answer for it.
+    """
+    if not _is_within(root, Path.cwd()):
+        return
+    probe = root / ".probe"
+    ignored = subprocess.run(
+        ["git", "check-ignore", "--no-index", "-q", str(probe)],
+        capture_output=True,
+        check=False,
+    )
+    if ignored.returncode == 0:
+        return
+    raise ConfigError(
+        f"{key} resolves to {root}, which is inside the repository and is NOT git-ignored. "
+        "A rendered report names real players and this repo is public (ADR 0006); point it "
+        "at an ignored path such as var/reports, or somewhere outside the worktree"
+    )
 
 
 def _is_within(candidate: Path, parent: Path) -> bool:

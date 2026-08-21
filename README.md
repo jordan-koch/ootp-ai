@@ -138,11 +138,12 @@ with the phases that need them.
 
 Phase 0 landed the conventions, the format investigation, and the managed league,
 plus a one-time ground-truth export captured from a disposable standard-mode save
-and loaded into MySQL. Feature request #1 is now real through **Phase 9**: the
+and loaded into MySQL. Feature request #1 is now real through **Phase 10**: the
 spine, an immutable snapshot layer, walkers for `saved_games.dat`,
 `human_managers.dat`, `teams.dat`, `world.dat`, `players.dat` and `names.dat`, the
-roster-membership grain, the warehouse those all land in, and the differential that
-proves the landed rows against the game's own export.
+roster-membership grain, the warehouse those all land in, the differential that
+proves the landed rows against the game's own export, and the roster report the GM
+reads.
 
 The `players.dat` walk frames every player record on disk — 18,077 in each test save
 and 22,046 in the managed league, which carries 337 clubs rather than 259 — and lands
@@ -218,9 +219,23 @@ to `players.csv`, byte accounting, cross-mode equivalence and the operator's own
 the export writes display-scale ratings, so this can never be a rating validator; the
 suite fails if anyone tries to make it one.
 
-**Next are the two reports.** The GM does not read the warehouse
-([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)), so bronze existing
-is not yet the GM seeing its club — a rendered roster is.
+**Phase 10 shipped the roster report, and the GM can now see its own club.**
+`uv run python -m ootp_ai.reports render` writes
+`<output_root>/<save_id>/<sim_date>/<ingest_seq>/roster.md` — the organisation's 226
+players, real names, grouped by club and by roster list, carrying age, handedness and
+uniform number, with the snapshot it read on line one. The GM does not read the
+warehouse ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)), so every
+column is routed through one serving gate that resolves each one's epistemic label
+before a line is formatted; a rating cannot reach the page by being forgotten about.
+
+The page also states **what it is not showing** — position, every rating, and the
+standings — because a report the GM cannot price the gaps in is worse than a thin one.
+
+**The standings report was retired rather than deferred.** No declared table carries a
+win-loss column: the standings region is not in `teams.dat`, and the `world.dat` walk
+reached division membership and the league calendar instead. Landing a team-record
+source is owed its own request. **Next are the catalog (Phase 11), the documentation
+truth-up (12) and the operator's own acceptance checks (13).**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job
