@@ -308,6 +308,12 @@ WRITERS = {
     # game-derived content to a file. It creates the snapshot-partitioned directory and
     # writes `roster.md`; `tests/test_no_leaks.py` pins that both are git-ignored.
     "reports/__main__.py",
+    # The catalog, which writes to TWO roots and is the only module here that does. Its
+    # generated half goes under `output_root` beside the reports; its structural half is
+    # written into the repository's own `docs/`, tracked on purpose — table names, grains
+    # and keys are derived schema knowledge, which ADR 0006 explicitly permits tracking,
+    # and `tests/test_catalog.py` pins that no row-level value reaches it.
+    "catalog/__main__.py",
 }
 
 #: Verbs that mutate or destroy something that already exists. None has a use in

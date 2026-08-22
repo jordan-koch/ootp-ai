@@ -234,8 +234,15 @@ standings — because a report the GM cannot price the gaps in is worse than a t
 **The standings report was retired rather than deferred.** No declared table carries a
 win-loss column: the standings region is not in `teams.dat`, and the `world.dat` walk
 reached division membership and the league calendar instead. Landing a team-record
-source is owed its own request. **Next are the catalog (Phase 11), the documentation
-truth-up (12) and the operator's own acceptance checks (13).**
+source is owed its own request.
+
+**The catalog landed with Phase 11.** `uv run python -m ootp_ai.catalog` writes two
+halves from one generator: [`docs/warehouse-catalog.md`](docs/warehouse-catalog.md) is
+tracked and carries the structure — grains, keys, coverage, the withheld groups, and
+where the reports resolve — while row counts and freshness generate beside the reports
+in the ignored output root. The tracked half is regenerated during the test run and
+refused if a single byte differs, so it cannot be hand-edited into drift. **Next are the
+documentation truth-up (Phase 12) and the operator's own acceptance checks (13).**
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

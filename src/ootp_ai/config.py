@@ -33,6 +33,7 @@ __all__ = [
     "SaveRef",
     "Settings",
     "load_settings",
+    "reject_inside_game_roots",
     "to_save_id",
 ]
 
@@ -207,12 +208,27 @@ def _root(
         if _is_within(root, synced):
             raise ConfigError(f"{key} sits under OneDrive; snapshots must be on local disk")
 
-    # ADR 0001's unrecoverable failure, fenced at the only place that can see it. Both
-    # roots are written to — `snapshot.py` copies into one and `reports/__main__.py`
-    # renders into the other — and a mistyped `.env` pointing either inside the game is
-    # the one mistake this project has no recovery from: a Challenge Mode save carries an
-    # integrity hash that a single write destroys for good. Refusing costs two lines; the
-    # alternative was trusting the operator's typing.
+    reject_inside_game_roots(root, key=key, game_roots=game_roots)
+    return root
+
+
+def reject_inside_game_roots(root: Path, *, key: str, game_roots: tuple[Path, ...] = ()) -> None:
+    """Refuse a write root that resolves inside the game install or the saved games.
+
+    ADR 0001's unrecoverable failure, fenced at the only place that can see it. The roots
+    this guards are written to — `snapshot.py` copies into one, `reports/__main__.py`
+    renders into another, `catalog/__main__.py` into two — and a mistyped path pointing
+    any of them inside the game is the one mistake this project has no recovery from: a
+    Challenge Mode save carries an integrity hash that a single write destroys for good.
+    Refusing costs two lines; the alternative was trusting the operator's typing.
+
+    **Public since Phase 11, and that is the point.** `--docs-root` is the project's first
+    operator-supplied write root — every other one arrives through `.env` and was already
+    fenced here — and it shipped unvalidated, so a tab-completion slip between two
+    directories the operator types often would have created files under the managed save.
+    A second copy of this check in the catalog would have been a second thing to keep in
+    step; one function with two callers cannot drift.
+    """
     for game_root in game_roots:
         if _is_within(root, game_root):
             raise ConfigError(
@@ -220,7 +236,6 @@ def _root(
                 "project runs may write under the install or the saved games (ADR 0001); "
                 "one write to a Challenge Mode save is unrecoverable"
             )
-    return root
 
 
 def _check_never_tracked(root: Path, key: str) -> None:

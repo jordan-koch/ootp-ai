@@ -1,6 +1,6 @@
-> **Status:** planned · created 2026-08-20 · decided · next: implement (Phase 11)
+> **Status:** planned · created 2026-08-20 · decided · next: implement (Phase 12)
 
-# Implementation Report — First sight, Phase 10: the roster report
+# Implementation Report — First sight, Phases 10–11: the roster report and the catalog
 
 > **This is a PHASE report, and the request's status stays `planned` deliberately.** The
 > plan sequences fourteen phases and assigns this file to Phase 12; it is opened early
@@ -152,3 +152,119 @@ know `reports/` exists). Then the PR is the operator's.
    `ingest_save` and `parse_snapshot` only, so the project's second file writer is covered
    by the static allowlist alone.
 5. **The GM tool-grant guard test** — Phase 13 already owes this one.
+
+---
+
+# Phase 11 — the generated catalog and its tracked/volatile split
+
+> **One-line outcome:** the GM can read what the warehouse holds **and what was deliberately
+> withheld and why** · **Acceptance:** AC15 met on all seven clauses after the panel's fixes;
+> AC16 re-proved with no game install and no MySQL · **Branch:** `implement/first-sight-phase-11`
+
+**Phase 11 of 14.** Phases 12 (doc truth-up, the dbt deferral) and 13 (USER-RUN acceptance)
+remain, so AC18's doc reconciliation and AC19–AC21 stay open and the request stays `planned`.
+
+## 1. Acceptance ledger
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| **AC15-a** `uv run python -m ootp_ai.catalog` regenerates the catalog, no subcommand | met | `--help` shows `[-h] [--save-id] [--sim-date] [--docs-root] [--structure-only]`; the real run wrote 4 files, exit 0 |
+| **AC15-b** structural section regenerated in-test, byte-identical to the committed copy | met | `test_the_tracked_markdown_is_exactly_what_the_generator_produces` compares `read_bytes()` against a live render; green |
+| **AC15-c** proving it cannot be hand-edited into drift | met | **Seen to fail.** One character flipped in `docs/warehouse-catalog.md` → red, `At index 432 diff: b'G' != b'g'`; reverted → green. Also staged as `test_the_comparison_can_actually_fail` |
+| **AC15-d** every landed table with grain, key, coverage, row count, source `.dat`, label, snapshot date | met | `test_every_landed_table_carries_its_row_count_and_snapshot_date`, green under `-m gamedata` against the real landing |
+| **AC15-e** withheld groups listed with reason and ADR | met | Both groups render with a redaction-bounded reason and their ADRs. **The `players.prone_*` / `players_value.*` half was retired by dated amendment** — see §3 |
+| **AC15-f** no player-level value, no rating column name, anywhere in it | met | Name scan now covers the **whole** landed population (22,046 two-token display names) not a `LIMIT 500` window, and every `player_id ≥ 10,000`; rating scan covers all four files by three predicates |
+| **AC15-g** regenerating twice is byte-identical | met | Two full runs, SHA-256 on all four files: identical. The test no longer compares a file with itself |
+| **AC15-h** coverage statement prices the players no roster list holds | met | Page states **12,426**, recomputed independently by the test. The plan's ~10,700 was the *probe's* figure — computing rather than remembering is what caught it |
+| **AC16** offline suite with no game and no MySQL; ruff, format, mypy clean | met | Re-run with `OOTP_INSTALL` unresolvable and MySQL on a closed port: `ConfigError: OOTP_INSTALL does not name an existing directory`, suite exit 0. The meta-audit was right that nobody had checked this |
+| **AC11** ADR 0001 read-only guard, re-run for this phase | met | `pytest tests/test_read_only.py -m gamedata` exit 0 — mandatory per phase because this diff widens the write allowlist |
+| **AC17** catalog carries the extraction cost | met | Generated half renders `**Parse cost** — 2.236 s`, read from the `ingest_run` row |
+| **AC18–AC21** | not this phase | Phases 12–13; AC20/AC21 are USER-RUN and the panel must not claim them |
+
+## 2. What shipped
+
+- `src/ootp_ai/catalog/` — `__init__.py`, `structure.py` (pure over the declarations),
+  `volume.py` (the only half needing a connection), `render.py` (one renderer, both halves),
+  `__main__.py` (the only writer).
+- `docs/warehouse-catalog.md` + `.json` — generated, tracked, byte-deterministic.
+- `tests/test_catalog.py` — 24 offline, 9 `gamedata`. Main-thread-authored: `tests/` is in
+  the builder's deny set.
+- `tests/test_repo_structure.py` — `docs/warehouse-catalog.md` joins the required-docs list
+  **in this commit, not one earlier**, per the plan's load-bearing sequencing note.
+- `tests/test_read_only.py` — `catalog/__main__.py` joins the writer allowlist.
+- `src/ootp_ai/config.py` — `reject_inside_game_roots` factored out of `_root`.
+- `CLAUDE.md` — two map lines; the Status rewrite stays Phase 12's.
+
+## 3. Deviations from the plan
+
+1. **`generate.py` became `structure.py` / `volume.py` / `render.py`.** Load-bearing, not
+   cosmetic: it is what lets `--structure-only` run with no `.env`, no save and no database.
+   Plan checklist amended at `IMPLEMENTATION_PLAN.md`, following the `resolve.py` precedent.
+2. **`information_schema` supplies existence, not counts.** The plan says "reads
+   `information_schema` for counts"; `TABLE_ROWS` is an InnoDB *estimate* and counts every
+   landing rather than one triple. Counts are `COUNT(*)` scoped to the resolved triple.
+3. **The withheld section names no rating-category field, and no `players.prone_*` /
+   `players_value.*`.** AC15 and Core §14 cannot both be satisfied. Recorded as a dated
+   amendment under Core §14 in `PROJECT_SCOPE.md` rather than resolved in silence — which is
+   what the first implementation did, and what the panel caught.
+4. **Players-with-no-roster-row uses `NOT EXISTS`**, not the plan's sketched subtraction: the
+   subtraction assumes every roster row names a player the same landing holds.
+5. **`--structure-only` added.** Not in the plan's steps. Without it, a contributor with no
+   MySQL cannot regenerate the file CI now requires to exist.
+
+## 4. Verification & edge cases
+
+Everything below was **run**, not asserted. Offline suite 611 tests exit 0; catalog
+`gamedata` 9 tests exit 0; ruff, ruff format, mypy clean; `test_read_only.py -m gamedata`
+exit 0; determinism confirmed by SHA-256 across two full generator runs.
+
+Edge cases now covered that were not: a declared table this landing did not write (renders
+"not landed by this run", never a zero); a `--docs-root` inside the game (refused, writes
+nothing); a decoded rating name (caught by category *and* by shape); the two Markdown halves
+sharing a basename (addressed by role, not by `path.name`).
+
+## 5. Findings resolved
+
+All 13 panel findings were confirmed by independent verification; 10 were major. Every one
+is fixed. Full detail in `reviews/phase-11-acceptance-panel.md`.
+
+| ID | What was wrong | Fix |
+|---|---|---|
+| CF-01 | *"78 of 89 declared fields reach a page"* was false by 23 — `served` counted policy-renderable, never asking whether a column claimed the field. On the artifact whose job is showing the GM its blind spots, and erring toward understating them | Three states — served (55), withheld (11), unexposed (23) — summing to 89, asserted by a test that re-derives them |
+| CF-02 | The player-value guard sampled 500 consecutive names from one alphabetical band (0.2%), while 29 real landed names appear verbatim on the page — near-blind *and* one window-shift from a false red | Whole population, two-token display names, via `name_join_predicate` |
+| CF-03 | The tracked half declared it carries no row counts, then printed 15 stale ones from `tables.toml` coverage prose | Claim corrected to *"no figure on this page is computed from a landing"*, with the historical numbers signposted |
+| CF-04 | The withheld section could never name `players.prone_*` / `players_value.*`; the unbuildable contract was resolved in silence | Dated amendment under Core §14 |
+| CF-05 | The rating guard shared its predicate with the redactor it audits. Injection proved `batting_ratings_contact` renders green — and the suite would then **require** its publication | Structural rule (rating-category fields counted, never named) + `RATING_NAME_PATTERN` as an independent backstop; the requiring test reconciled |
+| CF-06 | `--docs-root` was an unvalidated write root — the only one not fenced against the game (ADR 0001) | `reject_inside_game_roots`, one function, two callers, with a test that sees the refusal fire |
+| CF-07 | The GM's copy stated 10,700 and 12,426 for one population under a header promising every figure is this landing | Header scoped to *computed* figures; coverage prose relabelled "as declared" |
+| CF-08 | The regenerate-twice test compared a file with itself — two runs writing different bytes still passed | Bytes captured before the second run overwrites them |
+| CF-09 | Landed-ness came from schema existence, so a historical landing rendered structural absence as **zero** — this project's cardinal sin | Derived from `ingest_run.table_row_counts` |
+| CF-10 | The rating scan never ran against the GM's copy or `catalog.json` | Shared `assert_no_rating_name` over all four files |
+
+**Found while fixing, not by the panel:** the new name query omitted `name_space` from its
+join — the exact defect `reports/roster.py:name_join_predicate` documents. Correct today only
+because one name space is landed, and it made the query unable to use the primary key: it had
+not finished in ten minutes. Using the documented predicate returns in 0.25 s.
+
+## 6. Manual gates & user-run steps
+
+- **AC20 / AC21 remain Phase 13's** and are the operator's. The spawn contract this phase
+  adds to the tracked catalog is what makes AC20 reproducible.
+- Nothing outward-facing was run. No push, no merge, no PR.
+
+## 7. Hand-off
+
+`/commit` next. Follow-ups this phase surfaced or inherits:
+
+1. **The stray-probe hazard is now three-for-three unfiled** — Phase 9 raised it as CF24,
+   Phase 10 recorded it as follow-up 3, and the Phase 11 panel hit it twice more as CF-19.
+   It reddens `test_no_fixed_offsets` on a phantom file. It needs a bugfix request.
+2. **Landing ratings vs. withholding them** — the operator raised whether the withhold-at-
+   parse posture is paying for itself, given that `open-front-office` Phase B already scopes
+   a `gm_view` schema + restricted grant built **from** `column_disposition`. Re-evaluate
+   after this lands. Note the spike verdict (`reviews/spike-scouted-view.md`): the *scouted*
+   view is `stored` and `measured` in `scouting.dat` — so the GM's legitimate ratings are
+   blocked by an unparsed file, not by ADR 0012.
+3. **`render()` and now the catalog sit outside the ADR 0001 manifest-diff window** —
+   inherited from Phase 10, and this phase adds a second writer covered by the static
+   allowlist alone.

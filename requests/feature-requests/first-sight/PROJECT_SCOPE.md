@@ -549,10 +549,32 @@ CI's actual condition. Criteria marked `-m gamedata` are excluded from CI by
 14. **A generated catalog** built from `information_schema` plus the **same tracked
     contract declaration** the DDL and the uniqueness tests read — one declaration, three
     consumers, so drift is structurally impossible. Includes a **withheld** section
-    naming the true-rating tables, `players.prone_*`, `players_value.*` and every still-
-    `unconfirmed` field, each with its reason and ADR. **Split per Decisions §3:** the
-    structural half is tracked; row counts, snapshot dates and freshness generate into the
-    ignored output root.
+    naming the true-rating tables, ~~`players.prone_*`, `players_value.*`~~ and every
+    still-`unconfirmed` field, each with its reason and ADR. **Split per Decisions §3:**
+    the structural half is tracked; row counts, snapshot dates and freshness generate into
+    the ignored output root.
+
+    > **Amended 2026-08-21, at Phase 11's acceptance panel.** This clause and **AC15**
+    > cannot both be satisfied: AC15 requires that *"no player-level value and no rating
+    > column name appears anywhere in it"*, and `players.prone_*` / `players_value.*` are
+    > two of the three fragments `contracts/policy.py` treats as rating names on sight.
+    > **AC15 wins**, and the catalog names neither. Two reasons, and the second is the
+    > stronger: ADR 0012's withhold-by-default posture is the governing rule, and a
+    > catalog that carved an exemption into its own rating scan would have an exemption
+    > list — which is the thing that eventually gets widened to admit a real rating.
+    >
+    > The panel also proved by injection that this was not hypothetical. A field named
+    > `batting_ratings_contact` rendered onto the page with the guard green, and
+    > `test_every_withheld_field_is_named_with_its_reason` would then have *required* its
+    > publication into a public tracked file. So the resolution is structural rather than
+    > editorial: **a rating-category field is counted, never named** (by source file), and
+    > `structure.RATING_NAME_PATTERN` backstops the prose the category cannot reach.
+    >
+    > **What is lost, stated plainly:** the GM is not told that injury-proneness and
+    > derived-value families exist in the game. That is a real cost — those are gaps it
+    > cannot price. If a later slice wants them named, that is a scope amendment with an
+    > argument, not a loosened guard. Enforced at `src/ootp_ai/catalog/structure.py` and
+    > `tests/test_catalog.py::test_a_decoded_rating_could_never_be_published`.
 15. **A report-path pointer in the tracked half of the catalog** (SD-11): each report's
     logical name, the `.env` key and relative path it resolves to, and a one-line spawn
     instruction the umpires read when handing the GM its reports. **Not** a Markdown link

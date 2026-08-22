@@ -1315,7 +1315,17 @@ Ordered by expected cost, not by likelihood.
       snapshot resolution and the output-path partitioning, which the plan assumed each
       report would carry itself. Splitting it out gives the catalog a seam to reuse and is
       the one place a future compare-two-dates report would hook into.)*
-- [ ] `src/ootp_ai/catalog/__main__.py` · `generate.py`
+- [ ] `src/ootp_ai/catalog/__main__.py` · `structure.py` · `volume.py` · `render.py`
+      ~~· `generate.py`~~
+      *(amended 2026-08-21 with Phase 11: `generate.py` split into three. The split is
+      load-bearing rather than cosmetic — `structure.py` is a pure function of the tracked
+      declarations, `volume.py` is the only half that needs a connection, and `render.py`
+      takes both. That separation is exactly what lets `--structure-only` run with no
+      `.env`, no save and no database, which AC16's offline clause and
+      `test_the_structural_half_needs_no_warehouse` both depend on. `config.py` also gains
+      `reject_inside_game_roots`, factored out of `_root` so `--docs-root` — the project's
+      first operator-supplied write root — is fenced against the game by the same
+      function, not a second copy of the rule.)*
 - [ ] `src/ootp_ai/__init__.py` — replace the docstring, false from Phase 3 onward
 
 **Main-thread-owned — every path below is in the builder's deny set or is a guard.**

@@ -1,0 +1,432 @@
+{
+  "fields": {
+    "bound_to_a_column": 57,
+    "declared": 89,
+    "served": 55,
+    "unexposed": 23,
+    "withheld": 11
+  },
+  "generated_by": "uv run python -m ootp_ai.catalog",
+  "rating_category_counts": {
+    "names.dat": 2,
+    "players.dat": 8
+  },
+  "reports": [
+    {
+      "command": "uv run python -m ootp_ai.reports render",
+      "env_key": "OOTP_OUTPUT_ROOT",
+      "filename": "roster.md",
+      "logical_name": "organisation roster",
+      "relative_path": "<save_id>/<sim_date>/<ingest_seq>/roster.md"
+    },
+    {
+      "command": "uv run python -m ootp_ai.catalog",
+      "env_key": "OOTP_OUTPUT_ROOT",
+      "filename": "warehouse-catalog.md",
+      "logical_name": "warehouse catalog",
+      "relative_path": "<save_id>/<sim_date>/<ingest_seq>/warehouse-catalog.md"
+    }
+  ],
+  "schema_version": 1,
+  "tables": [
+    {
+      "columns": {
+        "declared": 7,
+        "provenance": 3,
+        "served": 7
+      },
+      "coverage": "MLB's SIX divisions only — the thirty clubs those arrays name. The other fourteen leagues each sit behind their own unmapped scalar block in `world.dat` and are not reached; thirty rows against a club count of 259 on the probes and 337 in the managed league is the documented reach of the walk, not a parse fault. The four All-Star sides appear in no division array at all: structurally absent, and absence here is a MISSING ROW — never division zero, because `division_id` counts from 0 within its sub-league and East really is division 0.",
+      "epistemic_labels": {
+        "verified": 4
+      },
+      "grain": "one row per club per division per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "league_id",
+        "sub_league_id",
+        "division_id",
+        "team_id"
+      ],
+      "name": "bronze_division_team",
+      "not_served": [],
+      "note": "`teams.division_id` is DERIVED from this array in silver and never parsed — `teams.dat` provably does not carry it (0 of 140 on the clubs with a non-zero one), so a division stamped onto a team record could only have come from a join, and bronze does not join. This table is therefore the only division source in the warehouse.",
+      "source": [
+        "world.dat"
+      ],
+      "walker": "ootp_ai.parser.world.read_world",
+      "weakest_label": "verified"
+    },
+    {
+      "columns": {
+        "declared": 10,
+        "provenance": 10,
+        "served": 10
+      },
+      "coverage": "Every column of every table this ingest wrote — 96 of them, all eight tables including this one and `ingest_run` — with the epistemic label the field map carried ON THE DAY IT LANDED. Not a game fact: a record of what we believed about one. `ingest_run` is in rather than out because its `human_team_id` resolves from `human_managers.dat` and carries a real label, and a rule that skipped the table would drop that belief on a technicality about the table's name.",
+      "epistemic_labels": {},
+      "grain": "one row per landed column per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "table_name",
+        "column_name"
+      ],
+      "name": "bronze_field_label",
+      "not_served": [],
+      "note": "This table exists so a future data incident can ask *what did we believe about this field the day it landed?* as a query rather than as archaeology through the git history of `docs/data-access.md`. It is the one table whose source is a tracked file rather than a save.",
+      "source": [
+        "contracts/field_map.toml"
+      ],
+      "walker": "ootp_ai.contracts.loader.load_contracts",
+      "weakest_label": null
+    },
+    {
+      "columns": {
+        "declared": 12,
+        "provenance": 3,
+        "served": 11
+      },
+      "coverage": "All 3,058 entries, including the 2,492 (probe) / 2,259 (managed league) carrying `deleted`. Every row lands and filtering belongs to the report: a walk that dropped the deleted ones would return 566 rows and look perfectly consistent.",
+      "epistemic_labels": {
+        "measured": 1,
+        "unconfirmed": 1,
+        "verified": 7
+      },
+      "grain": "one row per calendar event per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "seq"
+      ],
+      "name": "bronze_league_event",
+      "not_served": [
+        {
+          "category": "structural",
+          "column": "real_sim_date",
+          "disposition": "uncertain",
+          "epistemic": "unconfirmed"
+        }
+      ],
+      "note": "Keyed on `seq` and not on the readable alternative. `(league_id, start_date, event_type, name)` collapses 3,058 rows to 2,600 — 458 events lost with nothing raised. `seq` is the file's own field and the export does not expose it, which is precisely why the key had to be settled from the bytes rather than from the answer key.",
+      "source": [
+        "world.dat"
+      ],
+      "walker": "ootp_ai.parser.world.read_calendar",
+      "weakest_label": "unconfirmed"
+    },
+    {
+      "columns": {
+        "declared": 7,
+        "provenance": 4,
+        "served": 6
+      },
+      "coverage": "All 264,095 entries the file declares and the walk frames, per save per snapshot — measured on landing, roughly seven times the combined row count of the other bronze tables on a probe and six times in the managed league. The volume is knowingly accepted (field_map.toml records the decision and its named fallback); uniform bronze grain is worth more than the disk.",
+      "epistemic_labels": {
+        "unconfirmed": 1,
+        "verified": 2
+      },
+      "grain": "one row per name-table entry per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "name_space",
+        "name_index"
+      ],
+      "name": "bronze_name",
+      "not_served": [
+        {
+          "category": "rating-true",
+          "column": "name_category",
+          "disposition": "withheld",
+          "epistemic": "unconfirmed"
+        }
+      ],
+      "note": "`name_space` is the pre-registered discriminator and takes the single literal value 'all'. It stays in the key even though ONE space was measured: the key is correct under both outcomes and costs one column, while the wrong key would collide two spaces silently. The variable-length usage pairs are consumed for byte accounting and land nowhere — a repeating group with no confirmed meaning is not a column.",
+      "source": [
+        "names.dat"
+      ],
+      "walker": "ootp_ai.parser.names.read_names",
+      "weakest_label": "unconfirmed"
+    },
+    {
+      "columns": {
+        "declared": 24,
+        "provenance": 3,
+        "served": 24
+      },
+      "coverage": "Every record the walk frames — 18,077 in each test save, of which the export's `retired = 0` population is 18,072, and 22,046 in the managed league, which carries 337 clubs rather than 259. A deliberately minimal field set: the biographical head, the club assignment, handedness, and the Lahman id.\n\nAbsences come in two kinds and the difference matters. **Ratings, position and role** carry a [[withheld]] entry in field_map.toml arguing why each is out. **Six crossed-but-unexposed fields** — second_nation_id, the two language ids, the nickname index, loan_league_id and historical_team_id — are ordinary [[field]] entries the walker verified and chose not to surface, because every exposed field is a field a report may print and none of the six has a consumer.",
+      "epistemic_labels": {
+        "verified": 21
+      },
+      "grain": "one row per player per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "player_id"
+      ],
+      "name": "bronze_player",
+      "not_served": [],
+      "note": "The name INDICES land, not the names. A display name exists only once a `NameTable` built from the SAME save resolves them (`bronze_name`), which is why the two tables are useless apart.\n\n**THE ROSTER REPORT CANNOT SHOW POSITION FROM THIS TABLE**, and that is worth saying here rather than discovering in Phase 10. PROJECT_SCOPE Goal 1 asks for a roster carrying position, age, bats/throws and uniform number; three of the four are columns above and `position` is not, because it is not exactly readable yet (`parser/players.py`: the role byte is exact only within fixed-shape groups whose shape rule is underived, and the export's closer role is not stored in it at all). Landing it at 97% would be the failure mode this project treats as worse than an error. The [[withheld]] entry records how far the decode got so the next attempt starts there.",
+      "source": [
+        "players.dat"
+      ],
+      "walker": "ootp_ai.parser.players.read_players",
+      "weakest_label": "verified"
+    },
+    {
+      "columns": {
+        "declared": 21,
+        "provenance": 3,
+        "served": 21
+      },
+      "coverage": "Every record the walk frames — 259 in each probe save, 337 in the managed league — with no filtering whatever. Bronze lands all of it including every minor-league club; the organisation filter lives in the report layer, never here.",
+      "epistemic_labels": {
+        "measured": 3,
+        "verified": 15
+      },
+      "grain": "one row per team per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "team_id"
+      ],
+      "name": "bronze_team",
+      "not_served": [],
+      "note": "`parent_team_id` is 0 for the 34 top-level clubs and that zero is a VALUE, not structural absence — `parser/teams.py` argues the distinction explicitly, and it is the one place in this schema where a zero must not be read as a missing field.",
+      "source": [
+        "teams.dat"
+      ],
+      "walker": "ootp_ai.parser.teams.read_teams",
+      "weakest_label": "measured"
+    },
+    {
+      "columns": {
+        "declared": 6,
+        "provenance": 3,
+        "served": 6
+      },
+      "coverage": "15,672 rows on the standard-mode probe, reproducing `ootp_truth_real.team_roster` exactly; measured on landing, 15,721 on the Challenge-mode twin and 20,016 in the managed league, whose 337 clubs carry more rosters. Covers 7,370 DISTINCT players on the probe, not 18,072: roughly 10,700 active players — free agents, draft-eligible, international, unassigned — carry no roster row at all, and that absence is the data, not a gap.",
+      "epistemic_labels": {
+        "verified": 3
+      },
+      "grain": "one row per player per team per roster list per save per snapshot",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq",
+        "team_id",
+        "player_id",
+        "list_id"
+      ],
+      "name": "bronze_team_roster",
+      "not_served": [],
+      "note": "The key is the whole point of the table. `(sim_date, player_id)` would be wrong: 935 players hold a list-3 row at their organisation AND a row at another club in the same snapshot, so a player-grained key silently collapses them.\n\n**176 players per save are assigned to a club and hold no list membership**, and they are absent from this table by design — a different absence from the ~10,700 above, who are assigned to nobody. The export marks the population with a negative `league_id`; `parser/rosters.py` surfaces it as `RostersFile.unrostered` and the loader drops it, because a roster-LIST table has no row to give a player who is on no list. **A query asking \"who is in Boston's organisation\" from this table alone misses them**; club assignment lives in `bronze_player.team_id` / `organization_id`.",
+      "source": [
+        "teams.dat",
+        "players.dat"
+      ],
+      "walker": "ootp_ai.parser.rosters.read_rosters",
+      "weakest_label": "verified"
+    },
+    {
+      "columns": {
+        "declared": 9,
+        "provenance": 8,
+        "served": 9
+      },
+      "coverage": "One row per landing. The triple is IMMUTABLE once written: re-loading an already-landed triple refuses loudly, while a new snapshot of an already-ingested `sim_date` allocates the next `ingest_seq` and lands a fresh row set alongside the previous one. Nothing is ever overwritten, which is what makes AC10's byte-identity clause hold trivially.",
+      "epistemic_labels": {
+        "inferred": 1
+      },
+      "grain": "one row per ingest attempt",
+      "key": [
+        "save_id",
+        "sim_date",
+        "ingest_seq"
+      ],
+      "name": "ingest_run",
+      "not_served": [],
+      "note": "The repeating groups land as JSON rather than as a child table: the phase declares eight tables and a ninth would be one the plan never sequenced, while flattening them into fixed columns would bake today's file list into a schema that changes whenever SNAPSHOT_FILES does. Flagged for the operator as a judgment call, not slipped in. The wall-clock ingestion timestamp is an ATTRIBUTE and never part of the key.\n\n`residual_bytes` is JSON for the same reason and it was a scalar BIGINT until review caught it: `IngestRun.residual_bytes` is a `Mapping[str, int]`, and the accounting TIER differs per file by design — strict zero-residual for names.dat ALONE, diagnostic for teams.dat and players.dat, region-accounted for world.dat. (Corrected in Phase 8b: this said \"strict for teams.dat and names.dat\", while `parser/teams.py` declares `diagnostic` and the landed residual is 2,274 managed / 1,137 probe. Two diagnostic files make the argument stronger — a sum would never be zero, so nobody could tell which file moved.) Summing across files makes a strict-tier FAILURE arithmetically indistinguishable from an expected diagnostic residual, and the incident question *which walker left bytes unaccounted for* stops being answerable from the warehouse.\n\n`parse_seconds` is NULLABLE, and that is the structural-absence rule rather than laziness: `IngestRun.parse_seconds` is `float | None` and the plan fills it in Phase 9, AFTER 8b writes the first rows. NOT NULL would leave 8b writing 0.000, which is indistinguishable from an instantaneous parse.\n\nThere is NO `game_version` column. One was declared here and review found no such attribute anywhere in the repo — the header version is per file and already lives inside `source_files`. A column with nothing behind it is a NULL waiting for an argument.",
+      "source": [
+        "snapshot manifest",
+        "human_managers.dat"
+      ],
+      "walker": "ootp_ai.warehouse.ingest_run",
+      "weakest_label": "inferred"
+    }
+  ],
+  "unexposed_fields": [
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "calendar_flag_typing",
+      "source": "world.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "content_digest",
+      "source": "players.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "historical_team_id",
+      "source": "players.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "language_ids0",
+      "source": "players.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "language_ids1",
+      "source": "players.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "loan_league_id",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "name_table_save_ownership",
+      "source": "names.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "names_declared_record_count",
+      "source": "names.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "nickname_index",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "verified",
+      "name": "roster_status_active",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "verified",
+      "name": "roster_status_injured",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "verified",
+      "name": "roster_status_secondary",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "verified",
+      "name": "roster_status_sixty_day",
+      "source": "players.dat"
+    },
+    {
+      "category": "identity",
+      "epistemic": "verified",
+      "name": "second_nation_id",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "tail_mask",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "team_membership_array",
+      "source": "teams.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "team_organisation_links",
+      "source": "teams.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "team_pre_colour_run",
+      "source": "teams.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "team_string_signature",
+      "source": "teams.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "unrostered_assignment_marker",
+      "source": "players.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "world_declared_record_count",
+      "source": "world.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "world_landmark_entry",
+      "source": "world.dat"
+    },
+    {
+      "category": "structural",
+      "epistemic": "measured",
+      "name": "world_league_head",
+      "source": "world.dat"
+    }
+  ],
+  "withheld_fields": [
+    {
+      "category": "structural",
+      "disposition": "uncertain",
+      "epistemic": "unconfirmed",
+      "name": "calendar_real_sim_date",
+      "source": "world.dat"
+    }
+  ],
+  "withheld_groups": [
+    {
+      "adrs": [],
+      "name": "position, role",
+      "source": "players.dat",
+      "summary": "Not refused — not yet EXACTLY readable, and landed at less than exact they would be the 97-99% failure this project cannot afford.",
+      "truncated": true
+    },
+    {
+      "adrs": [
+        "0012"
+      ],
+      "name": "ratings",
+      "source": "players.dat",
+      "summary": "ADR 0012, permanent. Two lossy transforms sit between a stored rating and any display — scale conversion and scout filtering — so matching a displayed value to a byte identifies the wrong field with no error surfaced. This slice lands no ratings whatever the Phase 2 spike returned.",
+      "truncated": true
+    }
+  ]
+}
