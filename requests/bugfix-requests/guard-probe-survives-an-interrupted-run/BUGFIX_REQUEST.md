@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-21 · open · next: root-cause
+> **Status:** diagnosed · created 2026-08-21 · decided · next: plan
 
 # Bug Report — A test plants real modules inside `src/ootp_ai/parser/`, and a survivor reddens the fixed-offset guard on a file nobody wrote
 
