@@ -14,6 +14,12 @@ def test_required_docs_exist() -> None:
         "README.md",
         "CLAUDE.md",
         "docs/data-access.md",
+        # Generated, and required to be PRESENT anyway (Decision P5, the stronger of the
+        # two options the operator was offered). The catalog is the only tracked statement
+        # of what the warehouse holds and what it withholds; its absence would otherwise be
+        # invisible until somebody went looking for it. `tests/test_catalog.py` owns the
+        # harder half — that its bytes are exactly what the generator produces.
+        "docs/warehouse-catalog.md",
         "docs/decisions/README.md",
         "requests/README.md",
         "requests/feature-requests/README.md",

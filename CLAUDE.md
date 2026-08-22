@@ -30,21 +30,19 @@ get, and it is still more reliable than remembering a different world.
 
 ## Status
 
-**Phase 1 — the parser is real.** Boston Red Sox, `OOTP-AI`, Challenge Mode, sim
-date 2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against
-the game's own export. [`README.md`](README.md) carries what has landed and what
-is next.
+**Phase 1 — the parser is real.** Boston Red Sox, `OOTP-AI`, Challenge Mode, sim date
+2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against the game's
+own export. [`README.md`](README.md) carries what has landed and what is next.
 
-**The GM can see its own club.** Phase 10 of
+**The GM can see its own club, and knows what it is not seeing.** Phase 10 of
 [`first-sight`](requests/feature-requests/first-sight/) renders the roster report — 226
-players, real names, by club and roster list, every column routed through the serving
-gate ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads
-reports, never a query). It stands on Phase 8b's landing of the eight declared tables
-and Phase 9's diff of those rows against the export **per field by name** — 33 keyed
-columns, 5 tables, zero unexplained differences. **The standings report was retired,
-not deferred:** no declared table carries a win-loss column, since the standings region
-is not in `teams.dat` and `world.dat` yielded divisions and the calendar. **Phases
-11–13 are the catalog, the doc truth-up and the USER-RUN acceptance.**
+players, real names, every column routed through the serving gate
+([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads reports,
+never a query). Phase 11 adds the generated catalog: of 89 declared fields, 55 reach a
+page, 11 are withheld and 23 are read but landed by nothing. Both stand on Phase 8b's
+landing of the eight declared tables and Phase 9's per-field diff against the export.
+**The standings report was retired, not deferred:** no declared table carries a win-loss
+column. **Phases 12–13 are the doc truth-up and the USER-RUN acceptance.**
 
 ## Stack
 
@@ -76,17 +74,19 @@ docs/
   data-access.md      What can be read, from where, with epistemic labels
   league-rules.md     The rule environment; what it implies; what evolves
   game-mechanics.md   How the OOTP engine behaves — free to the GM, thin on purpose
+  warehouse-catalog.md  GENERATED and tracked — the test regenerates it, refusing drift
   decisions/          ADRs — twenty-one calls, two superseded, nineteen live
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit
 .claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading, reporting
-  contracts/          TRACKED field + grain declarations — derived schema, ours to keep
-                      — plus the loader that validates them and the serving gate
+  contracts/          TRACKED field + grain declarations — derived schema, ours to keep;
+                      the loader that validates them, and the serving gate
   warehouse/          DDL emitted from that declaration, and append-only bronze landing
   validate/           Tier B — landed rows diffed against the export, per field by name
-  reports/            The GM's only surface — every column gated by contracts/policy.py
+  reports/            The GM's report surface — every column gated by contracts/policy.py
+  catalog/            The GM's menu — landed vs withheld, same gate. Tracked half above
 ops/                Repo governance, local toolchain
 tests/              Structural guards + parser fixtures
 var/                GITIGNORED — snapshots, warehouse files, RENDERED REPORTS, scratch
