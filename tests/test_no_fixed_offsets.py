@@ -94,7 +94,16 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-SCAN_ROOT = REPO_ROOT / "src" / "ootp_ai"
+
+#: The scanned package, as a path relative to a **repo** root. Split out from `SCAN_ROOT`
+#: so a test can lay the same shape out under a temporary root and get back repo-relative
+#: keys that are byte-identical to production's — see `parser_modules` below.
+PACKAGE_RELATIVE = Path("src") / "ootp_ai"
+
+#: Where production scans, and it is the live package.
+#: `tests/test_fixed_offset_guard_scope.py::test_the_production_scan_root_is_the_live_package`
+#: pins that, because every other reader here may legitimately be handed a copy.
+SCAN_ROOT = REPO_ROOT / PACKAGE_RELATIVE
 
 #: The only modules allowed to index a save buffer, as repo-relative posix paths — the
 #: same string the real scan builds. `lookahead.py` is the sanctioned seam;
@@ -342,23 +351,47 @@ def scan_source(source: str, filename: str = "<test>") -> list[str]:
     return visitor.violations
 
 
-def parser_modules() -> list[Path]:
+def parser_modules(tree_root: Path = REPO_ROOT) -> list[Path]:
     """Every module the real scan covers.
 
     A module-level callable rather than a loop inside the test, so that Phase 4's meta-guard
     can assert against exactly the code the real test runs rather than a re-implementation of
     it. `tests/test_no_leaks.py` exposes its seams for the same reason.
+
+    `tree_root` is a **repo** root — a directory containing `src/ootp_ai/` — and never the
+    package directory itself; see the comment in `parser_module_violations`. Production
+    callers pass nothing and read the live package, on purpose: a guard pointed at a copy
+    guards a copy. The parameter exists so that a scope test can plant an offender in a tree
+    **it owns** rather than in the one every other reader of this repo is scanning
+    (`requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/`, ADR 0022).
     """
-    modules = sorted(SCAN_ROOT.rglob("*.py"))
-    assert modules, f"nothing to scan under {SCAN_ROOT} — the guard would pass vacuously"
+    root = tree_root / PACKAGE_RELATIVE
+    modules = sorted(root.rglob("*.py"))
+    assert modules, f"nothing to scan under {root} — the guard would pass vacuously"
     return modules
 
 
-def parser_module_violations() -> list[str]:
-    """Every violation in the real tree, as `path:line: message` strings."""
+def parser_module_violations(tree_root: Path = REPO_ROOT) -> list[str]:
+    """Every violation in the real tree, as `path:line: message` strings.
+
+    Same `tree_root` contract as `parser_modules`: a repo root, defaulting to this one.
+
+    **This scan deliberately recognises no test-fixture filenames, and it never will.** When a
+    scope test's probe was poisoning this guard, the cheap fix on offer was to teach the scan
+    those names and report "a fixture survived an interrupted run" instead of a violation.
+    That is a per-site exemption registry inside the enforcement of the fixed-offset ban, and
+    ADR 0020 forecloses it outright. The fix was to stop the probe reaching this tree instead;
+    `tests/test_guard_probe_isolation.py` keeps both halves of that honest.
+    """
     violations: list[str] = []
-    for path in parser_modules():
-        rel = path.relative_to(REPO_ROOT).as_posix()
+    for path in parser_modules(tree_root):
+        # Relativised against the REPO root, never the package root, and that is the line a
+        # future refactor will get wrong. `EXEMPT_MODULES` holds repo-relative posix strings
+        # and `scan_source` keys exemption on an exact match, so relativising against
+        # `src/ootp_ai/` instead would turn every key into `parser/lookahead.py` — silently
+        # un-exempting the sanctioned seam, making a mirror report violations production does
+        # not, and making the natural "fix" a loosening of the rule.
+        rel = path.relative_to(tree_root).as_posix()
         violations.extend(scan_source(path.read_text(encoding="utf-8"), rel))
     return violations
 

@@ -29,6 +29,7 @@ decision is the most expensive thing that can happen in this repo.
 | [0019](0019-reading-costs-an-action.md) | Reading costs an action; a report is built once and read for free | Accepted |
 | [0020](0020-sanctioned-lookahead-seam.md) | One sanctioned seam may index a save buffer; everywhere else walks | Accepted |
 | [0021](0021-bronze-landing-is-append-only.md) | Bronze landing is append-only; a landed snapshot is never modified | Accepted |
+| [0022](0022-guard-probes-plant-in-a-tree-they-own.md) | A guard's scope test plants only in a tree it owns | Accepted |
 
 ## Format
 

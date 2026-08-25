@@ -75,7 +75,7 @@ docs/
   league-rules.md     The rule environment; what it implies; what evolves
   game-mechanics.md   How the OOTP engine behaves — free to the GM, thin on purpose
   warehouse-catalog.md  GENERATED and tracked — the test regenerates it, refusing drift
-  decisions/          ADRs — twenty-one calls, two superseded, nineteen live
+  decisions/          ADRs — twenty-two calls, two superseded, twenty live
 gm/                 TRACKED GM memory — charter, standing orders, ledger, decisions
 requests/           Intake — feature-requests / bugfix-requests / data-incidents
 .claude/skills/     Pipeline stages + /commit

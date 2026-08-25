@@ -22,13 +22,17 @@ See `requests/bugfix-requests/_done/leak-guard-blind-to-untracked-files/`.
 
 from __future__ import annotations
 
+import ast
+import inspect
+import re
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
 
 import test_no_leaks as guard
+from fixtures.guard_trees import assert_owned, mirrored_repo
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -38,23 +42,106 @@ LEAK = "the snapshot lives at " + "D" + ":" + chr(92) + "projects" + chr(92) + "
 
 
 @contextmanager
-def untracked_file(relative: str, body: str) -> Iterator[Path]:
-    """Write a real file into the working tree and always remove it again.
+def untracked_file(relative: str, body: str, root: Path | None = None) -> Iterator[Path]:
+    """Write a real file into a mirrored repository and always remove it again.
 
-    A `tmp_path` fixture cannot serve here: the guard enumerates the repository, so
-    the probe has to exist inside it to be a fair test of what the guard can see.
+    **The probe plants in a repository it owns.** Given no `root` it builds a private
+    `mirrored_repo()` and owns it for the life of the context; a caller that needs to scan the
+    same repository opens one itself and passes the root in.
+
+    This fixture used to plant into the live working tree, arguing that a `tmp_path` could not
+    serve because the guard enumerates the repository. **That argument is answered rather than
+    abandoned**: the guard's scope is a git index, so the mirror is a real `git init`-ed
+    repository carrying this repo's `.gitignore` verbatim — the enumeration it exercises is
+    the same one, over the same ignore rules, which
+    `test_the_mirror_repo_ignores_what_this_repo_ignores` pins pairwise rather than asserts.
+
+    What changed is that the repository is one nothing else reads. That matters more here than
+    at the fixed-offset site: these probe bodies carry a **deliberately banned machine-path
+    string**, so a survivor reddened `tests/test_no_leaks.py` — the only leak protection a
+    public repo has — with a file in neither git nor anyone's editor. See
+    `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/` and ADR 0022.
+
+    What a mirror cannot prove is that *production* enumerates this repository, and that is
+    bought back by `test_the_production_enumeration_root_is_the_repo` plus the four tests that
+    deliberately stay on the real repo below.
     """
-    path = REPO_ROOT / relative
-    assert not path.exists(), f"{relative} already exists; refusing to clobber it"
-    path.write_text(body, encoding="utf-8")
-    try:
-        yield path
-    finally:
-        path.unlink(missing_ok=True)
+    with ExitStack() as stack:
+        if root is not None:
+            assert_owned(root)
+        repo = root if root is not None else stack.enter_context(mirrored_repo())
+        path = repo / relative
+
+        # Near-vacuous against a freshly built mirror by construction, and retained for the
+        # caller-supplied `root` path where two probes in one repository would collide.
+        # Saying so out loud rather than letting a live check decay into a tautology.
+        assert not path.exists(), f"{relative} already exists; refusing to clobber it"
+
+        path.write_text(body, encoding="utf-8")
+        try:
+            yield path
+        finally:
+            path.unlink(missing_ok=True)
+
+
+#: The ignore verdicts the mirror must reproduce, and they are not arbitrary. The two under
+#: `tests/fixtures/` and `datasets/` are the load-bearing ones: they are where git's
+#: last-match-wins negations decide the answer, and they are exactly what
+#: `tests/test_no_leaks.py::game_data_offenders` documents as the reason it cannot rely on
+#: `.gitignore` alone.
+IGNORE_PARITY = (
+    "_leak_guard_probe.md",
+    "var/tmp/x.md",
+    "tests/fixtures/x.dat",
+    "datasets/x.dat",
+    "x.lg",
+    "players.csv",
+    "requests/bugfix-requests/_nested_probe.md",
+)
+
+
+def test_the_mirror_repo_ignores_what_this_repo_ignores() -> None:
+    """The control the whole mirrored-repo approach rests on, pinned pairwise.
+
+    If the mirror ignored a different set, every test moved onto it would be measuring a
+    different scope than the one production has — and it would fail in the safe-looking
+    direction, where a probe simply stops being visible and the assertion still reads fine.
+
+    Asked of git rather than of `.gitignore`, with `--no-index`, so no probe file is needed on
+    either side.
+    """
+    with mirrored_repo() as repo:
+        differing = [
+            rel
+            for rel in IGNORE_PARITY
+            if guard.is_git_ignored(rel, repo=repo) != guard.is_git_ignored(rel)
+        ]
+        assert differing == [], (
+            f"the mirror disagrees with this repo about {differing}. `--exclude-standard` "
+            "reads `.git/info/exclude` and any global excludes file as well as `.gitignore`, "
+            "so a machine configured with one of those can differ — that is what this pin is "
+            "for, and the fix is to stop using a mirror here, never to weaken an assertion"
+        )
+
+        # The non-ASCII enumeration property is pinned HERE too, because
+        # `test_a_non_ascii_filename_survives_enumeration` moves onto the mirror below and
+        # would otherwise prove only that the MIRROR survives C-quoting. It is a property of
+        # `-z` plus the explicit UTF-8 decode in `git_paths` — shared code, exercised here
+        # against a real git index rather than assumed.
+        (repo / "café_parity_probe.md").write_text("# probe\n", encoding="utf-8")
+        enumerated = guard.git_paths("--cached", "--others", "--exclude-standard", repo=repo)
+        assert "café_parity_probe.md" in enumerated, (
+            "a non-ASCII filename did not survive enumeration in the mirror, so the "
+            f"enumeration tests moved onto it prove nothing: {enumerated}"
+        )
 
 
 def test_the_probe_string_is_one_the_guard_actually_bans() -> None:
-    """Guard the guard: if LEAK stopped matching, the tests below would pass emptily."""
+    """Guard the guard: if LEAK stopped matching, the tests below would pass emptily.
+
+    Asked of the real `PATTERNS`, with no repository involved at all — a mirror has nothing to
+    do with whether the banned string is still banned.
+    """
     assert any(pattern.search(LEAK) for _, pattern in guard.PATTERNS), (
         "the constructed probe no longer matches any banned pattern, so every "
         "scope assertion below would pass without testing anything"
@@ -70,8 +157,11 @@ def test_an_untracked_file_is_visible_to_the_leak_guard() -> None:
     PATTERNS. The guard was working exactly as written and caught none of them. Fixed
     the same day; this test is the reason it stays fixed.
     """
-    with untracked_file("_leak_guard_probe.md", f"# probe\n\n{LEAK}\n") as probe:
-        seen = guard.scannable_text_files()
+    with (
+        mirrored_repo() as repo,
+        untracked_file("_leak_guard_probe.md", f"# probe\n\n{LEAK}\n", root=repo) as probe,
+    ):
+        seen = guard.scannable_text_files(repo)
         assert probe in seen, (
             "the leak guard cannot see an untracked file, so it fires only once the "
             "content is staged — the point at which a leak can enter history"
@@ -86,9 +176,11 @@ def test_a_gitignored_file_stays_out_of_scope() -> None:
     machine-specific. Any fix to the test above must not buy visibility by scanning
     everything.
     """
-    (REPO_ROOT / "var" / "tmp").mkdir(parents=True, exist_ok=True)
-    with untracked_file("var/tmp/_leak_guard_ignored_probe.md", LEAK) as probe:
-        assert probe not in guard.scannable_text_files(), (
+    with (
+        mirrored_repo() as repo,
+        untracked_file("var/tmp/_leak_guard_ignored_probe.md", LEAK, root=repo) as probe,
+    ):
+        assert probe not in guard.scannable_text_files(repo), (
             "a gitignored file must stay out of scope — widening the guard must respect "
             ".gitignore, or it becomes unusable and gets switched off"
         )
@@ -97,6 +189,8 @@ def test_a_gitignored_file_stays_out_of_scope() -> None:
 @pytest.mark.parametrize("junk", [".venv", "__pycache__", "node_modules", "var"])
 def test_no_ignored_directory_leaks_into_the_candidate_set(junk: str) -> None:
     """Pins the property above across the directories that would hurt most."""
+    # No root argument, against the LIVE repo, on purpose: a mirror contains none of these
+    # directories, so this would pass by having nothing to find.
     offenders = [
         p.relative_to(REPO_ROOT).as_posix()
         for p in guard.scannable_text_files()
@@ -116,9 +210,12 @@ def test_an_untracked_file_several_directories_deep_is_visible() -> None:
     A root-level probe can pass while a nested one fails, so the repro's root-level case
     is not by itself sufficient.
     """
-    nested = REPO_ROOT / "requests" / "bugfix-requests" / "_leak_guard_nested_probe.md"
-    with untracked_file(nested.relative_to(REPO_ROOT).as_posix(), f"# probe\n\n{LEAK}\n"):
-        assert nested in guard.scannable_text_files(), (
+    nested = "requests/bugfix-requests/_leak_guard_nested_probe.md"
+    with (
+        mirrored_repo() as repo,
+        untracked_file(nested, f"# probe\n\n{LEAK}\n", root=repo) as probe,
+    ):
+        assert probe in guard.scannable_text_files(repo), (
             "a nested untracked file must be visible; the leaks this guard missed were "
             "all several directories deep"
         )
@@ -133,8 +230,11 @@ def test_a_non_ascii_filename_survives_enumeration() -> None:
     encoding, cp1252 on the machine this was written on.
     """
     name = "café_leak_guard_probe.md"
-    with untracked_file(name, f"# probe\n\n{LEAK}\n") as probe:
-        seen = guard.scannable_text_files()
+    with (
+        mirrored_repo() as repo,
+        untracked_file(name, f"# probe\n\n{LEAK}\n", root=repo) as probe,
+    ):
+        seen = guard.scannable_text_files(repo)
         assert probe in seen, (
             "a file whose name is not pure ASCII must survive enumeration; if this fails, "
             "the guard is silently skipping files it appears to cover"
@@ -149,6 +249,8 @@ def test_enumeration_yields_no_empty_entries() -> None:
     latter would be tautological, since `git_paths` filters empties with the very
     expression that builds its return value.
     """
+    # No root argument, against the LIVE repo, on purpose: this is about the shape of real
+    # `ls-files` output at real scale, and a near-empty mirror is the weakest possible input.
     paths = guard.git_paths("--cached", "--others", "--exclude-standard")
     assert "" not in paths
     assert all(p.strip() for p in paths), "a whitespace-only path would resolve to a directory"
@@ -158,8 +260,11 @@ def test_enumeration_yields_no_empty_entries() -> None:
 def test_a_suffix_outside_the_keep_set_is_not_scanned() -> None:
     """The guard reads text files by extension on purpose; widening scope must not
     widen the file *types* it opens."""
-    with untracked_file("_leak_guard_probe.bin", LEAK) as probe:
-        assert probe not in guard.scannable_text_files()
+    with (
+        mirrored_repo() as repo,
+        untracked_file("_leak_guard_probe.bin", LEAK, root=repo) as probe,
+    ):
+        assert probe not in guard.scannable_text_files(repo)
 
 
 def test_the_game_data_guard_sees_an_untracked_fixture() -> None:
@@ -171,8 +276,9 @@ def test_the_game_data_guard_sees_an_untracked_fixture() -> None:
     last-match-wins. This check is the only thing stopping a committed `.dat` fixture
     there — and it could not see one until it was already staged.
     """
-    with untracked_file("tests/fixtures/_leak_guard_probe.dat", "not real game data"):
-        assert "tests/fixtures/_leak_guard_probe.dat" in guard.game_data_offenders(), (
+    probe = "tests/fixtures/_leak_guard_probe.dat"
+    with mirrored_repo() as repo, untracked_file(probe, "not real game data", root=repo):
+        assert probe in guard.game_data_offenders(repo), (
             "an untracked game-data file in tests/fixtures/ must be reported; .gitignore "
             "does not cover that directory"
         )
@@ -180,16 +286,18 @@ def test_the_game_data_guard_sees_an_untracked_fixture() -> None:
 
 def test_the_game_data_guard_still_ignores_var() -> None:
     """The counterweight: `var/` holds real snapshots and must stay out of scope."""
-    (REPO_ROOT / "var" / "tmp").mkdir(parents=True, exist_ok=True)
-    with untracked_file("var/tmp/_leak_guard_probe.dat", "snapshot scratch"):
-        assert not [o for o in guard.game_data_offenders() if "var/" in o]
+    with (
+        mirrored_repo() as repo,
+        untracked_file("var/tmp/_leak_guard_probe.dat", "snapshot scratch", root=repo),
+    ):
+        assert not [o for o in guard.game_data_offenders(repo) if "var/" in o]
 
 
 def test_a_plain_lg_file_is_ignored_not_just_an_lg_directory() -> None:
     """`*.lg/` matches directories only, so a plain `foo.lg` file slipped through."""
-    with untracked_file("_leak_guard_probe.lg", "save-shaped"):
+    with mirrored_repo() as repo, untracked_file("_leak_guard_probe.lg", "save-shaped", root=repo):
         assert "_leak_guard_probe.lg" not in guard.git_paths(
-            "--cached", "--others", "--exclude-standard"
+            "--cached", "--others", "--exclude-standard", repo=repo
         ), "a plain .lg file must be gitignored, not merely caught downstream"
 
 
@@ -206,8 +314,11 @@ def test_the_guard_actually_reports_a_planted_leak() -> None:
     Enumeration is a means; this is the end. Without it the suite proves the guard looks
     in the right places and nothing about whether it finds anything there.
     """
-    with untracked_file("_leak_guard_reported_probe.md", f"# probe\n\n{LEAK}\n"):
-        violations = guard.machine_path_violations()
+    with (
+        mirrored_repo() as repo,
+        untracked_file("_leak_guard_reported_probe.md", f"# probe\n\n{LEAK}\n", root=repo),
+    ):
+        violations = guard.machine_path_violations(repo)
         assert any("_leak_guard_reported_probe.md" in v for v in violations), (
             "a planted banned string in an in-scope file must appear in the violation "
             f"list; the guard is not reporting what it can see (got {len(violations)} "
@@ -217,8 +328,14 @@ def test_the_guard_actually_reports_a_planted_leak() -> None:
 
 def test_the_guard_is_silent_when_the_same_file_is_clean() -> None:
     """The other half: it must not report a file merely for existing."""
-    with untracked_file("_leak_guard_clean_probe.md", "# probe\n\nnothing banned here\n"):
-        assert not [v for v in guard.machine_path_violations() if "_leak_guard_clean_probe" in v]
+    body = "# probe\n\nnothing banned here\n"
+    with (
+        mirrored_repo() as repo,
+        untracked_file("_leak_guard_clean_probe.md", body, root=repo),
+    ):
+        assert not [
+            v for v in guard.machine_path_violations(repo) if "_leak_guard_clean_probe" in v
+        ]
 
 
 def test_the_candidate_set_has_a_floor() -> None:
@@ -230,11 +347,55 @@ def test_the_candidate_set_has_a_floor() -> None:
     the real count so ordinary repo churn never trips it — it exists to catch a collapse,
     not to track a number.
     """
+    # No root argument, against the LIVE repo, on purpose — and this one carries extra weight
+    # now: the mirror proves enumeration SEMANTICS on a repository holding four directories,
+    # and this is the only test proving the guard still enumerates at SCALE. Moving it onto a
+    # mirror would buy a floor of about zero.
     count = len(guard.scannable_text_files())
     assert count >= 80, (
         f"the guard scans only {count} files; it has been scanning ~134. A collapse this "
         "large means an exemption or a filter is swallowing the repo, and every "
         "membership test above would still pass"
+    )
+
+
+def test_the_production_enumeration_root_is_the_repo() -> None:
+    """Compensating assertion for everything the mirror bought: the guards that actually
+    protect this repository still enumerate **this** repository.
+
+    Read from the guards' own source rather than by comparing a defaulted call to an explicit
+    one. That comparison would pass even if both had been pointed at a mirror — it proves the
+    default is consistent, not that it is the repo. This proves the two production tests pass
+    no root at all.
+    """
+    for test in (guard.test_no_machine_paths_or_identifiers, guard.test_game_data_is_not_tracked):
+        source = inspect.getsource(test)
+        assert re.search(r"(machine_path_violations|game_data_offenders)\(\s*\)", source), (
+            f"{test.__name__} no longer calls its helper with no arguments, so the leak "
+            f"guard may be scanning a repository a test owns:\n{source}"
+        )
+
+
+def test_the_leak_probe_fixture_cannot_reach_the_live_repo() -> None:
+    """The structural half of the convention at this site: no code path from the fixture to
+    the live repository.
+
+    The twin of `tests/test_guard_probe_isolation.py::test_the_probe_fixture_cannot_reach_the
+    _live_package`, and AST-based for the same reason — `untracked_file`'s docstring discusses
+    the live working tree at length, so a substring scan would cry wolf on the documentation
+    this fix requires.
+    """
+    reached = sorted(
+        {
+            node.id
+            for node in ast.walk(ast.parse(inspect.getsource(untracked_file)))
+            if isinstance(node, ast.Name) and node.id == "REPO_ROOT"
+        }
+    )
+    assert reached == [], (
+        "the leak probe fixture can reach the live repository again. Its probe bodies carry "
+        "a deliberately banned machine-path string, so a survivor there reddens the only "
+        "leak protection this public repo has"
     )
 
 
@@ -247,7 +408,13 @@ def test_a_path_that_no_longer_exists_does_not_crash_the_scan(
     down — loudly rather than silently, but still a guard that cannot run is a guard that
     is not protecting anything.
     """
+    # The defaulted parameter is not decoration: `scannable_text_files` takes a repo root now,
+    # and `machine_path_violations` calls it with one. A zero-argument lambda raises
+    # `TypeError` here — red for a reason that has nothing to do with the property, and whose
+    # cheapest wrong fix is deleting a test that guards a real crash.
     monkeypatch.setattr(
-        guard, "scannable_text_files", lambda: [REPO_ROOT / "_deleted_but_still_indexed.md"]
+        guard,
+        "scannable_text_files",
+        lambda repo=REPO_ROOT: [repo / "_deleted_but_still_indexed.md"],
     )
     guard.test_no_machine_paths_or_identifiers()

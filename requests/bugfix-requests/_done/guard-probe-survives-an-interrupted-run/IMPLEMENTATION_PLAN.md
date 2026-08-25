@@ -1,4 +1,4 @@
-> **Status:** planned · created 2026-08-21 · decided · next: implement
+> **Status:** fixed · created 2026-08-21 · decided · next: commit
 
 # Implementation Plan — The guard probe plants in a tree it owns
 
@@ -14,7 +14,7 @@
 > this document. The one this plan certainly contains:
 >
 > ```
-> requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md
+> requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md
 > ```
 >
 > Non-`requests/` paths (`tests/fixtures/guard_trees.py`, `docs/decisions/0022-*.md`) are
@@ -31,7 +31,7 @@ else regresses (`requests/bugfix-requests/README.md:24-26`).
 The defect is entirely inside `tests/`. No parser, warehouse, contract, catalog or report
 code is implicated; no save byte is read; no MySQL is touched. What *is* at stake is the
 credibility of this repo's most load-bearing structural guard — the fixed-offset ban that
-[ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md) settles.
+[ADR 0020](../../../../docs/decisions/0020-sanctioned-lookahead-seam.md) settles.
 `tests/test_fixed_offset_guard_scope.py` proves that guard can be **seen to fail** by
 writing a real offending module into the live `src/ootp_ai/parser/` package and removing it
 in a `finally`; `tests/test_no_fixed_offsets.py` enumerates that same directory. One path,
@@ -51,8 +51,8 @@ convention so a third site is never invented.
 
 | # | File | Why |
 |---|---|---|
-| 1 | `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md` | The decided upstream artifact — consume it, do not re-open it. Read the two-mode table at `:17-21` first: **mode B** (a concurrent reader scanning while a *healthy* run has a probe planted) leaves nothing behind and is what every documented sighting actually was. Its fix sketch at `:139-141` is corrected in §2 below |
-| 2 | `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` | Context; its triage is settled. Its Expected at `:59-61` — *"a test's fixture leaves no trace in the source tree, however it exits"* — is the acceptance sentence. **Its mypy "80 → 81" line at `:84` is an intake-date measurement, not today's baseline** (see §6 risk 9) |
+| 1 | `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md` | The decided upstream artifact — consume it, do not re-open it. Read the two-mode table at `:17-21` first: **mode B** (a concurrent reader scanning while a *healthy* run has a probe planted) leaves nothing behind and is what every documented sighting actually was. Its fix sketch at `:139-141` is corrected in §2 below |
+| 2 | `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` | Context; its triage is settled. Its Expected at `:59-61` — *"a test's fixture leaves no trace in the source tree, however it exits"* — is the acceptance sentence. **Its mypy "80 → 81" line at `:84` is an intake-date measurement, not today's baseline** (see §6 risk 9) |
 | 3 | `tests/test_fixed_offset_guard_scope.py` | The file being fixed. `PARSER_DIR` `:60`; `parser_probe` `:81-98` (clobber assert `:93`, write `:94`, yield `:96`, `finally` `:97-98`). Its docstring at `:85-86` is the fidelity argument this plan answers rather than deletes. Four plant sites: `:111`, `:126`, `:132`, `:430`. Two tests that must keep calling the guard with **no arguments**: `:137-150`, `:176-184`. Read `:9-14` — the record of two guards that were green while guarding nothing |
 | 4 | `tests/test_no_fixed_offsets.py` | The guard being poisoned. `SCAN_ROOT` `:97`; `EXEMPT_MODULES` `:104-107` (two **repo-relative posix strings**); `scan_source` `:339-342`; `parser_modules` `:345-354`; `parser_module_violations` `:357-363`, whose `path.relative_to(REPO_ROOT)` at `:361` is the exact line that makes a naive package-root parameter raise `ValueError`; `test_no_parser_module_seeks_to_a_fixed_offset` `:569-575` |
 | 5 | `tests/test_guard_probe_isolation.py` | The committed **red** repro — the acceptance contract itself. `ABORT_CHILD` at `:46-57` is source **text** run in a child process; `:55` calls `parser_probe(name, body)` positionally and `:83-87` asserts exit **97**. This plan is designed so that file needs **zero edits** to go green |
@@ -597,7 +597,7 @@ severable.
 5. Write the implementation report:
 
    ```
-   requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md
+   requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md
    ```
 
    It carries: the red→green evidence with the repro file unedited; the mode-A exit-97 run; the
@@ -790,7 +790,7 @@ that case, and it reports rather than sweeps on purpose.
 - [ ] `docs/decisions/README.md` — Phase 5, index the ADR.
 - [ ] `tests/fixtures/README.md` — Phase 5, one bullet naming the harness class.
 - [ ] `requests/bugfix-requests/README.md` — Index row `diagnosed → planned` with this plan, `planned → fixed` at Phase 5.
-- [ ] `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` · `ROOT_CAUSE_ANALYSIS.md` — status blockquotes only; bodies are the historical record.
+- [ ] `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` · `ROOT_CAUSE_ANALYSIS.md` — status blockquotes only; bodies are the historical record.
 - [ ] the implementation report — **new**, Phase 5 (path fenced in §3).
 - [ ] `tests/test_grain_contracts.py` — **NOT TOUCHED**, listed so nobody touches it (D6).
 - [ ] `tests/test_read_only.py` — **NOT TOUCHED**; read only as the template for Phase 4's controls and the reason that guard must be AST-based.
@@ -859,9 +859,9 @@ record.
 
 ## References
 
-- `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
-- `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` — the symptom, the measured blast radius, the stage plan
-- `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/reviews/plan-proposals.md` — the three planners, unfiltered
-- `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/reviews/plan-adversarial.md` — 47 findings, the meta-audit, the convergence map
-- [ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md) — the rule the poisoned guard enforces, and the foreclosure that refuses the name-aware fix
+- `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md` — the decided upstream artifact
+- `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md` — the symptom, the measured blast radius, the stage plan
+- `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/reviews/plan-proposals.md` — the three planners, unfiltered
+- `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/reviews/plan-adversarial.md` — 47 findings, the meta-audit, the convergence map
+- [ADR 0020](../../../../docs/decisions/0020-sanctioned-lookahead-seam.md) — the rule the poisoned guard enforces, and the foreclosure that refuses the name-aware fix
 - `.claude/agents/data-engineer.md` — the build rulebook and the deny set that keeps this on the main thread

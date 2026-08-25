@@ -12,11 +12,11 @@ Machine paths were rewritten repo-relative before this file was written.
     "ok":  true,
     "onboarding_files":  [
                              {
-                                 "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
+                                 "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
                                  "why":  "The decided upstream artifact. Read the two-mode table at :17-21 first — mode B (a concurrent reader scanning while a healthy run has a probe planted) leaves nothing behind, is what every documented sighting actually was, and is the reason a survivor sweep cannot be the fix. The tiered fix posture at :137-164 and the three questions handed to the plan at :166-170 are what this plan answers."
                              },
                              {
-                                 "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
+                                 "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
                                  "why":  "Context only. Its measured blast-radius table at :79-89 is narrower than earlier panel claims: only test_no_fixed_offsets and `ruff format --check` go red; ruff check, mypy and the leak guard pass. Do not re-widen that claim."
                              },
                              {
@@ -132,7 +132,7 @@ Machine paths were rewritten repo-relative before this file was written.
                        "name":  "Phase 4 — Close the record",
                        "goal":  "The request artifacts and the repo\u0027s own documentation say what actually landed, including what was deliberately refused and why.",
                        "steps":  [
-                                     "Write `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` with the red→green evidence for both repro tests, the three Phase 1 mutation results, the measured before/after (`37 modules, 0 violations` both sides), and an explicit section on what was refused: the survivor sweep as a fix (RCA :157-161) and the name-aware guard message (ADR 0020:92-93).",
+                                     "Write `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` with the red→green evidence for both repro tests, the three Phase 1 mutation results, the measured before/after (`37 modules, 0 violations` both sides), and an explicit section on what was refused: the survivor sweep as a fix (RCA :157-161) and the name-aware guard message (ADR 0020:92-93).",
                                      "Set the `guard-probe-survives-an-interrupted-run` Index row in `requests/bugfix-requests/README.md:54` from `diagnosed` to `fixed`, and amend the note to record the two-site outcome. Per requests/bugfix-requests/README.md:45 the status grammar is intake → diagnosed → planned → fixed.",
                                      "Run `/update-docs` and dispose what it raises. Expected findings and their correct dispositions: ADR 0020 is NOT invalidated (the rule, the allowlist and the visitor are untouched — only where the fixture does its work changed); CLAUDE.md\u0027s project map line `tests/  Structural guards + parser fixtures` still holds; docs/data-access.md is not implicated (no ingestion surface is touched, and no claim in it underpins this change).",
                                      "If Phase 3 took the off-ramp, file the leak-guard site as its own BUGFIX_REQUEST under requests/bugfix-requests/ and link it from this request\u0027s report — do not leave it as an unfiled observation, which is precisely the failure this request itself documents (BUGFIX_REQUEST.md:24-28: observed five times, filed zero times).",
@@ -188,11 +188,11 @@ Machine paths were rewritten repo-relative before this file was written.
                                "change":  "Phase 3. `untracked_file` (:40-53) takes `root: Path` first with no default; ten planting tests move onto a module-scoped mirror repo; the `(REPO_ROOT / \"var\" / \"tmp\").mkdir` calls at :89 and :183 are dropped. The monkeypatch lambda at :250-252 gains the `repo_root` parameter. Adds `test_the_mirror_carries_this_repo_s_ignore_rules` and the `untracked_file` signature assertion. `test_the_candidate_set_has_a_floor` (:224-238), `test_no_ignored_directory_leaks_into_the_candidate_set` (:97-105) and `test_enumeration_yields_no_empty_entries` (:144-155) stay on the real repo."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
                                "change":  "NEW — this stage\u0027s deliverable. Opens `\u003e **Status:** planned · created \u003ctoday\u003e · decided · next: implement` per requests/bugfix-requests/README.md:41-45."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
                                "change":  "NEW, written in Phase 4 (stage 4\u0027s artifact). Carries the red→green evidence, the mutation results, the unchanged 37-modules/0-violations baseline, and the two refusals (sweep-as-fix; name-aware guard, per ADR 0020:92-93)."
                            },
                            {
@@ -495,7 +495,7 @@ Machine paths were rewritten repo-relative before this file was written.
                        "name":  "Phase 6 — Truth up the record and close the request",
                        "goal":  "Leave the repo\u0027s documentation describing the repo that now exists, and advance the bugfix track\u0027s artifacts so the Index and the status blockquotes agree with what landed.",
                        "steps":  [
-                                     "Write `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md`: red-to-green evidence for both repro tests, the Phase 1 measurements (copy cost, the five `git check-ignore` verdicts, the runtime deltas), every mutation watched to fail, the Phase 5 dispositions, and whether the leak-guard tier landed here or was severed.",
+                                     "Write `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md`: red-to-green evidence for both repro tests, the Phase 1 measurements (copy cost, the five `git check-ignore` verdicts, the runtime deltas), every mutation watched to fail, the Phase 5 dispositions, and whether the leak-guard tier landed here or was severed.",
                                      "Set the Index row for `[guard-probe-survives-an-interrupted-run]` in `requests/bugfix-requests/README.md:54` from `diagnosed` to `fixed`, and update the status blockquotes at the head of `BUGFIX_REQUEST.md:1` and `ROOT_CAUSE_ANALYSIS.md:1` to the README\u0027s grammar (`README.md:41-45`).",
                                      "Add one line to `tests/fixtures/README.md` covering the harness module. That README\u0027s \"What belongs here\" (:30-36) currently describes DATA fixtures only, while `warehouse.py` is already a harness — this makes the exception explicit rather than leaving a second undocumented one.",
                                      "APPEND a dated entry to `.claude/agents/data-engineer-memory.md` — append-only by that file\u0027s own rule (`tests/test_agent_contract.py:21-28` records why the length ceiling was removed). The 2026-08-18 entry at :351-356 prescribes \"a planted offender written to disk and removed in `finally`\"; the new entry refines it (`measured`): plant on disk, but never in a tree another guard reads — a `finally` is not a guarantee when the failure mode is the process not surviving to run it. Do not edit the old entry; a ledger is a log.",
@@ -567,19 +567,19 @@ Machine paths were rewritten repo-relative before this file was written.
                                "change":  "Phase 6. Set the Index row Stage cell for `[guard-probe-survives-an-interrupted-run]` (:54) from `diagnosed` to `fixed`; if the leak-guard tier was severed, add its new row."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
                                "change":  "Stage-3 deliverable. Opens `\u003e **Status:** planned · created \u003ctoday\u003e · decided · next: implement`. Any path that does not yet exist on disk goes inside a fenced code block — `tests/test_doc_links.py` is a blocking CI check."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
                                "change":  "Phase 6. Red-to-green evidence, the Phase 1 measurements, the three watched mutations, the Phase 5 dispositions (including the declined ones), and whether the leak-guard tier landed or was severed."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
                                "change":  "Phase 6. Status blockquote (:1) advanced to the README\u0027s grammar (`requests/bugfix-requests/README.md:41-45`)."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
                                "change":  "Phase 6. Status blockquote (:1) advanced. The body is decided and is not re-opened."
                            }
                        ],
@@ -761,11 +761,11 @@ Machine paths were rewritten repo-relative before this file was written.
     "ok":  true,
     "onboarding_files":  [
                              {
-                                 "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
+                                 "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md",
                                  "why":  "The decided artifact. Read the two-mode table (:17-21) and the fix posture (:137-164) before touching code: mode B (a concurrent reader seeing a healthy run\u0027s probe) leaves nothing behind, so a survivor sweep cannot be the fix. It also hands three design calls to this plan (:166-170)."
                              },
                              {
-                                 "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
+                                 "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md",
                                  "why":  "Context only. Its blast-radius table (:79-89) is the measured one: pytest tests/test_no_fixed_offsets.py and `ruff format --check` go red; `ruff check`, mypy and the leak guard pass. Do not re-open its triage."
                              },
                              {
@@ -819,7 +819,7 @@ Machine paths were rewritten repo-relative before this file was written.
                                      "Change `parser_modules()` (:345-354) to `parser_modules(tree_root: Path = REPO_ROOT) -\u003e list[Path]`, globbing `tree_root / PACKAGE_RELATIVE`. Keep the vacuity assertion at :353 and make its message name the resolved root, so a mis-pointed mirror fails loudly instead of passing empty.",
                                      "Change `parser_module_violations()` (:357-363) to `parser_module_violations(tree_root: Path = REPO_ROOT) -\u003e list[str]` and change :361 from `path.relative_to(REPO_ROOT)` to `path.relative_to(tree_root)`. This is the line that would otherwise raise ValueError on a tmp tree; the resulting string must still read `src/ootp_ai/parser/\u003cname\u003e.py` so `EXEMPT_MODULES` (:104-107) and the location rule are keyed identically.",
                                      "Do NOT change `test_no_parser_module_seeks_to_a_fixed_offset` (:569-575): it must keep calling `parser_module_violations()` with no arguments. Add a comment at the seam saying that production passes no argument on purpose and that Phase 2\u0027s compensating test asserts it.",
-                                     "Extend the two callables\u0027 docstrings to say what `tree_root` is for — a scope test plants in a tree it owns — and cite `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/` as the reason, matching how `tests/test_leak_guard_scope.py:20` cites its own request directory.",
+                                     "Extend the two callables\u0027 docstrings to say what `tree_root` is for — a scope test plants in a tree it owns — and cite `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/` as the reason, matching how `tests/test_leak_guard_scope.py:20` cites its own request directory.",
                                      "Leave every caller unchanged this phase (tests/test_fixed_offset_guard_scope.py :112, :127, :145, :180, :431 and tests/test_guard_probe_isolation.py:112 all still call with defaults)."
                                  ],
                        "acceptance":  [
@@ -968,11 +968,11 @@ Machine paths were rewritten repo-relative before this file was written.
                                "change":  "Phase 4. Index the new ADR — tests/test_repo_structure.py:33-40 fails the build on an unindexed one."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_PLAN.md",
                                "change":  "This plan. Status blockquote `planned · created \u003ctoday\u003e · decided · next: implement`, per the grammar at requests/bugfix-requests/README.md:45."
                            },
                            {
-                               "path":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
+                               "path":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md",
                                "change":  "NEW (Phase 4). The measured evidence: exit-97 mode-A run, the concurrent-session round counts, copy-cost timing, and the six temp-repo parity properties if Phase 3 ran."
                            },
                            {

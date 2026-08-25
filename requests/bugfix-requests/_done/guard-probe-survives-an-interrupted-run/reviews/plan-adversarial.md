@@ -56,7 +56,7 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "severity":  "minor",
         "confidence":  "high",
         "category":  "accuracy",
-        "location":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:84",
+        "location":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:84",
         "problem":  "The plan repeats \"mypy silently widens 80 → 81\" in four places — the architecture map, onboarding\u0027s BUGFIX_REQUEST entry, Phase 0\u0027s baseline step, and the testing section\u0027s regression list — and Phase 1\u0027s acceptance says \"mypy\u0027s file count is stable\". Measured on the current clean tree (`git status --porcelain --untracked-files=all` empty): `uv run mypy` reports **\"Success: no issues found in 81 source files\"**, and 37 `src/ootp_ai/**/*.py` + 44 `tests/**/*.py` = 81. The intake\u0027s 80 was measured before `tests/test_guard_probe_isolation.py` landed with the RCA (commit 1296c8f, \"File the guard-probe survivor at intake\"). A cold implementer who reads \"the clean baseline is 80\" and then sees 81 on a clean checkout will conclude a survivor is present and go hunting for a phantom — the exact cost this whole request exists to stop.",
         "proposed_fix":  "Stop quoting 80 as the current baseline. Phase 0 already instructs recording the number first; make that the only source of truth and say so explicitly: \"record `uv run mypy`\u0027s file count on the clean tree before editing (measured 2026-08-21: **81**, = 37 src + 44 tests); a survivor adds one to whatever you recorded.\" Where BUGFIX_REQUEST.md:84\u0027s 80 → 81 is cited, label it as the intake-date measurement rather than today\u0027s baseline.",
         "reviewer":  "code-grounded"
@@ -67,7 +67,7 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "severity":  "minor",
         "confidence":  "high",
         "category":  "correctness",
-        "location":  "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:45",
+        "location":  "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:45",
         "problem":  "The testing section elevates `git status --porcelain --untracked-files=all` to \"the one command this bug makes mandatory\" and states flatly \"It must print nothing after a full suite run.\" It cannot. Every phase checkpoint runs with the phase\u0027s own uncommitted edits in the working tree — Phase 0 alone adds a new tracked-to-be file (`tests/fixtures/guard_trees.py`, which shows as `??`) plus modifications to two test modules — so the command prints several lines at every checkpoint by design. Phase 0\u0027s own acceptance is self-consistent (\"shows only the intended edits\"), but Phase 1\u0027s, Phase 3\u0027s and the testing section\u0027s absolute phrasing contradict it. An implementer following the absolute reading either stages prematurely to silence it or concludes the fix leaked.",
         "proposed_fix":  "Restate the gate as the property the intake\u0027s step 4 actually used (BUGFIX_REQUEST.md:45 — a `??` entry for a probe): after a full suite run, `git status --porcelain --untracked-files=all` must show **no path under `src/`**, **no `_guard_scope*_probe.py` anywhere**, and **no `_leak_guard*` path** at the repo root, `var/tmp/`, `requests/bugfix-requests/` or `tests/fixtures/` — beyond that, only the phase\u0027s intended edits. Apply the same wording to Phase 1 and Phase 3\u0027s acceptance lists.",
         "reviewer":  "code-grounded"
@@ -90,8 +90,8 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "confidence":  "high",
         "category":  "accuracy",
         "location":  "tests/test_doc_links.py:48",
-        "problem":  "Both the risks list and Phase 5\u0027s step assert that because `tests/fixtures/guard_trees.py` and `tests/test_probe_isolation_contract.py` do not exist until Phases 0 and 4, \"every mention of them in the plan and report must sit inside a fenced code block\". That is not what the guard does. `BARE_REQUEST_TOKEN` at :48 matches only `requests/...` prefixed tokens, and `LINK` at :20 matches only `[text](target)` markdown-link syntax; `test_relative_links_resolve` (:174-184) and `test_bare_request_tokens_resolve` (:187-201) are the only two checks. A backticked `tests/fixtures/guard_trees.py` in prose is invisible to both. The real and under-emphasised exposure is the opposite one: this plan and the report will name `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` before it exists, and `bare_request_tokens` resolves it against the filesystem at :154 with deliberately NO exemption for a document\u0027s own directory — its docstring at :144-150 records that a draft carried one and it was removed.",
-        "proposed_fix":  "Rewrite the risk to name the actual trigger: any `requests/...` token, and any markdown link, whose target does not yet exist on disk must be fenced (`strip_fences`, :55, is the documented remedy per :149) — with `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` called out by name as the one this plan certainly contains. Drop the claim that non-`requests/` code paths need fencing; it sends the implementer chasing a constraint the guard does not impose.",
+        "problem":  "Both the risks list and Phase 5\u0027s step assert that because `tests/fixtures/guard_trees.py` and `tests/test_probe_isolation_contract.py` do not exist until Phases 0 and 4, \"every mention of them in the plan and report must sit inside a fenced code block\". That is not what the guard does. `BARE_REQUEST_TOKEN` at :48 matches only `requests/...` prefixed tokens, and `LINK` at :20 matches only `[text](target)` markdown-link syntax; `test_relative_links_resolve` (:174-184) and `test_bare_request_tokens_resolve` (:187-201) are the only two checks. A backticked `tests/fixtures/guard_trees.py` in prose is invisible to both. The real and under-emphasised exposure is the opposite one: this plan and the report will name `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` before it exists, and `bare_request_tokens` resolves it against the filesystem at :154 with deliberately NO exemption for a document\u0027s own directory — its docstring at :144-150 records that a draft carried one and it was removed.",
+        "proposed_fix":  "Rewrite the risk to name the actual trigger: any `requests/...` token, and any markdown link, whose target does not yet exist on disk must be fenced (`strip_fences`, :55, is the documented remedy per :149) — with `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md` called out by name as the one this plan certainly contains. Drop the claim that non-`requests/` code paths need fencing; it sends the implementer chasing a constraint the guard does not impose.",
         "reviewer":  "code-grounded"
     },
     {
@@ -189,7 +189,7 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "confidence":  "high",
         "category":  "blocking-check",
         "location":  "tests/test_doc_links.py:48 and :137-156",
-        "problem":  "`BARE_REQUEST_TOKEN` (:48) matches any bare `requests/...` path \"written in prose or inside a code span\" — backticks do NOT exempt it, only fences do (`strip_fences`, :55), and the docstring at :143-150 records that there is deliberately NO exemption for a document\u0027s own directory. `markdown_files()` (:159-171) scans every live `.md`, so IMPLEMENTATION_PLAN.md is in scope the moment it lands. The plan\u0027s `files_to_touch` names `requests/bugfix-requests/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md`, which does not exist until Phase 5. The plan mentions fencing only inside Phase 5\u0027s steps and a risk — not as an authoring instruction for the plan document itself. Result: `uv run pytest -m \"not gamedata\"` is red from the moment the plan is committed, for a reason unrelated to the bug.",
+        "problem":  "`BARE_REQUEST_TOKEN` (:48) matches any bare `requests/...` path \"written in prose or inside a code span\" — backticks do NOT exempt it, only fences do (`strip_fences`, :55), and the docstring at :143-150 records that there is deliberately NO exemption for a document\u0027s own directory. `markdown_files()` (:159-171) scans every live `.md`, so IMPLEMENTATION_PLAN.md is in scope the moment it lands. The plan\u0027s `files_to_touch` names `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md`, which does not exist until Phase 5. The plan mentions fencing only inside Phase 5\u0027s steps and a risk — not as an authoring instruction for the plan document itself. Result: `uv run pytest -m \"not gamedata\"` is red from the moment the plan is committed, for a reason unrelated to the bug.",
         "proposed_fix":  "Add an explicit authoring instruction at the top of the plan: every `requests/...` path that does not yet exist on disk — `IMPLEMENTATION_REPORT.md` above all — must sit inside a fenced code block in this document and in the report. Verify with `uv run pytest tests/test_doc_links.py` immediately after writing the plan, before Phase 0\u0027s first edit, and add that run to Phase 0\u0027s acceptance list.",
         "reviewer":  "executability"
     },
@@ -681,8 +681,8 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
                         "tests/test_leak_guard_scope.py:40-53",
                         "tests/test_no_leaks.py:44-67",
                         "tests/test_no_leaks.py:180-186",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:122-131",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:152-156"
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:122-131",
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:152-156"
                     ]
     },
     {
@@ -690,8 +690,8 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "recommendation":  "**Accept the copy, with the three compensating assertions treated as non-negotiable.** The docstring\u0027s claim is true of an EMPTY tmp_path and false of a faithful copy: the scan still rglobs a real tree and opens 37 real modules, and the probe still sits among real neighbours. What the copy loses is the assertion that PRODUCTION points at the live package — and the compensations assert strictly MORE than the live plant ever did, because the live plant never checked where the default root pointed. If the operator wants a live plant retained anyway, the only honest form is a `gamedata`-marked or manually-run test, and that trades the bug back for the fidelity; I do not recommend it. What I would refuse outright is landing the copy WITHOUT the compensations — that is the trade the intake\u0027s stage plan said needed a panel (BUGFIX_REQUEST.md:168-173).",
         "related":  [
                         "tests/test_fixed_offset_guard_scope.py:85-86",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:144-151",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:168-173"
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:144-151",
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:168-173"
                     ]
     },
     {
@@ -699,8 +699,8 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "recommendation":  "**(a) Report-only — DECLINE the sweep. (b) DECLINE outright.** For (a): ROOT_CAUSE_ANALYSIS.md:157-161 says a sweep cannot fix either mode and must not be sold as the fix; a deleting autouse hook would also need this repo\u0027s first conftest.py (there is none anywhere, and tests/fixtures/warehouse.py:1-6 states why this repo avoids one), and silent tidying destroys the evidence the next reader needs. `test_no_probe_residue_is_present_in_the_working_tree` delivers the one real value — coverage of survivors from pre-fix revisions — without mutating anything. Also do NOT gitignore `_guard_scope*_probe.py`: that removes `git status --porcelain --untracked-files=all` as a detection signal, which is exactly the signal that identified the phantom (BUGFIX_REQUEST.md:45). For (b): docs/decisions/0020-sanctioned-lookahead-seam.md:92-93 forecloses a per-site exemption registry, and a filename-keyed special case inside the guard is one; after Phase 1 the branch is unreachable dead code inside the enforcement of the project\u0027s most load-bearing structural ban. If the operator wants it anyway, it is an ADR-level decision that reopens 0020 — not a phase step.",
         "related":  [
                         "docs/decisions/0020-sanctioned-lookahead-seam.md:92-93",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:157-164",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:45",
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:157-164",
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/BUGFIX_REQUEST.md:45",
                         "tests/fixtures/warehouse.py:1-6"
                     ]
     },
@@ -708,7 +708,7 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
         "question":  "Is Phase 4\u0027s AST contract guard (`tests/test_probe_isolation_contract.py`) in scope, or is it creep? It is the only deliverable the RCA does not name outright.",
         "recommendation":  "**Include it, and keep it severable.** It is the executable form of the RCA\u0027s Root tier (:152-156) — prose cannot stop a third site being invented, and there are already three other readers of the same tree that a per-reader fix would leave unprotected. Crucially it lands with ZERO allowlist entries, and that is measured rather than hoped: today the complete set of REPO_ROOT-derived writes under tests/ is tests/test_fixed_offset_guard_scope.py:94, tests/test_leak_guard_scope.py:49 and the two mkdirs at tests/test_leak_guard_scope.py:89,183 — all four removed by Phases 1 and 3; every other write in tests/ targets tmp_path or a fixture-built root. It must be AST-based, not a grep (tests/test_read_only.py:337 and :398 hold the banned strings as literals). If the operator drops it, the filed bug is still closed by Phase 1 — but say in the report that the convention is then prose-only, so the next reader knows.",
         "related":  [
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:152-156",
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:152-156",
                         "tests/test_read_only.py:337",
                         "tests/test_read_only.py:389-402",
                         "tests/test_leak_guard_scope.py:89",
@@ -733,7 +733,7 @@ Panel health: planners_ok 3/3, adversaries_ok 2/2, meta_audit_ok 1/1, findings 4
                         "tests/test_grain_contracts.py:75",
                         "tests/test_grain_contracts.py:364-380",
                         "tests/test_read_only.py:292",
-                        "requests/bugfix-requests/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:133-135"
+                        "requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/ROOT_CAUSE_ANALYSIS.md:133-135"
                     ]
     }
 ]
