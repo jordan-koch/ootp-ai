@@ -77,7 +77,7 @@ simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 
 ## Design decisions
 
-Twenty-one are recorded in [`docs/decisions/`](docs/decisions/) — nineteen live, two
+Twenty-two are recorded in [`docs/decisions/`](docs/decisions/) — twenty live, two
 superseded. The ones that shape everything else:
 
 | ADR | Decision | Why |

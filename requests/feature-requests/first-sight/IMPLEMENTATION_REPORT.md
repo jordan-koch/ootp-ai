@@ -256,9 +256,13 @@ not finished in ten minutes. Using the documented predicate returns in 0.25 s.
 
 `/commit` next. Follow-ups this phase surfaced or inherits:
 
-1. **The stray-probe hazard is now three-for-three unfiled** — Phase 9 raised it as CF24,
-   Phase 10 recorded it as follow-up 3, and the Phase 11 panel hit it twice more as CF-19.
-   It reddens `test_no_fixed_offsets` on a phantom file. It needs a bugfix request.
+1. ~~**The stray-probe hazard is now three-for-three unfiled**~~ — **RESOLVED 2026-08-24.**
+   Phase 9 raised it as CF24, Phase 10 recorded it as follow-up 3, and the Phase 11 panel hit
+   it twice more as CF-19. Filed and fixed as
+   `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/`: the probe now plants in
+   a tree the test owns rather than in the package the guard scans, which closes the
+   interrupted-run survivor *and* the concurrent-reader mode these sightings actually were. See
+   ADR 0022.
 2. **Landing ratings vs. withholding them** — the operator raised whether the withhold-at-
    parse posture is paying for itself, given that `open-front-office` Phase B already scopes
    a `gm_view` schema + restricted grant built **from** `column_disposition`. Re-evaluate

@@ -41,8 +41,15 @@ PATTERNS: list[tuple[str, re.Pattern[str]]] = [
 ]
 
 
-def git_paths(*args: str) -> list[str]:
+def git_paths(*args: str, repo: Path = REPO_ROOT) -> list[str]:
     """Repo-relative paths from `git ls-files`, NUL-separated and decoded explicitly.
+
+    `repo` is **keyword-only**, and that is forced rather than stylistic: the parameter sits
+    behind `*args`, so the obvious positional spelling would bind a repository to `"--cached"`
+    and run git in a directory of that name. It exists so a scope test can plant its probes in
+    a repository **it owns** instead of in the one this guard protects — see
+    `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/` and ADR 0022. Every
+    production caller passes nothing: a leak guard pointed at a mirror guards a mirror.
 
     Two details are load-bearing, and both were measured rather than assumed:
 
@@ -59,7 +66,7 @@ def git_paths(*args: str) -> list[str]:
     """
     out = subprocess.run(
         ["git", "ls-files", "-z", *args],
-        cwd=REPO_ROOT,
+        cwd=repo,
         capture_output=True,
         check=True,
     )
@@ -67,7 +74,10 @@ def git_paths(*args: str) -> list[str]:
     return [rel for rel in decoded.split("\0") if rel]
 
 
-def scannable_text_files() -> list[Path]:
+def scannable_text_files(repo: Path = REPO_ROOT) -> list[Path]:
+    # `repo` defaults to this repository and production never passes anything else; see
+    # `git_paths` above for what the parameter is for.
+    #
     # --cached --others --exclude-standard = tracked PLUS untracked, MINUS ignored.
     # Bare `git ls-files` lists only the index, so a file that had just been written was
     # never opened and none of the patterns below were ever applied to it — the guard's
@@ -97,10 +107,10 @@ def scannable_text_files() -> list[Path]:
         ".txt",
     }
     paths = []
-    for rel in git_paths("--cached", "--others", "--exclude-standard"):
+    for rel in git_paths("--cached", "--others", "--exclude-standard", repo=repo):
         if rel in EXEMPT or rel.startswith(EXEMPT_PREFIXES):
             continue
-        p = REPO_ROOT / rel
+        p = repo / rel
         if p.suffix.lower() in keep or p.name == ".env.example":
             paths.append(p)
     return paths
@@ -136,7 +146,7 @@ def test_patterns_still_catch_real_leaks() -> None:
         assert not hits, f"false positive ({hits}) on: {sample!r}"
 
 
-def machine_path_violations() -> list[str]:
+def machine_path_violations(repo: Path = REPO_ROOT) -> list[str]:
     """Every banned value found in scope, as `path:line: label: text` strings.
 
     A helper rather than an inline loop so a test can assert the scan actually REPORTS —
@@ -145,8 +155,8 @@ def machine_path_violations() -> list[str]:
     mutant scanning zero files passed the whole suite before this seam existed.
     """
     violations: list[str] = []
-    for path in scannable_text_files():
-        rel = path.relative_to(REPO_ROOT).as_posix()
+    for path in scannable_text_files(repo):
+        rel = path.relative_to(repo).as_posix()
         # `--cached` still lists a path that is tracked but deleted from the working
         # tree, so the read below would raise. Skip anything that is not a regular file.
         # Both this and the `except` are deliberately NARROW: a broad `except Exception`
@@ -170,7 +180,7 @@ def test_no_machine_paths_or_identifiers() -> None:
     assert not violations, "machine-specific values in scanned files:\n" + "\n".join(violations)
 
 
-def game_data_offenders() -> list[str]:
+def game_data_offenders(repo: Path = REPO_ROOT) -> list[str]:
     """OOTP files that must never enter this repo, as repo-relative paths.
 
     A helper rather than an inline comprehension so a regression test can assert against
@@ -189,7 +199,7 @@ def game_data_offenders() -> list[str]:
     banned_suffixes = {".dat", ".lg"}
     return [
         rel
-        for rel in git_paths("--cached", "--others", "--exclude-standard")
+        for rel in git_paths("--cached", "--others", "--exclude-standard", repo=repo)
         if Path(rel).name in banned_names or Path(rel).suffix in banned_suffixes
     ]
 
@@ -213,7 +223,7 @@ def test_game_data_is_not_tracked() -> None:
 # `.gitignore` with no test going red. These two close that.
 
 
-def is_git_ignored(rel: str) -> bool:
+def is_git_ignored(rel: str, repo: Path = REPO_ROOT) -> bool:
     """Whether git would ignore `rel`, **without the file needing to exist**.
 
     `--no-index` deliberately: the obvious implementation writes a probe file under the
@@ -225,7 +235,7 @@ def is_git_ignored(rel: str) -> bool:
     return (
         subprocess.run(
             ["git", "check-ignore", "--no-index", "-q", rel],
-            cwd=REPO_ROOT,
+            cwd=repo,
             capture_output=True,
         ).returncode
         == 0

@@ -413,3 +413,35 @@ is the one you are already following.
   rule-shaped sibling of the "constant 203" trap already recorded above. · evidence:
   `var/tmp/p6b-rosters/20_diag194.py` (gitignored); `src/ootp_ai/parser/rosters.py`
   `_solve_membership` · tag: harness
+- **2026-08-24** · `measured` · **Plant a guard's probe in a tree the test OWNS, never in the
+  tree the guard scans — a `finally` is not the mechanism, ownership is.** This dates the
+  2026-08-18 `measured` entry above, which prescribes "written to disk and removed in
+  `finally`": that half is superseded, its mutate-the-rule half stands. `finally` only covers
+  the run that survives to it, and it never covered the mode that actually bit — a *concurrent*
+  reader scanning while a healthy run has a probe planted, which leaves nothing behind to
+  explain the red. Measured: a reader loop went red on 2 of 12 rounds before the fix and 0 of 12
+  after. Build the tree with `tests/fixtures/guard_trees.py` (a byte-faithful `copytree` for a
+  package, a `git init` temp repo with this repo's `.gitignore` for the leak guard), give the
+  guard a defaulted tree-root parameter, and pin that production still passes nothing. ·
+  evidence: `docs/decisions/0022-guard-probes-plant-in-a-tree-they-own.md`,
+  `tests/test_probe_isolation_contract.py` · tag: harness
+- **2026-08-24** · `measured` · **A concurrency harness that runs two DIFFERENT modules against
+  each other cannot observe two sessions colliding inside the SAME module — and that is the
+  collision.** This dates the `2 of 12 / 0 of 12` figure in the entry immediately above: the
+  number is real for the harness that produced it (a reader loop against a planter loop) and
+  that harness is blind to the property it was cited for. Re-run as 3 concurrent sessions of the
+  *same* module x 4 rounds, a temp-root glob added by that very fix measured **10 of 12 red**,
+  while solo runs stayed green and CI — single-session, no xdist — could never have reported it.
+  When you claim a concurrency property, name the harness next to the number, and make sure the
+  harness can put two copies of the failing test on the tree at once. ·
+  evidence: `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/IMPLEMENTATION_REPORT.md`
+  · tag: harness
+- **2026-08-24** · `measured` · **A temp directory is machine-global; `TemporaryDirectory` is
+  per-process.** Globbing `tempfile.gettempdir()` to find "the tree this test just built" counts
+  sibling sessions' trees and trees stranded by older interrupted runs, so `len(found) == 1`
+  fails under exactly the concurrency it looks safe under. Have the fixture hand its tree to the
+  test — a module-level list of open mirrors — instead of searching for it, put the pid in the
+  prefix so strays are attributable, and where a child is killed by `os._exit` (finalizer never
+  runs) point its temp root at pytest's `tmp_path` so retention reaps it: measured 646 KB
+  stranded per suite run before, zero after. · evidence: `tests/fixtures/guard_trees.py`
+  `OPEN_MIRRORS` · tag: tooling

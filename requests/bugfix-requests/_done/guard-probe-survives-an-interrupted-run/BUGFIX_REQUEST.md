@@ -1,4 +1,4 @@
-> **Status:** diagnosed · created 2026-08-21 · decided · next: plan
+> **Status:** fixed · created 2026-08-21 · decided · next: commit
 
 # Bug Report — A test plants real modules inside `src/ootp_ai/parser/`, and a survivor reddens the fixed-offset guard on a file nobody wrote
 
@@ -105,7 +105,7 @@ planted file is a fixture artifact, not a defect in `src/`.
 |---|---|---|
 | 1 | `tests/test_fixed_offset_guard_scope.py` `:81-98` | `parser_probe` — the fixture that plants into the live tree and cleans up in a `finally`. Its docstring argues the live tree is **necessary**, and that argument is the crux |
 | 2 | `tests/test_no_fixed_offsets.py` `:97` | `SCAN_ROOT` — the guard walks the same directory. `parser_module_violations()` takes no root parameter |
-| 3 | [ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md) | The decision the guard enforces. Any fix that narrows what the guard reads is trading against this |
+| 3 | [ADR 0020](../../../../docs/decisions/0020-sanctioned-lookahead-seam.md) | The decision the guard enforces. Any fix that narrows what the guard reads is trading against this |
 
 Also relevant: `requests/feature-requests/first-sight/reviews/phase-11-acceptance-panel.md`
 (CF-19, the most recent sighting, with the live failure text) and
@@ -167,7 +167,7 @@ Non-binding. Diagnosis may find a third, and may find that (1) and (2) are not e
    definition of done requires. **This trigger clears.**
 3. **It touches something expensive to reverse** — the fix modifies the enforcement of the
    fixed-offset ban, which `CLAUDE.md` calls *"the rulebook's"* and which
-   [ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md) settles. Candidate
+   [ADR 0020](../../../../docs/decisions/0020-sanctioned-lookahead-seam.md) settles. Candidate
    fix (2) narrows what the guard reads. Weakening the project's most load-bearing
    structural guard in order to stop a fixture flake is exactly the trade that needs a
    panel rather than a judgement call.

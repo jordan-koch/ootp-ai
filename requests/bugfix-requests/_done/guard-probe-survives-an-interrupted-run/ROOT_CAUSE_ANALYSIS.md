@@ -1,4 +1,4 @@
-> **Status:** diagnosed · created 2026-08-21 · decided · next: plan
+> **Status:** fixed · created 2026-08-21 · decided · next: commit
 
 # Root Cause Analysis — The probe is planted in the tree the guard scans
 
@@ -131,7 +131,7 @@ at `parser_probe` alone leaves this open, and the report should say so rather th
 "closed".
 
 **Not implicated:** `src/` is untouched — no parser, warehouse or report code is involved — and
-[ADR 0020](../../../docs/decisions/0020-sanctioned-lookahead-seam.md)'s rule is not at issue.
+[ADR 0020](../../../../docs/decisions/0020-sanctioned-lookahead-seam.md)'s rule is not at issue.
 What is at issue is where the test that proves the rule does its work.
 
 ## Fix posture (tiered)

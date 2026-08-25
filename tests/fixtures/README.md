@@ -35,6 +35,19 @@ on you.
 - **Expected-value tables** transcribed from ground truth, each row citing where it
   came from so a future reader can re-check it.
 
+## Shared harnesses live here too
+
+This directory holds more than committed data. **Test harnesses that several modules import
+by name** live here as well — `synthetic.py`, `warehouse.py`, `reports.py`, `tiers.py` and
+`guard_trees.py` — and they are modules, not fixture files.
+
+They are here rather than in a `conftest.py`, and this repo deliberately has none anywhere.
+The reasoning is written out at the top of `tests/fixtures/warehouse.py`: a reader of the
+importing module should see the setup being named and called, not inherited invisibly from a
+file they have to know to look for. `fixtures` is declared first-party in `pyproject.toml`, so
+the house import is `from fixtures.warehouse import ...` — a `from tests.fixtures...` form
+passes locally and fails elsewhere.
+
 ## What does not
 
 - Anything requiring a local install to produce. That is a `gamedata`-marked test,

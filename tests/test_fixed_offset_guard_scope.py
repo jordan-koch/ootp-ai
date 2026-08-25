@@ -15,9 +15,14 @@ discretionary nicety, which is why this module is not gated behind a judgment ca
 
 ## The two halves, and why neither works alone
 
-- **Seen to fail** — a real offender written into `src/ootp_ai/parser/` is REPORTED by the
-  real disk scan, not merely visible to it. Without this the module below proves the scan
-  looks in the right places and nothing about whether it finds anything there.
+- **Seen to fail** — a real offender written into a real `src/ootp_ai/` package on disk is
+  REPORTED by the real disk scan, not merely visible to it. That package is a byte-faithful
+  **mirror** rather than the live one: a probe planted in the tree the guard scans poisons
+  every other reader of that tree, which cost this project five reviewer sightings and zero
+  builds. `tests/fixtures/guard_trees.py` holds the reasoning, and the fidelity the mirror
+  gives up is bought back by three compensating assertions below. Without this half the
+  module proves the scan looks in the right places and nothing about whether it finds
+  anything there.
 - **Seen not to cry wolf** — every control here is derived from a **real line in the tree**
   and cited with it. `tests/test_no_fixed_offsets.py` says a guard that cries wolf gets
   loosened, and a loosened guard is worse than none; these are what stop a future widening
@@ -48,15 +53,23 @@ Offline: no game, no MySQL.
 
 from __future__ import annotations
 
+import inspect
+import re
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
 
 import pytest
 
 import test_no_fixed_offsets as guard
+from fixtures.guard_trees import OPEN_MIRRORS, assert_owned, mirrored_package
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
+
+#: The LIVE package, with a role this module's fix deliberately changed: nothing here plants
+#: into it any more. It is the tree the probe must never reach — asserted by
+#: `test_no_probe_is_ever_written_into_the_live_package` below — and the directory
+#: `tests/test_guard_probe_isolation.py` globs for residue left by an older revision.
 PARSER_DIR = REPO_ROOT / "src" / "ootp_ai" / "parser"
 
 #: A module the guard must flag. The exact shape the RCA measured: reading `team_id` at a
@@ -79,37 +92,69 @@ def read_team_id(data: bytes, position: int) -> int | None:
 
 
 @contextmanager
-def parser_probe(name: str, body: str) -> Iterator[str]:
-    """Write a real module into `src/ootp_ai/parser/` and always remove it again.
+def parser_probe(name: str, body: str, tree_root: Path | None = None) -> Iterator[str]:
+    """Write a real module into a mirrored `src/ootp_ai/parser/` and always remove it again.
 
-    A `tmp_path` fixture cannot serve: the scan enumerates the package on disk, so the
-    probe has to exist inside it to be a fair test of what the scan actually reads.
+    **The probe plants in a tree it owns.** Given no `tree_root` it builds a private mirror
+    and owns it for the life of the context; a caller that needs to scan the same tree opens
+    `mirrored_package()` itself and passes the root in. Either way the yielded value is the
+    repo-relative posix string the scan reports, so callers assert on it unchanged.
 
-    The `finally` matters more here than in most harnesses — a leftover `.py` under `src/`
-    would be collected by the next `ruff`, `mypy` and `pytest` run, and would also show up
-    as an untracked file in `tests/test_no_leaks.py`.
+    This fixture used to plant into the live `src/ootp_ai/parser/`, arguing that a `tmp_path`
+    could not serve — the scan enumerates the package on disk, so a probe outside it would
+    show only that the scan reads *a* directory rather than *the* directory. **That argument
+    is answered here, not abandoned.** It holds against an empty temp directory and fails
+    against a byte-faithful copy: the probe still sits among the package's 37 real modules,
+    byte-identical, in a real tree the scan really rglobs and really opens. What changed is
+    that the tree is one nothing else reads — so an interrupted run leaves nothing in this
+    repository, and no concurrent reader of the package can see this fixture's work. Both
+    modes are in `requests/bugfix-requests/_done/guard-probe-survives-an-interrupted-run/`.
+
+    What a copy cannot prove is that *production* reads the original, and that is bought back
+    explicitly by the three tests above: `test_the_production_scan_root_is_the_live_package`,
+    `test_the_mirror_holds_the_same_modules_as_the_live_package` and
+    `test_the_tree_is_clean_test_takes_the_default_root`. Together they assert strictly more
+    than the live plant ever did — it never checked where the default root pointed.
     """
-    path = PARSER_DIR / name
-    assert not path.exists(), f"{name} already exists; refusing to clobber it"
-    path.write_text(body, encoding="utf-8")
-    try:
-        yield f"src/ootp_ai/parser/{name}"
-    finally:
-        path.unlink(missing_ok=True)
+    with ExitStack() as stack:
+        if tree_root is not None:
+            assert_owned(tree_root)
+        root = tree_root if tree_root is not None else stack.enter_context(mirrored_package())
+        path = root / "src" / "ootp_ai" / "parser" / name
+
+        # Near-vacuous against a freshly built mirror, and saying so out loud is the point:
+        # `mirrored_package` excludes probe residue and asserts the fresh copy reports
+        # nothing, so there is by construction nothing here to clobber. It is retained for
+        # the caller-supplied `tree_root` path, where two probes in one mirror would collide.
+        # Letting a live check quietly decay into a tautology is the failure mode the module
+        # docstring above exists to refuse, so the decay is documented rather than hidden.
+        assert not path.exists(), f"{name} already exists; refusing to clobber it"
+
+        path.write_text(body, encoding="utf-8")
+        try:
+            yield f"src/ootp_ai/parser/{name}"
+        finally:
+            path.unlink(missing_ok=True)
 
 
 # --- The scan must be SEEN TO FAIL --------------------------------------------------
 
 
-def test_the_scan_reports_a_planted_offender_in_the_real_tree() -> None:
+def test_the_scan_reports_a_planted_offender_in_a_real_package_on_disk() -> None:
     """The end-to-end property: an offender on disk is REPORTED by the real scan.
 
     This is the test the whole module exists for. `test_no_parser_module_seeks_to_a_fixed
     _offset` asserts the tree is clean, and a scan that read zero files or reported nothing
     would satisfy it perfectly.
+
+    The package is a mirror, not the live one, and the name says so — a test name that
+    overclaims is the bug this module was fixed for, in miniature.
     """
-    with parser_probe("_guard_scope_probe.py", OFFENDER) as rel:
-        violations = guard.parser_module_violations()
+    with (
+        mirrored_package() as tree,
+        parser_probe("_guard_scope_probe.py", OFFENDER, tree_root=tree) as rel,
+    ):
+        violations = guard.parser_module_violations(tree)
         assert any(rel in v for v in violations), (
             "an offending module on disk was not reported; the scan is not finding what it "
             f"can see (got {len(violations)} violations, none naming the probe)"
@@ -123,30 +168,212 @@ def test_the_scan_is_silent_when_the_planted_module_is_clean() -> None:
     everything — which would also make the tree-is-clean test fail, but for a reason nobody
     could diagnose from its message.
     """
-    with parser_probe("_guard_scope_clean_probe.py", INNOCENT) as rel:
-        assert not [v for v in guard.parser_module_violations() if rel in v]
+    with (
+        mirrored_package() as tree,
+        parser_probe("_guard_scope_clean_probe.py", INNOCENT, tree_root=tree) as rel,
+    ):
+        assert not [v for v in guard.parser_module_violations(tree) if rel in v]
 
 
 def test_the_probe_is_removed_even_though_the_scan_read_it() -> None:
-    """A leftover probe would break the next lint, type-check and leak-guard run."""
-    with parser_probe("_guard_scope_cleanup_probe.py", OFFENDER):
-        assert (PARSER_DIR / "_guard_scope_cleanup_probe.py").exists()
-    assert not (PARSER_DIR / "_guard_scope_cleanup_probe.py").exists()
+    """The `finally` still runs, even though a leftover no longer poisons anything.
+
+    Before the fix this guarded a live hazard: a leftover `.py` under `src/` was collected by
+    the next ruff, mypy and pytest run, and showed up as an untracked file in the leak guard.
+    The tree is disposable now, so what remains is the weaker but real property that the
+    fixture cleans up inside a mirror its caller owns and may plant in again.
+
+    **The mirror is opened in an OUTER context deliberately.** If the probe built its own,
+    the tempdir would be torn down along with it and `not path.exists()` would pass whether
+    or not the `finally` ran — the one assertion in this module that proves cleanup happens
+    would go tautological, which is precisely the shape the module docstring refuses.
+    """
+    with mirrored_package() as tree:
+        planted = tree / "src" / "ootp_ai" / "parser" / "_guard_scope_cleanup_probe.py"
+        with parser_probe("_guard_scope_cleanup_probe.py", OFFENDER, tree_root=tree):
+            assert planted.exists()
+        assert not planted.exists()
+
+
+def test_no_probe_is_ever_written_into_the_live_package() -> None:
+    """The isolation property, driven through the fixture that used to break it.
+
+    Paired with `tests/test_guard_probe_isolation.py::test_no_probe_residue_is_present_in
+    _the_working_tree`, and the pair is not redundant: that one OBSERVES the live package at
+    module scope and catches residue an older revision left behind, which no design change
+    reaches retroactively. This one DRIVES the fixture and catches a regression that re-points
+    it at the live tree — the cause rather than the leftover.
+    """
+    # Snapshotted, not asserted empty. Residue from a PRE-FIX revision also makes this glob
+    # non-empty, and that is the one case no design change reaches — reporting it is the
+    # residue detector's job. Asserting emptiness here would blame this fixture for a
+    # regression that has not happened and point the reader at the wrong fix.
+    before = {p.name for p in PARSER_DIR.glob("_guard_scope*_probe.py")}
+
+    with parser_probe("_guard_scope_live_tree_probe.py", OFFENDER):
+        during = {p.name for p in PARSER_DIR.glob("_guard_scope*_probe.py")} - before
+        assert during == set(), (
+            f"the probe reached the live package while planted: {sorted(during)}. Any reader "
+            "scanning src/ootp_ai/ right now goes red on a file no author wrote"
+        )
+
+    after = {p.name for p in PARSER_DIR.glob("_guard_scope*_probe.py")} - before
+    assert after == set(), f"the probe left a module in the live package: {sorted(after)}"
+
+
+def test_the_probe_really_plants_in_the_mirror_it_owns() -> None:
+    """Anti-vacuity, and this module cannot do without it: a `parser_probe` that planted
+    NOTHING AT ALL would satisfy every isolation assertion above perfectly.
+
+    That is the "green while guarding nothing" shape the two guards in this module's opening
+    docstring both had. So the plant is located positively: the exact path exists inside the
+    mirror the fixture built for itself, and a scan of that tree reports the yielded string.
+    Delete the `write_text` in `parser_probe` and this is the test that dies.
+
+    **The tree is read from `OPEN_MIRRORS`, never found by globbing the OS temp root.** An
+    earlier version of this test globbed `tempfile.gettempdir()` and asserted exactly one
+    match — and that root is machine-global, so a second session running this same module
+    counted three, and a mirror stranded by an interrupted run counted forever. Measured red
+    on 10 of 12 concurrent rounds. It was this bug exactly, moved one directory up from
+    `src/ootp_ai/parser/` to the temp root, inside the change that exists to retire it.
+    """
+    name = "_guard_scope_anti_vacuity_probe.py"
+
+    with parser_probe(name, OFFENDER) as rel:
+        assert OPEN_MIRRORS, "the fixture built no mirror of its own, so it planted nowhere"
+
+        tree = OPEN_MIRRORS[-1]
+        planted = tree / "src" / "ootp_ai" / "parser" / name
+        assert planted.is_file(), (
+            f"the fixture yielded {rel!r} but wrote no file at {planted}. It is not writing "
+            "the module it claims to write, and every isolation assertion here would still pass"
+        )
+
+        assert [v for v in guard.parser_module_violations(tree) if rel in v], (
+            "the planted module is not reported by a scan of the tree it was planted in, so "
+            "the yielded string names nothing"
+        )
 
 
 def test_the_module_set_has_a_floor() -> None:
     """A coverage floor, because every other test here survives the set collapsing.
 
-    A probe being reported says nothing about the other seventeen modules going unread — the
+    A probe being reported says nothing about the other thirty-six modules going unread — the
     leak guard's collapse from ~134 files to 9 left all of its membership tests green. The
     floor sits far below the real count so ordinary churn never trips it; it exists to catch
     a collapse, not to track a number.
     """
+    # No argument, against the LIVE package, on purpose: a floor measured on a mirror is a
+    # floor on the mirror. This is one of the two tests here that must keep observing
+    # production, and it is exactly the line a future refactor would tidy onto a tree.
     count = len(guard.parser_modules())
     assert count >= 12, (
-        f"the scan covers only {count} modules; it has been covering 18. A collapse this "
+        f"the scan covers only {count} modules; it has been covering 37. A collapse this "
         "large means a glob or a filter is swallowing the package, and the tree-is-clean "
         "test would still pass"
+    )
+
+
+# --- The seam: production reads the package, and a mirror is the same tree -----------
+# `parser_modules` and `parser_module_violations` take a repo root so the probes here can
+# plant in a tree they OWN rather than in the one every other reader of this repo scans.
+# That buys isolation at the price of the end-to-end tests reading a copy, and the four
+# tests below pay it in full: production still points at the live package, the copy really
+# is that package, an offender in it is reported under the real path string, and the
+# tree-is-clean test takes the default root.
+
+
+def test_the_production_scan_root_is_the_live_package() -> None:
+    """Compensating assertion (a): the guard reads the original, never a copy.
+
+    This is the one property a mirrored probe cannot demonstrate, so it is asserted head-on.
+    The allowlist strings are deliberately NOT re-checked here — `test_an_allowlisted_path
+    _matches_what_the_real_scan_builds` already pins those against the paths the real scan
+    builds, and a second copy would only be a second thing to forget to update.
+    """
+    assert guard.SCAN_ROOT == REPO_ROOT / "src" / "ootp_ai", (
+        f"the production scan root is {guard.SCAN_ROOT}, not the live package — every "
+        "mirrored test in this module would then prove something about a directory this "
+        "project does not ship from"
+    )
+
+    # Computed WITHOUT going through `PACKAGE_RELATIVE`, deliberately. Filtering
+    # `parser_modules()` on `SCAN_ROOT` would be unfailable: both are built from that same
+    # constant, so every returned path is under it by construction and the check reads as a
+    # second assertion while asserting nothing. Rebuilding the expected set from the literal
+    # path is what catches the drift that matters — a default root, a glob or a filter that
+    # stops covering the live package.
+    expected = sorted((REPO_ROOT / "src" / "ootp_ai").rglob("*.py"))
+    assert guard.parser_modules() == expected, (
+        "a no-argument scan does not return exactly the live package's modules "
+        f"(expected {len(expected)}, got {len(guard.parser_modules())}). The default root is "
+        "what production uses; if it can wander, the guard guards a copy"
+    )
+
+
+def test_the_mirror_holds_the_same_modules_as_the_live_package() -> None:
+    """Compensating assertion (b): the copy is the package — file for file, byte for byte.
+
+    Runs against a mirror with **nothing planted**, because the set equality below is false
+    by exactly one entry the moment a probe is in it. That is why this test builds its own
+    bare mirror instead of sharing one with a planting test.
+
+    Bytes as well as names: a `copytree` that dropped a subpackage fails the set equality,
+    and one that copied the right names with the wrong contents fails only the bytes.
+    """
+    with mirrored_package() as tree:
+        live = {p.relative_to(REPO_ROOT).as_posix(): p for p in guard.parser_modules()}
+        mirrored = {p.relative_to(tree).as_posix(): p for p in guard.parser_modules(tree)}
+
+        assert set(mirrored) == set(live), (
+            "the mirror is not the same module set as the live package (missing "
+            f"{sorted(set(live) - set(mirrored))}, extra {sorted(set(mirrored) - set(live))}). "
+            "A probe module surviving in the live package from an older revision is one "
+            "cause; a copytree that dropped a subpackage is the other"
+        )
+
+        differing = [
+            rel for rel, path in mirrored.items() if path.read_bytes() != live[rel].read_bytes()
+        ]
+        assert differing == [], (
+            f"the mirror's copies differ from the live modules: {differing}. A scan of a "
+            "tree that only looks like the package proves nothing about the package"
+        )
+
+
+def test_the_mirror_reports_a_planted_offender_with_the_real_path_string() -> None:
+    """The riskiest assumption the seam rests on, pinned: a mirrored offender is reported
+    under the SAME repo-relative string production would report.
+
+    If this were false the mirror would differ from the package in the only way that
+    matters. Exemption is keyed on that exact string, so a mirror reporting
+    `parser/lookahead.py` instead of `src/ootp_ai/parser/lookahead.py` would silently
+    un-exempt the sanctioned seam — and every mirrored test would then err in the direction
+    of looseness, which is the direction nobody catches.
+    """
+    with mirrored_package() as tree:
+        planted = tree / "src" / "ootp_ai" / "parser" / "_guard_scope_seam_probe.py"
+        planted.write_text(OFFENDER, encoding="utf-8")
+
+        rel = "src/ootp_ai/parser/_guard_scope_seam_probe.py"
+        violations = guard.parser_module_violations(tree)
+        assert [v for v in violations if v.startswith(f"{rel}:")], (
+            f"an offender planted in a mirror was not reported as {rel!r}; the mirror's "
+            f"repo-relative keys do not match production's (got {violations})"
+        )
+
+
+def test_the_tree_is_clean_test_takes_the_default_root() -> None:
+    """Compensating assertion (c): nobody can quietly point production at a mirror.
+
+    Read from the guard's own source rather than by calling it. A call would prove only what
+    today's default happens to be; this proves the production test passes no root at all, so
+    a later edit handing it a tree fails here instead of passing silently.
+    """
+    source = inspect.getsource(guard.test_no_parser_module_seeks_to_a_fixed_offset)
+    assert re.search(r"parser_module_violations\(\s*\)", source), (
+        "the tree-is-clean test no longer calls parser_module_violations() with no "
+        f"arguments, so the guard may be reading a tree a test owns:\n{source}"
     )
 
 
@@ -177,6 +404,9 @@ def test_every_allowlisted_module_exists(relative: str) -> None:
 def test_an_allowlisted_path_matches_what_the_real_scan_builds(relative: str) -> None:
     """The exemption is keyed on a repo-relative posix string, so a backslash or a leading
     `./` would silently exempt nothing. Pinned against the paths the scan actually derives."""
+    # No argument, against the LIVE package, on purpose — the second of the two tests here
+    # that must keep observing production. Keyed on a mirror this would pin that the mirror
+    # exempts the seam, which says nothing about what the shipped tree exempts.
     built = {p.relative_to(REPO_ROOT).as_posix() for p in guard.parser_modules()}
     assert relative in built, (
         f"{relative!r} is not one of the strings the scan builds, so it exempts nothing; "
@@ -418,17 +648,20 @@ def test_the_span_rule_is_not_a_blanket_pass_for_every_module_constant() -> None
     assert violations and "_TEAM_ID_OFFSET" in violations[0]
 
 
-def test_the_folded_constant_rule_reports_an_offender_in_the_real_tree() -> None:
+def test_the_folded_constant_rule_reports_an_offender_in_a_real_package_on_disk() -> None:
     """Seen to fail on disk, not only against a string — the same standard the subscript
-    rule is held to above."""
+    rule is held to above, and in the same kind of tree: a mirror the test owns."""
     probe = (
         "from ootp_ai.parser.lookahead import peek_u32\n\n"
         "_MUTATION_PROBE_OFFSET = 58\n\n\n"
         "def probe(data: bytes, position: int) -> int | None:\n"
         "    return peek_u32(data, position + _MUTATION_PROBE_OFFSET)\n"
     )
-    with parser_probe("_guard_scope_folded_probe.py", probe) as rel:
-        violations = guard.parser_module_violations()
+    with (
+        mirrored_package() as tree,
+        parser_probe("_guard_scope_folded_probe.py", probe, tree_root=tree) as rel,
+    ):
+        violations = guard.parser_module_violations(tree)
         assert any(rel in v for v in violations), (
             "a folded record-relative constant on disk was not reported by the real scan"
         )
