@@ -1,4 +1,4 @@
-> **Status:** planned · created 2026-08-30 · decided · next: implement
+> **Status:** implemented · created 2026-08-30 · decided · next: commit
 
 # Implementation Plan — An ingest command: the pipeline has no way to be run
 
@@ -34,7 +34,7 @@ in one operator-facing default and one test-suite re-point.
 | 11 | `tests/fixtures/warehouse.py` | `:19-26` why the landings allocate from the warehouse; `:59-96` the loud-skip discipline and the lone `ensure_tables` call at `:93`; `:99-130` `purge_snapshot`; `:133-157` `landed_probe`, composing `parse_snapshot(take_snapshot(...))` at `:151` |
 | 12 | `tests/test_bronze_landing.py` `:188-195`, `:761-772`, `:812-815` | The `_FakeConnection` + `cast` pattern the new offline helper tests copy, and the mutation scan the new SQL must pass |
 | 13 | `docs/decisions/0021-bronze-landing-is-append-only.md` | The semantics the command surfaces. `:57-59` names the correction workflow `--from-snapshot` implements |
-| 14 | [`incremental-loading`](../incremental-loading/FEATURE_REQUEST.md) | The downstream consumer that will write its procedure against this command's invocation string, flags, exit codes and output format |
+| 14 | [`incremental-loading`](../../incremental-loading/FEATURE_REQUEST.md) | The downstream consumer that will write its procedure against this command's invocation string, flags, exit codes and output format |
 
 **Environment prerequisites — state these before starting, not on discovery.** Phases 2, 5 and 6
 **cannot be completed on a CI-shaped machine.** They need `.env` with `OOTP_PROBE_LEAGUE` set, the
@@ -424,7 +424,7 @@ that `ensure_tables` does **not** repair a drifted one. Point `reports/resolve.p
 at the literal invocation string. The string is **duplicated by necessity** — the anti-drift device is
 AC8, which reads the constant from the command module and asserts the literal appears in both files; do
 **not** import the constant into `resolve.py`. Add the status-verb boundary as a dated amendment to
-[`incremental-loading`](../incremental-loading/FEATURE_REQUEST.md). Correct `tests/test_read_only.py:186`'s
+[`incremental-loading`](../../incremental-loading/FEATURE_REQUEST.md). Correct `tests/test_read_only.py:186`'s
 stale "46 MB" to the measured 52.4 MiB. Pass CLAUDE.md's Status paragraph and `src/ootp_ai/` map entry
 through `/update-docs` rather than hand-editing.
 
@@ -559,6 +559,18 @@ copy" observable rather than asserted.
     and are carried as facts with dates and labels. Only the allocator table can drift between now and
     implementation, so Phase 1 re-runs exactly that query.
 
+> **Amendment 2026-08-30, operator-disposed at stage 4 — `SaveReading` carries a `reason`.**
+> Decision 8 split the comparison into two pure functions and this section specified
+> `SaveReading` without a field to put their answer in, so the implementation computed a
+> reason and discarded it one line later — leaving Scope Core's *"changed bytes land the
+> next sequence **and say why**"* unbuilt, with no numbered criterion covering the loss.
+> The acceptance panel found it; the operator disposed it *add it now*. `reason: str | None`
+> now travels `SaveReading` → `LandingResult` → both output formats, and `reason` joins
+> `JSON_KEYS` as a **nullable** key — null where no comparison was made (a first landing,
+> `--new-look`, `--from-snapshot`), never absent, so a consumer branching on `verdict`
+> always finds it. This widens the contract [`incremental-loading`](../../incremental-loading/FEATURE_REQUEST.md)
+> is told to consume, which is why it is recorded here rather than applied quietly.
+
 ## 6. Risks & gotchas
 
 1. **The naive composition is silently wrong, and it is the obvious one.** `take_snapshot` with
@@ -645,7 +657,7 @@ copy" observable rather than asserted.
 - [ ] `tests/test_ingest_command.py` — **new**, grown across Phases 2–7, **main-thread authored**
 - [ ] `README.md` — blockquote at `:128-134` deleted; setup fence extended (Phase 7)
 - [ ] `CLAUDE.md` — Status paragraph and the `src/ootp_ai/` map, judged through `/update-docs` (Phase 7)
-- [ ] [`incremental-loading`](../incremental-loading/FEATURE_REQUEST.md) — dated boundary amendment (Phase 7)
+- [ ] [`incremental-loading`](../../incremental-loading/FEATURE_REQUEST.md) — dated boundary amendment (Phase 7)
 - [ ] `.claude/agents/data-engineer-memory.md` — correct the bare path at `:202`, **append** a dated line
       rather than rewriting (Phase 1)
 - [ ] `pyproject.toml` — **only if** ruff's isort reorders a bare cross-test import: add it to
@@ -704,11 +716,11 @@ the repo, and I re-verified the ones driving the largest rewrites. The trust led
   [`reviews/plan-adversarial.md`](reviews/plan-adversarial.md) ·
   [`reviews/scope-proposals.md`](reviews/scope-proposals.md) ·
   [`reviews/scope-adversarial.md`](reviews/scope-adversarial.md)
-- [ADR 0001](../../../docs/decisions/0001-read-only-no-write-back.md) ·
-  [ADR 0006](../../../docs/decisions/0006-public-repo-local-data.md) ·
-  [ADR 0016](../../../docs/decisions/0016-gm-reads-reports-not-queries.md) ·
-  [ADR 0018](../../../docs/decisions/0018-retention-is-infrastructure.md) ·
-  [ADR 0021](../../../docs/decisions/0021-bronze-landing-is-append-only.md)
-- [`docs/data-access.md`](../../../docs/data-access.md) · [`CLAUDE.md`](../../../CLAUDE.md) ·
-  [`.claude/agents/data-engineer.md`](../../../.claude/agents/data-engineer.md)
-- Downstream consumer: [`incremental-loading`](../incremental-loading/FEATURE_REQUEST.md)
+- [ADR 0001](../../../../docs/decisions/0001-read-only-no-write-back.md) ·
+  [ADR 0006](../../../../docs/decisions/0006-public-repo-local-data.md) ·
+  [ADR 0016](../../../../docs/decisions/0016-gm-reads-reports-not-queries.md) ·
+  [ADR 0018](../../../../docs/decisions/0018-retention-is-infrastructure.md) ·
+  [ADR 0021](../../../../docs/decisions/0021-bronze-landing-is-append-only.md)
+- [`docs/data-access.md`](../../../../docs/data-access.md) · [`CLAUDE.md`](../../../../CLAUDE.md) ·
+  [`.claude/agents/data-engineer.md`](../../../../.claude/agents/data-engineer.md)
+- Downstream consumer: [`incremental-loading`](../../incremental-loading/FEATURE_REQUEST.md)

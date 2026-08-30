@@ -43,7 +43,7 @@ from pathlib import Path
 import pytest
 
 from ootp_ai.config import ConfigError, Settings, load_settings
-from ootp_ai.ingest import ingest_save, parse_snapshot
+from ootp_ai.ingest import read
 
 _DIGEST_CHUNK = 1 << 20
 
@@ -183,7 +183,9 @@ def _settings(tmp_path: Path) -> Settings:
     """Real settings, with the snapshot root redirected into the test's own tmp dir.
 
     Redirected on purpose: `take_snapshot` refuses to overwrite, so running this test
-    repeatedly against the configured root would accrete a 46 MB directory per run.
+    repeatedly against the configured root would accrete a 52.4 MiB directory per run
+    (`measured` 2026-08-30 — 54,938,202 bytes across the five in-scope files; the "46 MB"
+    this said until then predated the 2026-08-16 widening that added `world.dat`).
     The source side — the only side ADR 0001 is about — is untouched by the redirect.
     """
     try:
@@ -232,14 +234,24 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
     pipeline used to touch, while a third was being opened on every run, would be asserting
     less than it appeared to.
 
-    **Each run parses as well as snapshotting.** `ingest_save` alone stops at the copy, so
-    a version of this test that called only it would run a strictly smaller pipeline than
-    the one that exists and still read like a full-run proof — the failure mode this
-    module's own docstring warns about. `parse_snapshot` is what opens the 32 MB files, and
-    it is the code most likely to grow a stray write, so it belongs inside the diff rather
-    than beside it. Landing is deliberately *not* included: it writes to MySQL, not to the
-    game, and pulling a warehouse dependency into ADR 0001's guard would let an unrelated
-    outage silence the one test the project cannot afford to lose.
+    **Each leg calls `ingest.read.read_save`, which is the operator's own path.** The
+    legs used to compose `parse_snapshot(ingest_save(...))` by hand, which proved a
+    composition that existed only inside this test: the command a human runs was a fourth
+    arrangement of the same calls, and nothing kept it in step. `read_save` is the one
+    function *the command* uses to open anything under a game root, so what the operator
+    runs is what this diff brackets. It is not the only code in the project that reads a
+    game file — `ingest_save` still does, and `tests/test_provenance.py` still calls it —
+    so this proves the operator's path, not every path. It parses as well as snapshotting
+    — the copy alone would be a strictly
+    smaller pipeline reading like a full-run proof, and `parse_snapshot` is what opens the
+    32 MB files and so the code most likely to grow a stray write.
+
+    **`previous=None`, deliberately.** That skips the digest pre-flight, so the save is
+    always snapshotted and the legs always exercise the copy. Passing a real prior landing
+    would need a warehouse lookup, and landing is *still* excluded for the same reason it
+    always was: it writes to MySQL, not to the game, and pulling a warehouse dependency
+    into ADR 0001's guard would let an unrelated outage silence the one test the project
+    cannot afford to lose.
     """
     settings = _settings(tmp_path)
     if settings.probe_save is None:
@@ -251,7 +263,26 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
 
     baseline = _manifests(settings)
 
-    parse_snapshot(ingest_save(settings.probe_save, settings=settings).snapshot)
+    probe_reading = read.read_save(
+        settings.probe_save, snapshot_root=settings.snapshot_root, previous=None
+    )
+
+    # The pre-flight's OWN game reads, brought inside the diff. `previous=None` skips the
+    # comparison entirely, so without this second call `snapshot.source_facts` — which
+    # digests all five files of the LIVE save — was exercised by no leg of this test and
+    # caught by no static scan either (the write guard looks for writes, and this only
+    # reads). Handing it the reading's own manifest makes the save unchanged by
+    # construction, so it raises before copying: the cost is one digest pass (~40 ms
+    # against this test's 2m35s), no extra manifest pass and no fourth leg, which is what
+    # keeps the plan's Risk 7 fence intact in substance as well as in letter.
+    prior = read.PriorLanding(
+        sim_date=probe_reading.parsed.run.sim_date,
+        ingest_seq=probe_reading.parsed.run.ingest_seq,
+        files=probe_reading.parsed.run.snapshot.files,
+    )
+    with pytest.raises(read.SaveUnchanged):
+        read.read_save(settings.probe_save, snapshot_root=settings.snapshot_root, previous=prior)
+
     latest = _manifests(settings)
     _assert_untouched(baseline, latest, what="ingesting the disposable probe save")
 
@@ -260,12 +291,12 @@ def test_a_full_run_touches_nothing_under_the_game_directories(tmp_path: Path) -
         # legs too, which is strictly worse than covering two saves out of three. On a
         # machine where `OOTP_TRUTH_LEAGUE` is unset this leg does not run, and the test
         # asserts exactly what it did before Phase 9 — no less, and no false coverage.
-        parse_snapshot(ingest_save(settings.truth_save, settings=settings).snapshot)
+        read.read_save(settings.truth_save, snapshot_root=settings.snapshot_root, previous=None)
         after_truth = _manifests(settings)
         _assert_untouched(latest, after_truth, what="ingesting the standard-mode truth save")
         latest = after_truth
 
-    parse_snapshot(ingest_save(settings.managed, settings=settings).snapshot)
+    read.read_save(settings.managed, snapshot_root=settings.snapshot_root, previous=None)
     _assert_untouched(latest, _manifests(settings), what="ingesting the managed league")
 
 

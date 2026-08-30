@@ -27,10 +27,10 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > entry of the league calendar, so does every biographical field of all 18,072
 > players the export knows about — plus five it does not — and so does every
 > player's **name**, resolved through a two-file join. All of it now lands in a
-> local MySQL warehouse — eight tables, two universes — and the GM reads two reports
-> off it: its own 226-player organisation by name, and a catalog of what the warehouse
-> does and does not hold. What is still missing is everything that would let it *judge*
-> a player rather than list one.
+> local MySQL warehouse — eight tables, two universes, landed by a command anyone can run —
+> and the GM reads two reports off it: its own 226-player organisation by name, and a
+> catalog of what the warehouse does and does not hold. What is still missing is everything
+> that would let it *judge* a player rather than list one.
 
 ## Why it's interesting
 
@@ -114,9 +114,19 @@ mysql -u root -p < ops/mysql-bootstrap.sql   # once: schemas, the app user, gran
 uv run pytest -m "not gamedata"    # the offline suite — no game, no MySQL, no save
 uv run pytest -m gamedata          # needs all three
 
+uv run python -m ootp_ai.ingest land      # snapshot, parse and land the managed save
 uv run python -m ootp_ai.reports render   # the roster report, from the latest landing
 uv run python -m ootp_ai.catalog          # the catalog, tracked half and generated half
 ```
+
+`ingest land` is what puts something in the warehouse for the other two to read; it
+prints the `(save_id, sim_date, ingest_seq)` triple it created, and `--save-id` aims it
+at one of the other configured saves. **The first run creates the eight declared
+tables** — and only creates them. A table whose *shape* has drifted from the declaration
+is not repaired, because that is a migration and a migration is a decision somebody makes
+in the open. A save byte-identical to its own most recent landing is refused before
+anything is copied; `--new-look` lands it again deliberately, at the next sequence
+([ADR 0021](docs/decisions/0021-bronze-landing-is-append-only.md)).
 
 `.env` needs your OOTP install directory, your saved-games directory, the managed
 league's name, local MySQL credentials, and — optionally — the two non-managed saves
@@ -124,14 +134,6 @@ league's name, local MySQL credentials, and — optionally — the two non-manag
 path in this repo resolves from those; none is hardcoded, and
 [`.env.example`](.env.example) documents each key and why it exists. The only runtime
 dependencies are `python-dotenv` and **PyMySQL** — pure Python, so no build toolchain.
-
-> **There is no ingest command, and it is worth knowing that before you go looking.**
-> `ootp_ai.ingest.ingest_save` and `ootp_ai.warehouse.load.land_snapshot` are library
-> functions with no `__main__` behind them; the two universes now in the warehouse were
-> landed by the `-m gamedata` suite, which is their only caller. `reports render` **reads**
-> a landing and never creates one, so on a fresh machine the gamedata suite is what puts
-> anything there to render. That is a real gap rather than a documentation shortcut, and
-> it is recorded here rather than papered over with a command that does not exist.
 
 **Node** is needed only for the agent skills' own guards, which CI also runs —
 see [`ops/README.md`](ops/README.md). Nothing in `src/` requires it.
@@ -147,7 +149,7 @@ server settings worth changing — is documented in
 | `docs/` | Data access findings + architecture decisions |
 | `gm/` | **Tracked** GM memory — charter, standing orders, action ledger, decisions |
 | `requests/` | Work intake — feature / bugfix / data-incident tracks |
-| `src/ootp_ai/` | Parser, landing, warehouse loading |
+| `src/ootp_ai/` | Parser, landing, warehouse loading, the three entry points |
 | `ops/` | Repo governance, local toolchain |
 | `tests/` | Structural guards + parser fixtures |
 | `var/` | Gitignored — snapshots, warehouse, scratch |
@@ -291,6 +293,23 @@ opened alongside it — `gm/standing-orders.md` gained an **engineering-owned re
 because no staff have been engaged and naming an analyst as the owner of a
 pipeline-generated page would be fiction in precisely the field the GM uses to decide whose
 read to trust.
+
+**The pipeline can now be run by someone who is not `pytest`.** Until
+[`ingest-command`](requests/feature-requests/_done/ingest-command/) landed, `ingest_save` and
+`land_snapshot` were library functions with no `__main__` behind them: the two universes in
+the warehouse were put there by running the gamedata suite, and this file documented that as
+the setup path. `uv run python -m ootp_ai.ingest land` is the third and last entry point. It
+pre-flights the save against its own most recent landing — sizes first, digests only if every
+size matches — and **refuses before anything is copied** when the bytes are unchanged, so a
+habitual re-run costs ~40 ms and leaves no directory behind; changed bytes at an unchanged sim
+date land the next sequence with no flag, which is
+[ADR 0021](docs/decisions/0021-bronze-landing-is-append-only.md)'s motivating case.
+
+It also collapsed four hand-composed arrangements of snapshot-and-parse into one function.
+The command, the landing fixture and ADR 0001's three legs all call
+`ingest/read.py::read_save`, so the manifest diff that proves nothing writes to the game now
+brackets **the command a human actually runs** rather than a composition that existed only
+inside its own test — measured at 2:40 over 30,703 files, against a 2m35s baseline.
 
 **Phase 13 is next and it is the operator's.** A cold `gm` subagent asked to name five of
 its own players from the handed-over report alone; a by-hand confirmation that a full

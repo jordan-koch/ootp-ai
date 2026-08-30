@@ -32,14 +32,19 @@ get, and it is still more reliable than remembering a different world.
 
 **Phase 1 — the parser is real, and the GM can see its own club.** Boston Red Sox,
 `OOTP-AI`, Challenge Mode, sim date 2024-03-07. `src/ootp_ai/` reads the save, proves it
-field-by-field against the game's own export, lands eight declared tables, and serves two
-reports: [`first-sight`](requests/feature-requests/first-sight/) Phase 10's roster — 226
-players, real names, every column through the serving gate
-([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads reports,
-never a query) — and Phase 11's catalog, which prices what is *missing*: of 89 declared
-fields, 55 reach a page, 11 are withheld, 23 are read but landed by nothing. **The
-standings report was retired, not deferred.** Phase 12 trued the docs up and opened the
-report channel. **Only Phase 13 remains, and every criterion in it is the operator's.**
+field-by-field against the game's own export, lands eight declared tables, and serves
+[`first-sight`](requests/feature-requests/first-sight/)'s roster and its catalog — which
+prices what is *missing*: of 89 declared fields, 55 reach a page, 11 are withheld, 23 are
+read but landed by nothing. The GM reads reports, never a query
+([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md)). **The standings report was
+retired, not deferred; only Phase 13 remains, and every criterion in it is the operator's.**
+
+**The pipeline can now be run by someone who is not pytest.**
+[`ingest-command`](requests/feature-requests/_done/ingest-command/) added the third and last entry
+point — `uv run python -m ootp_ai.ingest land` — so a fresh clone reaches a rendered roster
+without running the test suite, which was the documented setup path until it landed. The
+command, the landing fixture and ADR 0001's three legs now share **one** function,
+`ingest/read.py::read_save`, so the manifest diff brackets what the operator actually runs.
 [`README.md`](README.md) carries the detail.
 
 ## Stack
@@ -79,8 +84,9 @@ requests/           Intake — feature-requests / bugfix-requests / data-inciden
 .claude/skills/     Pipeline stages + /commit
 .claude/agents/     Subagents — the write-capable builder, and the read-only GM
 src/ootp_ai/        Parser, landing, warehouse loading, reporting
-  contracts/          TRACKED field + grain declarations — derived schema, ours to keep;
-                      the loader that validates them, and the serving gate
+  parser/             The record walkers — sequential, never seeking to a fixed offset
+  contracts/          TRACKED field + grain declarations, their loader, and the serving gate
+  ingest/             The ingest-run record, the shared game read, and the `land` command
   warehouse/          DDL emitted from that declaration, and append-only bronze landing
   validate/           Tier B — landed rows diffed against the export, per field by name
   reports/            The GM's report surface — every column gated by contracts/policy.py
@@ -95,34 +101,32 @@ exist yet — shapes in [ADR 0005](docs/decisions/0005-hybrid-data-layer.md); do
 them speculatively.
 
 **Three of those docs carry rules, not just information.**
-[`data-access.md`](docs/data-access.md) starts anything touching ingestion, and its
-epistemic labels are load-bearing. [`league-rules.md`](docs/league-rules.md)
-**evolves**, and names the part the warehouse would supersede — but does not yet.
-[`game-mechanics.md`](docs/game-mechanics.md) caps model-recalled mechanics at
-`assumed` — a confidently wrong mechanics doc is worse than none.
+[`data-access.md`](docs/data-access.md) starts anything touching ingestion, and its epistemic
+labels are load-bearing. [`league-rules.md`](docs/league-rules.md) **evolves**, and names the
+part the warehouse would supersede but does not yet.
+[`game-mechanics.md`](docs/game-mechanics.md) caps model-recalled mechanics at `assumed` — a
+confidently wrong mechanics doc is worse than none.
 
 ## Established facts — do not re-investigate
 
-Verified 2026-08-15; detail and epistemic labels in
-[`docs/data-access.md`](docs/data-access.md).
+Verified 2026-08-15; labels and detail in [`docs/data-access.md`](docs/data-access.md).
 
 - **`players.csv` ships with the game and is the Rosetta Stone** — raw, unfiltered.
-- **Records contain variable-length regions** — field *order* is stable, offsets
-  are not. The fixed-offset ban is the rulebook's. Enforcement is **structural
-  first** — `Cursor` exposes no seek — with an AST scan behind it that lets exactly
-  one sanctioned module index a save buffer
-  ([ADR 0020](docs/decisions/0020-sanctioned-lookahead-seam.md)). The scan names
-  what it cannot see; it does not claim to see everything.
+- **Records contain variable-length regions** — field *order* is stable, offsets are not.
+  The fixed-offset ban is the rulebook's, enforced **structurally first** (`Cursor` exposes
+  no seek) with an AST scan behind it that lets exactly one sanctioned module index a save
+  buffer ([ADR 0020](docs/decisions/0020-sanctioned-lookahead-seam.md)); the scan names what
+  it cannot see rather than claiming to see everything.
 - **Names are indirected** into `names.dat`; `players.dat` holds two indices per
   record, first then last. **The join is built and exact** — one index space of
   264,095 entries, latin-1, strict byte accounting. `players.csv` is *not* an exact
   name key: it ships pure ASCII with accents already replaced by `?`.
 - **Real players carry their Lahman/BBRef ID** — a join key to public baseball data.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
-- **There is no `leagues.dat`** — 19 `.dat` files in a Challenge-mode save, 18 in a
-  standard one, differing by `challenge.dat` alone. League config is a ~1,200-byte
-  scalar block in `world.dat`, located and **unread**, so `league-rules.md` §1 is
-  **not** superseded by anything landed. Owned by `league-dimension`.
+- **There is no `leagues.dat`** — 19 `.dat` files in a Challenge-mode save, 18 in a standard
+  one, differing by `challenge.dat` alone. League config is a ~1,200-byte scalar block in
+  `world.dat`, located and **unread**, so `league-rules.md` §1 is superseded by nothing
+  landed. Owned by `league-dimension`.
 - **The standard-mode validation save is RETAINED, not disposable** — Tier B diffs its
   *binaries* against the export. The disposable one is the Challenge-mode twin.
 
@@ -142,21 +146,19 @@ Verified 2026-08-15; detail and epistemic labels in
   ingest_seq)` refuses; a second look at an unchanged date takes the next seq. A
   correction is a new landing, never an edit — so read `max(ingest_seq)` and say so.
 
-**The GM-facing decisions — 0012 through 0017 — live in
-[`FRONT_OFFICE.md`](FRONT_OFFICE.md)**, bind behaviour rather than code, and are read
-before any baseball decision. 0012's parser corollary binds code, and the ADR owns it.
+**GM-facing decisions 0012–0017 live in [`FRONT_OFFICE.md`](FRONT_OFFICE.md)**, bind behaviour
+rather than code, and precede any baseball decision; 0012's parser corollary binds code.
 
 ## Project conventions
 
 - **Work on a branch; land it through a PR.** `main` is protected.
 - **Agents commit only through `/commit`**, never `git commit` ad hoc — not for a
   one-line change, not for an "obviously safe" one.
-- **Ask before merging a PR, then merge and clean up.** Confirm protection is live
-  and checks are green, ask, and on approval merge, prune and sync. **Never push
-  to `main`, force-push, or amend** — those stay the operator's.
-- **Subagents get read-only git** — never `checkout`/`reset`/`restore`/`clean`/
-  `stash` or anything that discards working-tree state. Tell them so when
-  spawning; bubble a destructive-git *need* back up.
+- **Ask before merging a PR**, then merge, prune and sync — after confirming protection is
+  live and checks green. **Never push to `main`, force-push, or amend**; those are the
+  operator's.
+- **Subagents get read-only git** — never `checkout`/`reset`/`restore`/`clean`/`stash` or
+  anything that discards working-tree state; bubble a destructive-git *need* back up.
 - **Every substantial engineering change is a request.** The full pipeline is the
   default; a skip is argued in writing. See
   [requests/README.md](requests/README.md). Baseball decisions are *not* requests.
@@ -173,28 +175,25 @@ before any baseball decision. 0012's parser corollary binds code, and the ADR ow
 
 **[`.claude/agents/data-engineer.md`](.claude/agents/data-engineer.md) is the
 single owner of the build rules** — read it before writing pipeline code, whether
-you are the agent or building directly. It owns game-is-read-only, sequential
-parsing and the fixed-offset ban, ground truth and epistemic labelling, the version
-guard, snapshot immutability, grain contracts and the two player keys, structural
-absence, the write allowlist and the handoff contract. **Named here, not restated** —
-restating one in actionable form recreates the second copy that single ownership exists to
-prevent, and [`tests/test_agent_contract.py`](tests/test_agent_contract.py) asserts each
-survives. Spawn protocol: [`.claude/agents/README.md`](.claude/agents/README.md),
+you are the agent or building directly. It owns game-is-read-only, sequential parsing and the
+fixed-offset ban, ground truth and epistemic labelling, the version guard, snapshot
+immutability, grain contracts and the two player keys, structural absence, the write allowlist
+and the handoff contract. **Named here, not restated** — restating one recreates the second
+copy that single ownership exists to prevent, and
+[`tests/test_agent_contract.py`](tests/test_agent_contract.py) asserts each survives. Spawn
+protocol: [`.claude/agents/README.md`](.claude/agents/README.md),
 [ADR 0009](docs/decisions/0009-write-capable-implementation-subagent.md).
 
-## The correctness trap that will bite
+## Two traps that already bit — don't re-derive either
 
-**In-game rating displays are filtered and scale-converted** — matching a displayed value
-to a byte identifies the **wrong field with no error surfaced**, the likeliest way to
-silently corrupt every downstream recommendation. Scales, ground truth and the
-withhold-if-unclassified rule are owned by [`data-access.md`](docs/data-access.md) §5 and
+**In-game rating displays are filtered and scale-converted** — matching a displayed value to
+a byte identifies the **wrong field with no error surfaced**, the likeliest way to silently
+corrupt every downstream recommendation. Scales, ground truth and the withhold-if-unclassified
+rule are owned by [`data-access.md`](docs/data-access.md) §5 and
 [ADR 0012](docs/decisions/0012-scouted-ratings-only.md); the rulebook binds them.
 
-## One MySQL belief that was wrong, so don't re-derive it
-
-**`SELECT … FOR UPDATE` does not serialise two allocators.** InnoDB's gap locks are
-mutually compatible, so two loaders reading `MAX(ingest_seq)` for the same
-`(save_id, sim_date)` both get the same answer without blocking — measured twice, at
-0.000 s — and the loser deadlocks on the insert. **The primary key is what actually
-prevents an overwrite.** `warehouse/ingest_run.py` carries the detail; it is here
-because the plan asserted the opposite and the assertion read as obviously true.
+**`SELECT … FOR UPDATE` does not serialise two allocators.** InnoDB's gap locks are mutually
+compatible, so two loaders reading `MAX(ingest_seq)` for one `(save_id, sim_date)` both get the
+same answer without blocking — measured twice at 0.000 s — and the loser deadlocks on the
+insert. **The primary key is what prevents an overwrite**; `warehouse/ingest_run.py` has the
+detail. It is here because the plan asserted the opposite and that read as obviously true.

@@ -58,6 +58,8 @@ __all__ = [
     "SnapshotFile",
     "next_ingest_seq",
     "read_manifest",
+    "read_sim_date",
+    "source_facts",
     "take_snapshot",
     "verify_snapshot",
 ]
@@ -182,7 +184,7 @@ def take_snapshot(
         SnapshotCorrupt: a copy does not match the source it was copied from.
         SaveFormatError: `teams.dat` is missing, truncated, or not version 25.
     """
-    sim_date = _read_sim_date(save)
+    sim_date = read_sim_date(save)
     sim_date_text = str(sim_date)
     save_id = save.save_id
 
@@ -279,18 +281,46 @@ def verify_snapshot(snapshot_dir: Path) -> None:
             )
 
 
-# ── internals ────────────────────────────────────────────────────────────────
-
-
-def _read_sim_date(save: SaveRef) -> SaveDate:
+def read_sim_date(save: SaveRef) -> SaveDate:
     """The league's in-game date, from the header of the save's own `teams.dat`.
 
     Read whole and handed to the parser as `bytes`: nothing in `parser/` opens a file,
     which is what keeps every read of the game `"rb"` by construction. `teams.dat` is
     ~5 MB, so the cost is not worth a partial read that would need a length constant.
+
+    Public because it is the only cheap answer to *what date would this land at?* —
+    `measured` 2026-08-30 at 0.005 s, against the 52.4 MiB a snapshot copies to reach
+    the same fact. A caller deciding whether a save is worth landing needs the date
+    before it pays for the copy, and the alternative is snapshotting first and
+    discovering the answer afterwards, which allocates a sequence and leaves a
+    directory nothing reclaims.
     """
     source = save.path / SIM_DATE_SOURCE
     return read_header(source.read_bytes(), SIM_DATE_SOURCE).sim_date
+
+
+def source_facts(save: SaveRef) -> tuple[SnapshotFile, ...]:
+    """Size and digest every in-scope file *in place*, copying nothing.
+
+    The same `SnapshotFile` shape `take_snapshot` records, computed against the live
+    save. That is what lets a caller compare a save to a prior landing on the landing's
+    own terms rather than on a second, parallel notion of what a file's identity is.
+
+    Reads only (ADR 0001): `stat` and `"rb"`, the same interaction `_copy_one` has with
+    the source side, minus the copy.
+
+    `measured` 2026-08-30 over the managed league's five files (54,938,202 bytes, warm
+    cache, three runs): 48.2 / 36.9 / 35.4 ms. The size survey alone is 0.21 / 0.41 /
+    0.22 ms, which is why a caller that can decide on sizes should decide on sizes.
+    """
+    facts = []
+    for name in SNAPSHOT_FILES:
+        source = save.path / name
+        facts.append(SnapshotFile(name=name, size=source.stat().st_size, sha256=_digest(source)))
+    return tuple(facts)
+
+
+# ── internals ────────────────────────────────────────────────────────────────
 
 
 def _copy_one(source: Path, destination: Path) -> SnapshotFile:

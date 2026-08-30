@@ -1,4 +1,4 @@
-> **Status:** planned · created 2026-08-30 · decided · next: implement
+> **Status:** implemented · created 2026-08-30 · decided · next: commit
 
 # Project Scope — An ingest command: the pipeline has no way to be run
 

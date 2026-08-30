@@ -196,11 +196,14 @@ is the one you are already following.
   `SaveFormatError` subclass from the entry point; the offline suite then goes fully green
   and only the gamedata half is red. · evidence: `src/ootp_ai/parser/teams.py`
   `UnmappedRecordLayout` · tag: harness
-- **2026-08-16** · `verified` · A refusing parser must not be wired into `ingest_save`:
-  `tests/test_read_only.py` calls it, so a raise there converts the ADR 0001 proof from
-  green to error and the one signal worth protecting disappears. Leave the seam unwired and
-  say so at the construction site. · evidence: `src/ootp_ai/ingest.py` `human_team_id=None` ·
-  tag: harness
+- **2026-08-16** · `verified` · A refusing parser must not be wired into whatever
+  `tests/test_read_only.py` calls: a raise there converts the ADR 0001 proof from green to
+  error and the one signal worth protecting disappears. Leave the seam unwired and say so at
+  the construction site. *(Corrected 2026-08-30: this named `ingest_save` as that function,
+  and it no longer is — the three legs now call `ingest/read.py::read_save`. The rule is
+  unchanged; the function it applies to moved, which is why it is stated as "whatever the
+  guard calls" rather than by name.)* · evidence: `src/ootp_ai/ingest/__init__.py`
+  `human_team_id=None` · tag: harness
 - **2026-08-16** · `verified` · **A model that scores 100% is not a unique model — enumerate
   the orders that tie, and the tie set *is* the ambiguity statement.** Brute-forcing every
   field order under a drop-zeros rule returned 18 distinct orders all scoring 259/259; they
@@ -445,3 +448,11 @@ is the one you are already following.
   runs) point its temp root at pytest's `tmp_path` so retention reaps it: measured 646 KB
   stranded per suite run before, zero after. · evidence: `tests/fixtures/guard_trees.py`
   `OPEN_MIRRORS` · tag: tooling
+- **2026-08-30** · `verified` · **`src/ootp_ai/ingest.py` is now `src/ootp_ai/ingest/__init__.py`**
+  — promoted to a package so it can host a `__main__`, byte-identical content, `__all__`
+  unchanged at eleven names. Every `from ootp_ai.ingest import ...` site still resolves, so
+  nothing importing it needed an edit; only *path* citations went stale. A module cannot host a
+  `__main__.py`, and running one as `python -m` would execute it under a second name, producing
+  two `ParsedSnapshot` classes and a silent `isinstance` failure at `warehouse/load.py`. ·
+  evidence: `requests/feature-requests/_done/ingest-command/IMPLEMENTATION_PLAN.md` ·
+  tag: tooling

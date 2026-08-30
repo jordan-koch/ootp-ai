@@ -40,8 +40,7 @@ from pymysql.cursors import DictCursor
 from ootp_ai.config import ConfigError, SaveRef, Settings, load_settings
 from ootp_ai.contracts.loader import load_contracts
 from ootp_ai.db import connect_warehouse
-from ootp_ai.ingest import IngestRun, ParsedSnapshot, parse_snapshot
-from ootp_ai.snapshot import take_snapshot
+from ootp_ai.ingest import IngestRun, ParsedSnapshot, read
 from ootp_ai.warehouse.ingest_run import INGEST_RUN_TABLE, as_sql_date
 from ootp_ai.warehouse.load import ensure_tables, landed_tables
 from ootp_ai.warehouse.load import land_snapshot as _land
@@ -143,12 +142,18 @@ def landed_probe(
     development schema for the duration of the block, which is the only way a grain
     assertion means anything. `purge_snapshot` runs in `finally`, so a failing assertion
     still leaves the schema as it found it.
+
+    **The read goes through `ingest.read.read_save`, which is the operator's own path.**
+    The fixture used to compose the two library calls itself, so a test proved a
+    composition nobody ran. `previous=None` skips the pre-flight entirely: this fixture
+    exists to land, not to decide whether landing is worthwhile, and a comparison here
+    would make every grain assertion depend on what the warehouse already held.
     """
     save = save_or_skip(settings, which)
     run: IngestRun | None = None
     with tempfile.TemporaryDirectory() as tmp:
         try:
-            parsed = parse_snapshot(take_snapshot(save, snapshot_root=Path(tmp)))
+            parsed = read.read_save(save, snapshot_root=Path(tmp), previous=None).parsed
             run = _land(connection, parsed)
             yield parsed, run
         finally:

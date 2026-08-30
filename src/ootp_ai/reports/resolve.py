@@ -176,9 +176,17 @@ def _nothing_landed_message(
     """
     available = landed_sim_dates(connection, save_id=save_id)
     if not available:
+        # The invocation is spelled out rather than imported from
+        # `ingest/__main__.py`'s `INVOCATION`: importing an entry point from a library
+        # module to build an error string couples the two the wrong way round. The
+        # literal is duplicated on purpose and `tests/test_ingest_command.py` reads the
+        # constant and asserts this file carries it, so the two cannot drift apart
+        # silently — which they did, for two phases, while this line advised running a
+        # command that did not exist.
         return (
             f"no landing exists for save {save_id!r}. The warehouse holds no ingest_run "
-            "row for that universe at any date — run the ingest before rendering"
+            "row for that universe at any date — run "
+            f"`uv run python -m ootp_ai.ingest land --save-id {save_id}` before rendering"
         )
     dates = ", ".join(str(date) for date in available)
     return (
