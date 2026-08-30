@@ -1,4 +1,4 @@
-> **Status:** scoped · created 2026-08-30 · decided · next: plan
+> **Status:** planned · created 2026-08-30 · decided · next: implement
 
 # Project Scope — An ingest command: the pipeline has no way to be run
 
@@ -434,17 +434,31 @@ unrunnable, or proved the wrong thing. Every rewrite is recorded in Decisions §
    the same snapshot at the next sequence"* — same bytes, same date, deliberate. Under the
    digest pre-flight that path refuses without the flag. This is the honest cost of Decision
    §1 and must be documented at the flag, not discovered.
-4. **Two independent sequence allocators, already out of step by construction — in *both*
-   directions.** `snapshot.next_ingest_seq` counts directories under the gitignored, disposable
-   `var/snapshots`; `warehouse.ingest_run.next_ingest_seq` reads `MAX(ingest_seq)` from MySQL.
-   *Direction one:* delete `var/` (documented as disposable) and the first run claims seq 1 and
-   hits `IngestRunExists` on a landing the operator never made. *Direction two, true on this
-   machine today:* `var/snapshots/OOTP-AI/2024-03-07/1` exists, so if the warehouse holds
-   nothing for that pair the first landing lands at `ingest_seq = 2` with no seq 1 — and a
-   later reader applying ADR 0021's *"monotonic integer … starting at 1"* reads the gap as a
-   lost landing. **Before writing the plan, run `SELECT save_id, sim_date, MAX(ingest_seq) FROM
-   ingest_run GROUP BY 1, 2;` and compare it to `var/snapshots/`.** That converts this from
-   `inferred` to `measured` and decides whether the operator's very first run succeeds.
+4. **Two independent sequence allocators, and one live instance of drift — `measured`
+   2026-08-30, correcting the panel.** `snapshot.next_ingest_seq` counts directories under the
+   gitignored, disposable `var/snapshots`; `warehouse.ingest_run.next_ingest_seq` reads
+   `MAX(ingest_seq)` from MySQL. The panel asserted the two were out of step *by construction*,
+   because every landing came from a `TemporaryDirectory` snapshot that no longer exists. **That
+   is wrong for two of the three pairs.** Measured:
+
+   | pair | filesystem | warehouse | |
+   |---|---|---|---|
+   | `OOTP-AI` 2024-03-07 | seq 1 | `MAX(ingest_seq)` 1 | in step |
+   | `Test-Save-Challenge-Mode` 2024-03-18 | seq 1 | `MAX(ingest_seq)` 1 | in step |
+   | `Test-Save-Standard-Mode` 2024-03-18 | seq 1 | **no row** | **drift** |
+
+   So the operator's first `land` against the managed league is consistent, and the hazard is
+   narrower than the panel claimed but real. The one live instance is the **truth save**: its
+   warehouse rows were purged by `landed_probe`'s `finally` while its snapshot directory
+   survived, so a first landing there takes filesystem seq **2** with no seq 1 — and a later
+   reader applying ADR 0021's *"monotonic integer … starting at 1"* reads the gap as a lost
+   landing. The opposite direction remains possible and is not currently instantiated: delete
+   `var/` (documented as disposable) and the first run claims seq 1 and hits `IngestRunExists`
+   on a landing the operator never made. **The plan must decide how the command reconciles** —
+   allocate `max(filesystem, warehouse) + 1` and print the reasoning line, or keep the
+   filesystem sequence and print "filesystem allocated N, warehouse holds M". Re-run
+   `SELECT save_id, sim_date, MAX(ingest_seq) FROM ingest_run GROUP BY 1, 2;` against
+   `var/snapshots/` if the warehouse has moved since.
 5. **An explicit `ingest_seq` weakens the deadlock retry, invisibly.** `land_snapshot` retries
    on 1213/1205 and re-allocates the sequence each time, which only works on the
    `ingest_seq=None` branch. The command therefore has weaker contention behaviour than the
