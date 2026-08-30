@@ -5,13 +5,13 @@
 > **One-line outcome:** `uv run python -m ootp_ai.ingest land` takes a configured save
 > from disk to a landed bronze snapshot and prints the `(save_id, sim_date, ingest_seq)`
 > triple, so a fresh clone reaches a rendered roster without running `pytest` ·
-> **Acceptance:** 17/17 agent-verifiable criteria met · 2 USER-RUN, unclaimed ·
-> **Branch:** `file-ingest-command-request`
+> **Acceptance:** 19/19 criteria met — 17 agent-verified, 2 run by the operator
+> 2026-08-30 · **Branch:** `file-ingest-command-request`
 
 ## 1. Acceptance ledger
 
-**AC18 and AC19 are USER-RUN and are NOT claimed here.** No agent may mark them; they are
-recorded when the operator runs them (§6).
+**AC18 and AC19 are USER-RUN.** No agent may mark them; they were run by the operator on
+2026-08-30 and are recorded below from their own output.
 
 ### Offline (CI) — 702 collected, 702 passed, 0 skipped
 
@@ -44,12 +44,38 @@ after each confirming `ingest_run` returned to its two legitimate landings every
 | AC16 | ADR 0001's proof brackets every game read; 4 manifest passes with truth configured; no MySQL | **met** | `test_a_full_run_touches_nothing_under_the_game_directories` green, **2:40** wall clock; `test_the_manifest_is_not_vacuous` green alongside |
 | AC17 | Nothing regressed in the real `landed_probe` consumer set | **met** | `test_snapshot_semantics` · `test_grain_contracts` · `test_extraction_cost` · `test_parser_vs_export` — 40 passed, 0 skipped, including the `which="truth_save"` path |
 
-### USER-RUN — not claimed
+### USER-RUN — run by the operator 2026-08-30
 
-| # | Criterion | Verdict |
-|---|---|---|
-| AC18 | Fresh machine: `uv sync` → bootstrap → `ingest land` → `reports render` produces `roster.md`, `pytest` never invoked | **USER-RUN — not claimed by an agent** |
-| AC19 | The printed ingest output pasted into a scratch `.md` leaves `tests/test_no_leaks.py` green | **USER-RUN — not claimed by an agent** |
+Both were run by the operator, not by an agent, and are recorded from their output.
+
+**The empty schema needed no destruction to reach.** `ops/mysql-bootstrap.sql` creates
+`ootp` — the production warehouse — alongside `ootp_dev`, and every landing to date had
+gone to `ootp_dev`, so `ootp` held **0 tables**. Pointing one run at it with
+`$env:MYSQL_DATABASE='ootp'` gave a genuinely virgin warehouse, needed no root, and left
+the two real landings in `ootp_dev` untouched. The report's earlier claim that AC18 "cannot
+be staged" was wrong, and so was the acceptance panel's — both assumed reaching an empty
+schema meant dropping `ootp_dev`'s tables.
+
+| # | Criterion | Verdict | Operator's evidence |
+|---|---|---|---|
+| AC18 | Fresh machine: `uv sync` → bootstrap → `ingest land` → `reports render` produces `roster.md`, `pytest` never invoked | **met** | `land --save-id Test-Save-Challenge-Mode` → exit 0, `landed Test-Save-Challenge-Mode 2024-03-18 ingest_seq 2`, and **`tables created:` naming all eight** — the command built the schema rather than assuming it. `reports render` → `var/reports/Test-Save-Challenge-Mode/2024-03-18/2/roster.md`, 25,050 bytes, 616 lines, resolving the sequence the ingest had just created. `pytest` invoked at no point |
+| AC19 | The printed ingest output pasted into a scratch `.md` leaves `tests/test_no_leaks.py` green | **met** | The verbatim block written to `ac19-scratch.md` at the repo root (untracked, and the guard does scan untracked files); `uv run pytest tests/test_no_leaks.py -q -rs` → 6 passed, 0 skipped. Scratch file removed afterwards |
+
+**AC18 also produced the first live instance of CF-11**, the divergence direction the
+original `sequences_diverged` predicate could not detect. A snapshot directory for the probe
+already sat at seq 1 on disk while `ootp` held nothing, so the filesystem allocated 2 and the
+landed sequence *equalled* the directory number — making `ingest_seq != snapshot_dir_seq`
+false. The widened predicate caught it and the command said so in terms:
+
+```
+sequence: snapshot directory 2, warehouse held 0 — landed 2. The filesystem was ahead
+of the warehouse, so the landed sequence is gapped — this is not a lost landing.
+```
+
+Unfixed, the first operator run against a virgin warehouse would have landed at sequence 2
+in silence, and the next reader applying ADR 0021's *"starting at 1"* would have had a
+missing landing to account for. The panel rated it reachable in principle; it was reachable
+on the first attempt.
 
 ## 2. What shipped
 
@@ -173,29 +199,37 @@ a save reverted to an earlier date than the warehouse maximum, which no current 
 produces. Documented, not redesigned, per the panel's own recommendation. CF-17/CF-19/CF-20
 are cosmetic and left.
 
-## 6. Manual gates & user-run steps
+## 6. Manual gates & user-run steps — discharged 2026-08-30
 
-**AC18 — the fresh-clone walk-through.** On a machine whose warehouse holds no `bronze_*`
-tables:
+Both ran green; the evidence is in §1. Recorded here is how to repeat them, because the
+route matters more than the result.
+
+**AC18 — the fresh-clone walk-through.** The prerequisite is a warehouse holding no
+`bronze_*` tables, and `ops/mysql-bootstrap.sql:23` already creates one: `ootp`, the
+production schema, which had never been landed into. One env var redirects a single run:
 
 ```
-uv sync
-mysql -u root -p < ops/mysql-bootstrap.sql
-uv run python -m ootp_ai.ingest land --save-id <target>
-uv run python -m ootp_ai.reports render --save-id <target>
+$env:MYSQL_DATABASE='ootp'
+uv run python -m ootp_ai.ingest land --save-id <probe>
+uv run python -m ootp_ai.reports render --save-id <probe>
 ```
 
-Expect a `roster.md` under the output root, with `pytest` never invoked. *Prerequisite:* if
-run against the probe, `OOTP_PROBE_LEAGUE` must be configured; otherwise run it against
-`settings.managed`, which is safe because the command only reads the save.
+No root, nothing dropped, `ootp_dev`'s two real landings untouched. *Prerequisite:* running
+against the probe needs `OOTP_PROBE_LEAGUE` configured; `settings.managed` is also safe,
+because the command only reads the save. Afterwards, drop the eight tables from `ootp` to
+return it to empty — the app user has the grant, so this needs no root either, and the data
+is one landing of a disposable twin, re-derivable from the snapshot still on disk.
 
-**AC19 — the leak check.** Paste the printed ingest output into a scratch `.md` inside the
-repo and run `uv run pytest tests/test_no_leaks.py`. Expect green.
+**AC19 — the leak check.** Paste the printed ingest output into a scratch `.md` at the repo
+root and run `uv run pytest tests/test_no_leaks.py`. The guard **does** scan untracked
+files, so the scratch file does not need committing — which is the point, since committing
+it is exactly what the check exists to make unnecessary.
 
-Neither can be staged by an agent: the bootstrap grants are scoped to three named
-databases with no right to create a throwaway schema, and reaching an empty schema would
-mean dropping the declared tables from `ootp_dev` — destroying the first ingest a
-`gm/decisions/` record may cite.
+**An earlier claim in this report was wrong and is corrected above.** It said AC18 "cannot
+be staged by an agent" because reaching an empty schema would mean dropping `ootp_dev`'s
+tables. The acceptance panel said the same. Both had read `mysql-bootstrap.sql`'s grants
+and neither noticed it creates a second, unused warehouse — the answer was in the file the
+argument cited.
 
 ## 7. Hand-off
 
