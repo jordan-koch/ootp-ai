@@ -68,3 +68,27 @@ fields; a ground-truth export from a *simulated* standard save is what proves th
 parser against mutated, non-day-0 data — grown stat arrays, injuries, roster
 churn. Day-0 state is the least informative possible test case, because every
 variable-length region is at its minimum.
+
+### Correction 2026-08-29 — "disposable" is wrong, and it was load-bearing
+
+The Decision above says the export is generated *"from a **disposable** standard-mode
+save."* The **export** is one-time; the **save** is not disposable, and calling it that
+invited deleting the one artifact that keeps this ADR's central cost — *"we own a
+reverse-engineered format … there is no error message when we get one wrong"* — under
+observation.
+
+`measured` — Tier B compares the parsed **binaries** against the exported tables. The
+export alone proves nothing; it is the answer key, and the save is the question. Delete
+the save and row-for-row validation ends for **fictional players and roster lists** —
+precisely the populations `players.csv` cannot reach, since a generated player carries no
+external identifier at all. Rebuilding costs a save rebuild plus an export run, and the
+rebuilt league would be a *different* one, so every measured population in
+[`data-access.md`](../data-access.md) would have to be re-established.
+
+**It is a retained project asset.** `.env`'s `OOTP_TRUTH_LEAGUE` names it and says so.
+The genuinely disposable save is the other one — the Challenge Mode twin at
+`OOTP_PROBE_LEAGUE`, which is simmable, re-creatable, and is where every
+filesystem-touching test runs first.
+
+This corrects the wording, not the decision: parsing remains the ingestion path and the
+export remains barred from every automated path.

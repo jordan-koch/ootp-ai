@@ -79,7 +79,7 @@ def make_header(
     """Build a save-file header.
 
     `magic_at_offset_zero` builds the *malformed* shape a naive reader assumes —
-    `b"OOTP"` at offset 0 with no leading null. `docs/data-access.md:183-186` records
+    `b"OOTP"` at offset 0 with no leading null. `docs/data-access.md` §4 "Header" records
     why that matters: a reader checking `data[0:4]` against `b"OOTP"` sees `\\x00OOT`
     on a real save and rejects every valid file, while one reading the version as a
     u32 at offset 4 gets 6480 rather than 25.
@@ -103,18 +103,18 @@ def make_header(
 
 
 def make_string(value: str) -> bytes:
-    """u32-LE length prefix, raw ASCII, **no terminator** (`docs/data-access.md:195`)."""
+    """u32-LE length prefix, raw ASCII, **no terminator** (`docs/data-access.md` §4)."""
     encoded = value.encode("ascii")
     return struct.pack("<I", len(encoded)) + encoded
 
 
 def make_date(day: int, month: int, year: int) -> bytes:
-    """u8 day, u8 month, u16 year (`docs/data-access.md:196`)."""
+    """u8 day, u8 month, u16 year (`docs/data-access.md` §4)."""
     return struct.pack("<BBH", day, month, year)
 
 
 def make_color(argb: int) -> bytes:
-    """u32 ARGB (`docs/data-access.md:197`)."""
+    """u32 ARGB (`docs/data-access.md` §4)."""
     return struct.pack("<I", argb)
 
 

@@ -1,6 +1,6 @@
-> **Status:** planned · created 2026-08-20 · decided · next: implement (Phase 12)
+> **Status:** planned · created 2026-08-20 · decided · next: implement (Phase 13)
 
-# Implementation Report — First sight, Phases 10–11: the roster report and the catalog
+# Implementation Report — First sight, Phases 10–12: the roster report, the catalog, the truth-up
 
 > **This is a PHASE report, and the request's status stays `planned` deliberately.** The
 > plan sequences fourteen phases and assigns this file to Phase 12; it is opened early
@@ -8,6 +8,9 @@
 > artifact, and a deviation with nowhere to live is how the record and the repo drift
 > apart. Phases 11–13 append to it. The status grammar's `implemented` belongs to the
 > phase that closes AC20 and AC21, which are the operator's and are not run yet.
+>
+> **Phases 10, 11 and 12 are recorded below. Phase 13 is the one that remains**, and every
+> criterion left in it is USER-RUN by design.
 
 > **One-line outcome:** the GM can name its own 26-man roster, and the other 200 players in
 > its organisation, with real names · **Acceptance:** AC13 and AC14 met, AC14's standings
@@ -222,6 +225,125 @@ Edge cases now covered that were not: a declared table this landing did not writ
 "not landed by this run", never a zero); a `--docs-root` inside the game (refused, writes
 nothing); a decoded rating name (caught by category *and* by shape); the two Markdown halves
 sharing a basename (addressed by role, not by `path.name`).
+
+---
+
+# Phase 12 — the documentation truth-up, the dbt deferral, and the report channel
+
+> **One-line outcome:** three documented claims were **measurably false** and are now dated
+> corrections rather than deletions · **Acceptance:** AC19 met; AC16 re-proved; AC18's doc
+> reconciliation met · **Branch:** `phase-12-doc-truth-up`
+
+**Phase 12 of 14.** Phase 13 (USER-RUN acceptance) remains, so AC20 and AC21 stay open and
+the request stays `planned`. This phase wrote no pipeline code: every source change is a
+docstring, and every other change is prose.
+
+## 1. Acceptance ledger
+
+| Criterion | Verdict | Evidence |
+|---|---|---|
+| **AC19** — `grep -rn 'leagues.dat' docs/` returns only explicit correction notes | **met** | Six hits remain, all inside a correction: `data-access.md` §1 and §4, `league-rules.md` §2 and §6. No surviving line asserts the file exists |
+| **AC18** — doc reconciliation | **met** | See §2. `data-access.md` §1 completed 9 → 19 files; §6 reclassified the truth save and recorded `ootp_truth_osa`; `league-rules.md` §§1/2/6 corrected; ADR 0002 and ADR 0004 given dated notes; `CLAUDE.md`, `README.md`, `gm/charter.md`, `src/ootp_ai/__init__.py` status text made true |
+| **Every upgraded label names its proving test** | **met** | Seven citations added, each naming a real module: `test_parser_vs_export.py`, `test_parse_teams_synthetic.py`, `test_parse_rosters.py`, `test_names_join.py`, `test_names_join_boston.py`, `test_byte_accounting.py`, `test_parse_world.py`, `test_parse_players.py`, `test_save_enumerator.py`. **No label was upgraded without one** — see the deviation in §3 |
+| **AC16** — offline gate | **met** | `uv run pytest -m "not gamedata"` exit 0 (644 tests) **with the MySQL service stopped**, `ruff check` clean, `ruff format --check` 213 files, `mypy` clean on 83 files |
+| **AC10 / AC11 regression** — full `gamedata` pass, in one pass | **met** | `uv run pytest -m gamedata` → **172 passed, 1 skipped**, exit 0, in a single run rather than phase by phase. The one skip is the pre-existing named one — `test_byte_accounting.py:123`, *"the teams walk is declared 'diagnostic', not strict"* — which is a declared tier, not an unreachable fixture. Includes the Phase 9 differential and `test_read_only.py`, so ADR 0001's read-only proof re-ran against a phase that touched no pipeline code |
+| **AC20, AC21** | not this phase | USER-RUN, Phase 13. The panel must not claim them |
+
+## 2. What shipped — and the three claims that were false
+
+**1. There is no `leagues.dat`, and nobody had ever checked.**
+`docs/league-rules.md` asserted in two places that "the parser reads `leagues.dat` directly."
+Measured over all three saves on disk: a Challenge-mode `.lg` holds **19 `.dat` files** and a
+standard-mode one **18**, differing by `challenge.dat` alone, and neither set contains it. The
+league configuration is a ~1,200-byte scalar block inside `world.dat` — a file the parser
+does open, and two of whose regions land. The claim is kept as a dated correction rather than
+deleted, following the `teams.historical_id` precedent: a refuted claim is more useful written
+down. Recovery is pointed at `league-dimension`, which already owns the trap (the export
+writes `0` for roster limits on all 14 non-MLB leagues, so a green diff there proves nothing).
+
+**2. `league-rules.md` §1 is not superseded by the warehouse.**
+Its header table promised supersession "the moment the parser lands." The parser has landed;
+**no declared table carries a rules column**, because those bytes are the unread part of
+`world.dat`. §1 is therefore still the only copy of those values, and the row that invited
+deleting it now says so. A partial supersession stated as a total one is the doc claim
+someone acts on — by querying past it, and getting nothing back, silently.
+
+**3. The standard-mode validation save is retained, not disposable.**
+ADR 0002's Decision section and `data-access.md` §6 both called it disposable. Tier B compares
+the **binaries** against the export, so the export alone proves nothing: it is the answer key
+and the save is the question. Deleting it ends row-for-row validation for **fictional players
+and roster lists** — exactly the populations `players.csv` cannot reach, since a generated
+player carries no external identifier. Corrected in both places, with the genuinely disposable
+save (the Challenge-mode twin at `OOTP_PROBE_LEAGUE`) named so the two are not confused again.
+
+**Also shipped:**
+
+- `docs/data-access.md` §1 — the `.dat` inventory completed from **9 entries to 19**, with a
+  labelled split: presence and size are `measured`, but content is `measured` for only the
+  five files with a walker and `assumed` from the filename for the other fourteen. The ten
+  omitted files included **`messages.dat`**, the index of the only channel by which the GM
+  could hear from ownership (ADR 0015) — its absence from this table is part of why nobody
+  had read it. Added: the `text_data.dat` / `temp/text_data.sqlite3` name collision, measured
+  directory totals, and the non-`.dat` entries including `messages/`'s eight letters.
+- `docs/data-access.md` §4 — the `names.dat` **fixed-size-per-save** finding at `inferred`,
+  labelled that way for a stated reason: no save on disk has been simmed forward, so the
+  observation covers exactly the population that could not have refuted it.
+- `docs/data-access.md` §6 — `ootp_truth_osa` recorded as **empty and unnecessary**: 0 tables,
+  because `ootp_truth_real.players_scouted_ratings` already carries both perspectives from one
+  export. No second export will be asked of the operator.
+- `docs/decisions/0004-mysql-warehouse.md` — the **dbt deferral**. The trigger fired sideways:
+  a warehouse landed with no dbt model at all. ADR 0005's *pattern* is honoured in full and
+  only its *tooling* is deferred; recorded as a dated note rather than a superseding ADR,
+  because a postponement is not a reversal and ADR 0024 saying "not yet" would later read as
+  a decision that was made. The trigger is now named precisely: `incremental-loading`.
+- `gm/standing-orders.md` — the **engineering-owned report kind**, plus the roster report and
+  the warehouse catalog as its first two entries. `gm/staff.md` records that no staff have
+  been engaged, so naming an analyst as `Owner:` would be fiction in the one field the GM uses
+  to decide whose read to trust. Both entries carry `engineering-owned, no ledger seq` per
+  plan decision P8 — the ledger row is Phase 13's umpire act, and writing a seq before it
+  exists would invent a decision.
+- `CLAUDE.md`, `README.md`, `gm/charter.md`, `src/ootp_ai/__init__.py` — status text that was
+  false on delivery. The charter's blockquote named "no warehouse and no reports" as its
+  blocker; that blocker is gone, and the page now says what the reports still do not carry so
+  a competitive window is not written against a surface that names players without
+  describing them.
+
+## 3. Deviations from the plan
+
+1. **The plan's own file count was wrong, and the measurement is the deliverable.** Step 3
+   says "18 `.dat` files present"; `PROJECT_SCOPE.md` says 19 in one place and 18 in another.
+   Both are right about *different saves*. The doc now records the rule rather than either
+   number: 19 in Challenge Mode, 18 in standard, the difference being `challenge.dat`. Fixing
+   an incomplete table by copying an unverified count out of the plan would have reproduced
+   the exact defect this phase exists to close.
+2. **Step 3's F19 clause was already satisfied.** The `verified` → `measured` downgrade on
+   `saved_games.dat`-is-plaintext landed on 2026-08-16, during the phase that wrote the
+   walker. Nothing to do; recorded so the absence of a diff is not read as an omission.
+3. **No epistemic label was raised.** The step says "upgrade labels for exactly what Tier A or
+   Tier B proved." Reviewed against the current state: the claims those tiers settled were
+   *already* at their correct labels, having been upgraded in the phase that proved them. The
+   real gap was that they named modules and populations but not the **tests** that hold them,
+   so the work done was adding those citations. Under the acceptance rule — *no label upgraded
+   without a proving test* — zero upgrades is a pass, and inventing one to look busy would
+   have been the failure.
+4. **Test-docstring line citations converted to section references.** Seven citations of the
+   form `docs/data-access.md:183-186` in `test_save_header.py`, `test_save_enumerator.py`,
+   `test_names_join_boston.py` and `tests/fixtures/synthetic.py` were **already stale** before
+   this phase and completing §1 would have pushed them further. They now name sections. Not in
+   the plan's steps; it is the same class of now-false text step 6 exists to fix, and leaving
+   them would have been knowingly shipping worse drift than was found.
+
+## 4. Follow-ups this phase named and did not fix
+
+1. **There is no ingest command.** `ingest_save` and `land_snapshot` are library functions
+   with no `__main__`; the two universes in the warehouse were landed by the `-m gamedata`
+   suite, which is their only caller, and `reports render` reads a landing without creating
+   one. Found while writing `README.md`'s setup section, which the plan asked to document
+   "how to run the ingest". Recorded in the README as a gap rather than papered over with a
+   command that does not exist. **Not filed as a request** — Phase 12 has no mandate to open
+   one, and it is the operator's call whether this belongs to `incremental-loading` (whose
+   work needs exactly this vehicle) or stands alone.
+2. **The GM tool-grant guard test** — still owed, and still Phase 13's.
 
 ## 5. Findings resolved
 

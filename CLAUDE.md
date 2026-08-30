@@ -30,25 +30,23 @@ get, and it is still more reliable than remembering a different world.
 
 ## Status
 
-**Phase 1 — the parser is real.** Boston Red Sox, `OOTP-AI`, Challenge Mode, sim date
-2024-03-07; `src/ootp_ai/` reads the save, validated field-by-field against the game's
-own export. [`README.md`](README.md) carries what has landed and what is next.
-
-**The GM can see its own club, and knows what it is not seeing.** Phase 10 of
-[`first-sight`](requests/feature-requests/first-sight/) renders the roster report — 226
-players, real names, every column routed through the serving gate
+**Phase 1 — the parser is real, and the GM can see its own club.** Boston Red Sox,
+`OOTP-AI`, Challenge Mode, sim date 2024-03-07. `src/ootp_ai/` reads the save, proves it
+field-by-field against the game's own export, lands eight declared tables, and serves two
+reports: [`first-sight`](requests/feature-requests/first-sight/) Phase 10's roster — 226
+players, real names, every column through the serving gate
 ([ADR 0016](docs/decisions/0016-gm-reads-reports-not-queries.md): the GM reads reports,
-never a query). Phase 11 adds the generated catalog: of 89 declared fields, 55 reach a
-page, 11 are withheld and 23 are read but landed by nothing. Both stand on Phase 8b's
-landing of the eight declared tables and Phase 9's per-field diff against the export.
-**The standings report was retired, not deferred:** no declared table carries a win-loss
-column. **Phases 12–13 are the doc truth-up and the USER-RUN acceptance.**
+never a query) — and Phase 11's catalog, which prices what is *missing*: of 89 declared
+fields, 55 reach a page, 11 are withheld, 23 are read but landed by nothing. **The
+standings report was retired, not deferred.** Phase 12 trued the docs up and opened the
+report channel. **Only Phase 13 remains, and every criterion in it is the operator's.**
+[`README.md`](README.md) carries the detail.
 
 ## Stack
 
 Python 3.12, uv, ruff, mypy strict, pytest. Warehouse is **MySQL**, local
-([ADR 0004](docs/decisions/0004-mysql-warehouse.md)), dbt for the medallion
-layers. No cloud, no cost.
+([ADR 0004](docs/decisions/0004-mysql-warehouse.md)). **dbt is deferred, not dropped** —
+the medallion *pattern* holds; only its tooling waits. No cloud, no cost.
 
 ## The repo is PUBLIC — and the game's data is not ours
 
@@ -92,15 +90,14 @@ tests/              Structural guards + parser fixtures
 var/                GITIGNORED — snapshots, warehouse files, RENDERED REPORTS, scratch
 ```
 
-Directories appear when their phase does. `build/`, `datasets/` and `transform/`
-don't exist yet — their shapes are in
-[ADR 0005](docs/decisions/0005-hybrid-data-layer.md); don't create them
-speculatively.
+Directories appear when their phase does. `build/`, `datasets/` and `transform/` don't
+exist yet — shapes in [ADR 0005](docs/decisions/0005-hybrid-data-layer.md); don't create
+them speculatively.
 
 **Three of those docs carry rules, not just information.**
 [`data-access.md`](docs/data-access.md) starts anything touching ingestion, and its
 epistemic labels are load-bearing. [`league-rules.md`](docs/league-rules.md)
-**evolves**, and says which parts the warehouse supersedes.
+**evolves**, and names the part the warehouse would supersede — but does not yet.
 [`game-mechanics.md`](docs/game-mechanics.md) caps model-recalled mechanics at
 `assumed` — a confidently wrong mechanics doc is worse than none.
 
@@ -122,13 +119,19 @@ Verified 2026-08-15; detail and epistemic labels in
   name key: it ships pure ASCII with accents already replaced by `?`.
 - **Real players carry their Lahman/BBRef ID** — a join key to public baseball data.
 - **The export is hidden in Challenge Mode**, and caps at monthly regardless.
+- **There is no `leagues.dat`** — 19 `.dat` files in a Challenge-mode save, 18 in a
+  standard one, differing by `challenge.dat` alone. League config is a ~1,200-byte
+  scalar block in `world.dat`, located and **unread**, so `league-rules.md` §1 is
+  **not** superseded by anything landed. Owned by `league-dimension`.
+- **The standard-mode validation save is RETAINED, not disposable** — Tier B diffs its
+  *binaries* against the export. The disposable one is the Challenge-mode twin.
 
 ## Decisions already made — do not re-propose
 
 - **No write-back of any kind** (0001). Not save edits, not roster import files,
   not UI automation. The operator executes.
 - **Parser, not export** (0002). The export's only sanctioned use is one-time
-  ground truth from a disposable standard save.
+  ground truth from the **retained** standard save — see the facts above.
 - **Challenge Mode** (0003). Its restrictions are constraints, not obstacles.
 - **MySQL** (0004), knowingly paying for a less-mature dbt adapter.
 - **Two data-layer patterns, split by physics** (0005). *Does this change when
@@ -140,9 +143,8 @@ Verified 2026-08-15; detail and epistemic labels in
   correction is a new landing, never an edit — so read `max(ingest_seq)` and say so.
 
 **The GM-facing decisions — 0012 through 0017 — live in
-[`FRONT_OFFICE.md`](FRONT_OFFICE.md).** They bind behaviour rather than code, and
-0016 constrains what an agent may query. Read them before any baseball decision;
-0012's parser corollary binds code instead, and is owned by the ADR itself.
+[`FRONT_OFFICE.md`](FRONT_OFFICE.md)**, bind behaviour rather than code, and are read
+before any baseball decision. 0012's parser corollary binds code, and the ADR owns it.
 
 ## Project conventions
 
@@ -174,20 +176,18 @@ single owner of the build rules** — read it before writing pipeline code, whet
 you are the agent or building directly. It owns game-is-read-only, sequential
 parsing and the fixed-offset ban, ground truth and epistemic labelling, the version
 guard, snapshot immutability, grain contracts and the two player keys, structural
-absence, the write allowlist and the handoff contract. **Named here, not restated**
-— restating one in actionable form recreates the second copy that single ownership
-exists to prevent, and
-[`tests/test_agent_contract.py`](tests/test_agent_contract.py) asserts each
+absence, the write allowlist and the handoff contract. **Named here, not restated** —
+restating one in actionable form recreates the second copy that single ownership exists to
+prevent, and [`tests/test_agent_contract.py`](tests/test_agent_contract.py) asserts each
 survives. Spawn protocol: [`.claude/agents/README.md`](.claude/agents/README.md),
 [ADR 0009](docs/decisions/0009-write-capable-implementation-subagent.md).
 
 ## The correctness trap that will bite
 
-**In-game rating displays are filtered and scale-converted** — matching a displayed
-value to a byte identifies the **wrong field with no error surfaced**, the likeliest
-way to silently corrupt every downstream recommendation. The scales, the ground
-truth and the withhold-if-unclassified rule are owned by
-[`docs/data-access.md`](docs/data-access.md) §5 and
+**In-game rating displays are filtered and scale-converted** — matching a displayed value
+to a byte identifies the **wrong field with no error surfaced**, the likeliest way to
+silently corrupt every downstream recommendation. Scales, ground truth and the
+withhold-if-unclassified rule are owned by [`data-access.md`](docs/data-access.md) §5 and
 [ADR 0012](docs/decisions/0012-scouted-ratings-only.md); the rulebook binds them.
 
 ## One MySQL belief that was wrong, so don't re-derive it

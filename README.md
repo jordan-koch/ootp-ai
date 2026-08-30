@@ -27,8 +27,10 @@ cannot cheat in — and three constraints are what make the question mean anythi
 > entry of the league calendar, so does every biographical field of all 18,072
 > players the export knows about — plus five it does not — and so does every
 > player's **name**, resolved through a two-file join. All of it now lands in a
-> local MySQL warehouse — eight tables, two universes — and the reports the GM
-> actually reads are the one thing still missing.
+> local MySQL warehouse — eight tables, two universes — and the GM reads two reports
+> off it: its own 226-player organisation by name, and a catalog of what the warehouse
+> does and does not hold. What is still missing is everything that would let it *judge*
+> a player rather than list one.
 
 ## Why it's interesting
 
@@ -75,6 +77,12 @@ Two data-layer patterns, split by one rule: *does this change when the league is
 simulated?* No → builder + `datasets/`. Yes → parser + dbt medallion.
 ([ADR 0005](docs/decisions/0005-hybrid-data-layer.md))
 
+**That diagram is the shape, not the state.** Of it, only the left column exists:
+`bronze` is landed and read directly; **silver, gold and dbt are deferred**, and the
+right-hand builder column has not been built at all. The deferral is recorded, with its
+trigger, on [ADR 0004](docs/decisions/0004-mysql-warehouse.md) — the pattern is honoured
+and only the tooling waits.
+
 ## Design decisions
 
 Twenty-two are recorded in [`docs/decisions/`](docs/decisions/) — twenty live, two
@@ -100,13 +108,30 @@ so it is not runnable from a clone alone.
 
 ```bash
 uv sync
-cp .env.example .env      # then fill in your install + save paths
-uv run pytest
+cp .env.example .env               # then fill it in — see below
+mysql -u root -p < ops/mysql-bootstrap.sql   # once: schemas, the app user, grants
+
+uv run pytest -m "not gamedata"    # the offline suite — no game, no MySQL, no save
+uv run pytest -m gamedata          # needs all three
+
+uv run python -m ootp_ai.reports render   # the roster report, from the latest landing
+uv run python -m ootp_ai.catalog          # the catalog, tracked half and generated half
 ```
 
-`.env` needs your OOTP install directory, your saved-games directory, the league
-name, and local MySQL credentials. Every path in this repo resolves from those;
-none is hardcoded.
+`.env` needs your OOTP install directory, your saved-games directory, the managed
+league's name, local MySQL credentials, and — optionally — the two non-managed saves
+(`OOTP_TRUTH_LEAGUE`, `OOTP_PROBE_LEAGUE`), a snapshot root and an output root. Every
+path in this repo resolves from those; none is hardcoded, and
+[`.env.example`](.env.example) documents each key and why it exists. The only runtime
+dependencies are `python-dotenv` and **PyMySQL** — pure Python, so no build toolchain.
+
+> **There is no ingest command, and it is worth knowing that before you go looking.**
+> `ootp_ai.ingest.ingest_save` and `ootp_ai.warehouse.load.land_snapshot` are library
+> functions with no `__main__` behind them; the two universes now in the warehouse were
+> landed by the `-m gamedata` suite, which is their only caller. `reports render` **reads**
+> a landing and never creates one, so on a fresh machine the gamedata suite is what puts
+> anything there to render. That is a real gap rather than a documentation shortcut, and
+> it is recorded here rather than papered over with a command that does not exist.
 
 **Node** is needed only for the agent skills' own guards, which CI also runs —
 see [`ops/README.md`](ops/README.md). Nothing in `src/` requires it.
@@ -241,8 +266,36 @@ halves from one generator: [`docs/warehouse-catalog.md`](docs/warehouse-catalog.
 tracked and carries the structure — grains, keys, coverage, the withheld groups, and
 where the reports resolve — while row counts and freshness generate beside the reports
 in the ignored output root. The tracked half is regenerated during the test run and
-refused if a single byte differs, so it cannot be hand-edited into drift. **Next are the
-documentation truth-up (Phase 12) and the operator's own acceptance checks (13).**
+refused if a single byte differs, so it cannot be hand-edited into drift.
+
+**Phase 12 trued the documentation up against the repo that now exists**, and three claims
+turned out to be measurably false. Each is now a dated correction rather than a deletion,
+because a refuted claim is more useful written down than removed. There is **no
+`leagues.dat`** — a Challenge-mode save holds 19 `.dat` files and a standard-mode one 18,
+and none of either set is it; the league configuration is a ~1,200-byte scalar block in
+`world.dat` that remains unread. [`docs/league-rules.md`](docs/league-rules.md) §1 said the
+warehouse would supersede it "the moment the parser lands" — the parser has landed and **no
+declared table carries a rules column**, so §1 is still the only copy of those values. And
+the standard-mode validation save is **retained, not disposable**: Tier B compares the
+binaries against the export, so deleting the save would end row-for-row validation for
+fictional players and roster lists, the populations `players.csv` cannot reach at all.
+
+The same pass completed [`docs/data-access.md`](docs/data-access.md) §1's file inventory
+from nine entries to nineteen — the ten it omitted included `messages.dat`, the index of
+the only channel by which the GM could hear from ownership — made every `verified` label in
+its field-semantics section name the test that holds it, and recorded on
+[ADR 0004](docs/decisions/0004-mysql-warehouse.md) that the warehouse landed with **no dbt
+model**: ADR 0005's pattern honoured in full, only its tooling deferred, with
+`incremental-loading` named as the trigger that ends the deferral. The GM's report channel
+opened alongside it — `gm/standing-orders.md` gained an **engineering-owned report kind**,
+because no staff have been engaged and naming an analyst as the owner of a
+pipeline-generated page would be fiction in precisely the field the GM uses to decide whose
+read to trust.
+
+**Phase 13 is next and it is the operator's.** A cold `gm` subagent asked to name five of
+its own players from the handed-over report alone; a by-hand confirmation that a full
+ingest left the managed save byte-identical; and a spot-check of at least 20 players across
+5 clubs against the game's own screens, sampled **by `player_id`, never by name**.
 
 Verifying that the managed league is configured the way
 [`docs/league-rules.md`](docs/league-rules.md) claims was the intended second job

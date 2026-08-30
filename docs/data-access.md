@@ -56,36 +56,78 @@ weekday arithmetic against those same screenshots. **This matters beyond filenam
 `sim_date` is a key column in every bronze table, so a screen-read date would key the
 warehouse three days into the future.**
 
-Each `.lg` directory holds (`measured`):
+### The `.dat` inventory — complete, and it is 19 files, not 18
 
-| File | Size (example) | Content |
+`measured` 2026-08-29 — **a Challenge Mode `.lg` directory holds 19 `.dat` files and a
+standard-mode one holds 18. The whole difference is `challenge.dat`.** Enumerated over
+all three saves on disk; sizes below span them, and a size given as a single number is
+byte-identical in all three. **There is no `leagues.dat`** — see §4's `world.dat` entry,
+and the correction in [`league-rules.md`](league-rules.md) §2.
+
+This table used to list nine of these files. The ten it omitted are not exotic — one of
+them (`messages.dat`) is the index of the only channel by which the GM could hear from
+ownership, and its absence here is part of why nobody had read it.
+
+| File | Size | Content | Walked by |
+|---|---|---|---|
+| `retired.dat` | 130.1–154.1 MB | Retired players | — |
+| `players.dat` | 25.7–32.1 MB | Player records — ratings, contracts, stats (see §4) | `parser/players.py` |
+| `faces.dat` | 1.5–11.2 MB | Generated player portraits | — |
+| `world.dat` | 8,657,715–8,898,534 B | Nations, states, cities — **and** the league → sub-league → division nest and the 3,058-entry league calendar | `parser/world.py` |
+| `names.dat` | **8,642,110 B** | Name string table (see §4) | `parser/names.py` |
+| `teams.dat` | 4.55–5.33 MB | Team records | `parser/teams.py` |
+| `text_data.dat` | 2.76–3.26 MB | Not the SQLite file of nearly the same name — see below | — |
+| `scouting.dat` | 2.35–2.86 MB | Scout-perceived ratings (see §5) | — |
+| `coaches.dat` | 2.01–2.37 MB | Coaches and staff | — |
+| `storylines.dat` | **634,428 B** | Narrative storylines | — |
+| `parks.dat` | 448,394–601,528 B | Ballparks | — |
+| `weather.dat` | **97,330 B** | Weather model | — |
+| `flag_save_completed.dat` | 1,010–1,065 B | Save-completion flag | — |
+| `messages.dat` | 538–1,129 B | Inbox index; the bodies sit in `messages/` | — |
+| `human_managers.dat` | 835–859 B | Human manager records | `parser/human_managers.py` |
+| `challenge.dat` | **241 B, Challenge Mode only** | Challenge-mode integrity hash | — |
+| `games_in_progress.dat` | **209 B** | In-flight game state | — |
+| `trades.dat` | **177 B** | Pending trades | — |
+| `offers.dat` | **173 B** | Pending contract offers | — |
+
+**The label splits across that table.** Each file's *presence and size* is `measured`.
+Its *content* is `measured` only for the five with a walker; for the other fourteen the
+content column is `assumed` from the filename and nothing has opened them. The header
+does name its own file (§4), so identity is cheap to confirm the moment one is opened —
+but nobody has, and a filename is not a finding.
+
+`measured` — **`text_data.dat` and `temp/text_data.sqlite3` are different files.** They
+differ in size in every save (3.26 MB vs 11.42 MB in the managed league) and sit in
+different directories. A search that finds one and assumes it found the other is reading
+the wrong artifact; the SQLite one is §3's.
+
+Non-`.dat` entries in the same directory:
+
+| Entry | State | Content |
 |---|---|---|
-| `players.dat` | 25.7–32.1 MB | Player records — ratings, contracts, stats (see §4) |
-| `teams.dat` | ~4.5 MB | Team records |
-| `retired.dat` | ~130–150 MB | Retired players |
-| `world.dat` | ~8.6 MB | Nations, states, cities — **and** the league → sub-league → division nest and the 3,058-entry league calendar (`measured`, Phase 5b) |
-| `names.dat` | ~8.6 MB | Name string table |
-| `coaches.dat` | ~2 MB | Coaches and staff |
-| `scouting.dat` | ~2.3 MB | Scout-perceived ratings (see §5) |
-| `parks.dat` | ~450 KB | Ballparks |
-| `challenge.dat` | 241 B | Challenge-mode integrity hash |
-| `temp/text_data.sqlite3` | ~9.7 MB | **Real SQLite** — news/history text |
-| `import_export/` | — | Destination for in-game exports (see §6) |
-| `news/html/` | — | Generated HTML reports (see §7) |
+| `temp/text_data.sqlite3` | 9.70–11.42 MB | **Real SQLite** — news/history text (§3) |
+| `import_export/` | 73 entries in the standard-mode save, **empty in both Challenge saves** | Destination for in-game exports (§6) |
+| `news/html/` | 15 entries in all three | Generated HTML reports (§7) |
+| `messages/` | **8 in the managed league**, 3 in each other save | Message bodies — the GM's unread inbox |
 
-A full `.lg` directory is **~600 MB** (the managed league is ~727 MB). `inferred` —
-snapshotting it per sim date onto cloud-synced storage would be a mistake;
-snapshots belong on local disk.
+`measured` 2026-08-29 — a full `.lg` directory is **634–1,052 MB**: the managed league
+765.9 MB, the Challenge probe 634.2 MB, the standard-mode truth save 1,051.7 MB. The
+last is the largest because it is the only one carrying an export in `import_export/`.
+`inferred` — snapshotting a whole one per sim date onto cloud-synced storage would be a
+mistake; snapshots belong on local disk, and `config.py` refuses a root under
+`%OneDrive%` rather than trusting the reader of this sentence.
 
 `measured` — **a `*.lg` glob is not a list of saves.** The saved-games directory
 contains a stray, empty directory literally named `.lg`, which matches the pattern
 and is not a save. A save enumerator must confirm contents — `players.dat` and
 `teams.dat` at minimum — rather than trusting the name.
+`tests/test_save_enumerator.py` holds this.
 
 `measured` — `challenge.dat` is present at exactly **241 bytes** in a Challenge
 Mode save and absent otherwise, and such a save's `import_export/` directory
 exists but stays empty. Either is a cheap filesystem-level check for the mode,
-without opening the menu.
+without opening the menu — and the `.dat` count is a third, since 19 vs 18 is the
+same fact counted differently.
 
 ---
 
@@ -242,6 +284,14 @@ parser built against one save's ground truth transfers to another.
 
 ### Confirmed field semantics
 
+> **Every `verified` label below names the test that holds it.** A label is a claim about
+> evidence, and evidence that cannot be re-run is a memory. The two that recur:
+> **`tests/test_parser_vs_export.py`** is Tier B — the landed warehouse diffed against
+> `ootp_truth_real` per field by name, 33 keyed columns over five tables — and
+> **`tests/test_names_join_boston.py`** is Tier A, `players.csv` against the league we
+> actually manage. Both are `-m gamedata`: CI never runs them, which is the reason to
+> name them here rather than assume someone knows.
+
 `verified` — For `players.dat`, aligned against `players.csv`: Player ID (u32),
 date of birth, uniform number, the 18-value rating block (`vR` group, then `vL`
 group, then potentials, contiguous u16), the contract salary array, contract
@@ -252,7 +302,8 @@ length-prefixed string (it is *not* a name — see below).
 logo filename, full name) followed by three u32 ARGB colors. **Scope corrected
 2026-08-19: all 259 clubs, not the 30 MLB ones** — Phase 9's differential compares
 every landed team column against `ootp_truth_real.teams` on every record, so the
-claim now rests on the whole file rather than on the league we looked at first.
+claim now rests on the whole file rather than on the league we looked at first
+(`tests/test_parser_vs_export.py`; the synthetic half is `tests/test_parse_teams_synthetic.py`).
 
 `verified` — **Two of the three color slots are identified**, measured over all 259
 clubs against every color column the export exposes: the **first** equals
@@ -326,6 +377,8 @@ the managed league, having no export either, relies on a record-boundary check a
 sampled): `u32 player_id`, then two `u32`s, then `date_of_birth` (`u8` day, `u8` month,
 `u16` year), `u8 age`, `u8 nation_id`, `u32 city_of_birth_id`, `u16 weight`, `u8 height`,
 `u8 uniform_number`, `u8 experience`, with four short unclassified spans between them.
+Held by `tests/test_parse_players.py` (synthetic half in CI, real saves under `gamedata`)
+and re-proved from the warehouse by `tests/test_parser_vs_export.py`.
 The two `u32`s at +4 and +8 are `first_name_index` and `last_name_index`, in that order —
 `verified` 2026-08-18 against all 18,072 export rows. They were `unconfirmed` until
 Phase 7 scored every candidate mapping across the full population rather than reading the
@@ -375,7 +428,9 @@ bit 3 = secondary/40-man, bit 4 = injured list, bit 5 = 60-day placement) combin
 with the **membership array** each `teams.dat` record carries, consumed as a
 multiset. `ootp_ai.parser.rosters.read_rosters` reproduces the export 15,672/15,672
 and reconciles every club's array against the reconstruction, refusing on any
-disagreement.
+disagreement. Held by `tests/test_parse_rosters.py` — whose **offline half runs in CI
+against synthetic bytes**, so this grain is one of the few with signal on both sides of
+the gamedata line — and re-proved from the warehouse by `tests/test_parser_vs_export.py`.
 
 `measured` — the membership array (stride-4 `u32`s, ~record+1150..1520, moves per
 team) equals the club's roster rows plus one entry per assigned-but-unrostered
@@ -416,6 +471,12 @@ exactly. The record is a `u8` category, a `u32`-length-prefixed name, a `u32` th
 always zero, the `u32` index, a `u32` usage count and that many `(u32, u32)` pairs. The
 walk is **strict** — zero residual on all three saves.
 
+Three tests hold this, and they are not redundant: `tests/test_names_join.py` is the
+exact Tier B half against the export, `tests/test_names_join_boston.py` is Tier A against
+`players.csv` and is the **only** name evidence that touches the league we manage, and
+`tests/test_byte_accounting.py` holds the zero-residual claim, which is the only one of
+the three that would survive losing both answer keys.
+
 Four things about it are worth carrying, because each is a trap someone else would
 otherwise re-enter:
 
@@ -441,6 +502,16 @@ byte-identical; the digests differ only in the header, at the sim date and the w
 write time. Treat this as a fact about shipped data rather than an invariant — a patch, a
 mod or a custom name master would break it, and the parser keeps the table a per-save
 object for that reason.
+
+`inferred` — **`names.dat` is therefore fixed-size per save, and does not grow as a
+league is simulated.** The table reads as written once at save creation from the shipped
+name master and indexed into thereafter; nothing observed adds an entry. Two consequences,
+and the second is why this is worth writing down: a snapshot layer pays 8.6 MB per sim
+date for a file that has not changed, and **a later save whose `names.dat` is a different
+size is evidence of something this parser does not model** — an expansion, a mod, a
+patched name master — rather than a corrupt read. The label is `inferred` and not
+`measured` because no save on disk has been simmed forward: the observation covers three
+unsimmed saves, which is precisely the population that could not have refuted it.
 
 ⚠️ **`players.csv` is not an exact answer key for names.** It ships **pure ASCII**, with
 every accented character already replaced by `?` — the file literally contains `Rod?n`.
@@ -468,7 +539,8 @@ question for a walk that never claimed to read the file. Zero residual is requir
 each region, each region's own declared count must match what the walk produced, and the
 un-walked remainder is recorded as a number rather than waved at. The tier vocabulary
 (`tests/fixtures/tiers.py`) keeps `region-accounted` a separate word from `diagnostic`
-precisely so the weaker claim cannot be read as the stronger one.
+precisely so the weaker claim cannot be read as the stronger one. The walk is held by
+`tests/test_parse_world.py` and its accounting by `tests/test_byte_accounting.py`.
 
 Two regions are mapped, and both land in the warehouse.
 
@@ -598,7 +670,31 @@ league is Challenge Mode (ADR 0003), where it does not exist, and even where it
 does exist its cadence ceiling is a manual click. See ADR 0002.
 
 Its remaining legitimate use is as a **one-time ground-truth artifact from a
-disposable standard-mode save**, used to validate the parser.
+standard-mode save**, used to validate the parser.
+
+> **Correction 2026-08-19, recorded here 2026-08-29 — that save is retained, not
+> disposable.** This document and [ADR 0002](decisions/0002-parse-binaries-not-export.md)
+> both called the standard-mode save disposable, on the reasoning that the export outlives
+> it. It does not: every value claim in the validation strategy depends on the *binaries*
+> staying on disk beside the export. `ootp_truth_real` is the answer key, and the save is
+> the question — Tier B compares the two, so deleting the save ends row-for-row validation
+> of the parser for **fictional players and roster lists**, the populations `players.csv`
+> cannot reach at all. Rebuilding it costs a save rebuild plus an export run, and the
+> rebuilt save would be a *different* league. Treat it as a project asset:
+> `.env`'s `OOTP_TRUTH_LEAGUE` names it and says so.
+>
+> **The disposable one is the other probe** — the Challenge Mode twin named by
+> `OOTP_PROBE_LEAGUE`, which is simmable and re-creatable and is where every
+> filesystem-touching test runs first.
+
+`measured` 2026-08-16, and it settles a question rather than raising one —
+**`ootp_truth_osa` is empty and is not needed.** The schema was created on the belief
+that the OSA and own-scout perspectives required two separate exports, because the export
+drops tables on the way in. It holds **0 tables** and always did:
+`ootp_truth_real.players_scouted_ratings` already carries **both** perspectives from
+**one** export, 18,072 rows each at `scouting_coach_id ∈ {-1, 2759}`. The schema and its
+`.env` key are retired; `ops/mysql-bootstrap.sql` records the absence deliberately rather
+than silently, so nobody re-creates it. **No second export will be asked of the operator.**
 
 ### Export configuration
 
@@ -630,7 +726,7 @@ ground-truth schema and the test suite; nothing in the serving layer joins to th
 
 > **The export never writes to the warehouse schema.** `ootp` belongs to the parser
 > ([ADR 0004](decisions/0004-mysql-warehouse.md)); ground truth lands in its own
-> schema, only ever from a disposable standard-mode save. Two reasons, and the
+> schema, only ever from the retained standard-mode save. Two reasons, and the
 > second is louder: mixing them destroys the provenance line that makes a data
 > incident triageable, and with `DROP TABLE` enabled a second export into a shared
 > database **destroys the first**. One schema per export variant.

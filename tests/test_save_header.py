@@ -1,6 +1,6 @@
 """AC1 — the header/version guard must REFUSE, not warn. Offline: no game, no MySQL.
 
-The trap this guards is recorded at `docs/data-access.md:183-186` and it is unusual
+The trap this guards is recorded at `docs/data-access.md` §4 "Header" and it is unusual
 in being a *symmetric* trap — both naive readings fail, and both fail on the very
 first file opened:
 
