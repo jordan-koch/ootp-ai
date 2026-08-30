@@ -1,4 +1,4 @@
-> **Status:** scoped · created 2026-08-16 · decided · next: plan
+> **Status:** planned · created 2026-08-16 · decided · next: implement (Phase 13)
 
 # Project Scope — First sight: land the club and tell the GM what else exists
 

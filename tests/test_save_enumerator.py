@@ -1,10 +1,10 @@
 """A `*.lg` glob is not a list of saves, and mode is a filesystem fact.
 
-`docs/data-access.md:60-63` records, `measured`, that the saved-games root contains a
+`docs/data-access.md` §1 records, `measured`, that the saved-games root contains a
 stray, empty directory literally named `.lg`. It matches the glob and is not a save,
 so enumeration confirms contents rather than trusting a name.
 
-`:65-68` records that `challenge.dat` is present at **exactly 241 bytes** in a
+The same section records that `challenge.dat` is present at **exactly 241 bytes** in a
 Challenge Mode save and absent otherwise — a mode check with no menu involved, which
 matters because ADR 0003's restrictions are the environment the whole project runs
 in and one write to such a save is unrecoverable.

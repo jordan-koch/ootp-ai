@@ -7,12 +7,21 @@ what makes a fresh context the *same* GM rather than a new one
 Changing the charter is a deliberate act, not a drift. Record the change as a decision under
 [`decisions/`](decisions/) with its reasoning.
 
-> **Status: unwritten.** The club now exists — Boston Red Sox, `OOTP-AI`, from
-> 2024-03-07 — and the owner has stated his goals, so this can finally be written
-> against something real. It is still a template until it is. The blocker is no
-> longer the league; it is that the GM has no warehouse and no reports
-> ([ADR 0016](../docs/decisions/0016-gm-reads-reports-not-queries.md)), so a
-> competitive window written today would rest on nothing but the owner's screen.
+> **Status: unwritten — and the blocker this page named is gone.** The club exists
+> (Boston Red Sox, `OOTP-AI`, from 2024-03-07), the owner has stated his goals, and as of
+> 2026-08-29 **the warehouse and the first two reports exist**
+> ([`standing-orders.md`](standing-orders.md) `## Reports`). This blockquote used to name
+> *"no warehouse and no reports"* as what stood in the way. That is no longer true, so what
+> remains is the writing.
+>
+> **Read what those reports do not carry before writing a window against them:** no
+> ratings, no position, no standings
+> ([`../docs/warehouse-catalog.md`](../docs/warehouse-catalog.md) states the withheld
+> groups). The current surface names the players without describing them, so a competitive
+> window written today would still lean on the owner's screen for talent judgment. That is
+> an argument about *what to write, and what to commission next* — not a reason to leave
+> this page a template
+> ([ADR 0016](../docs/decisions/0016-gm-reads-reports-not-queries.md)).
 
 ## Club
 

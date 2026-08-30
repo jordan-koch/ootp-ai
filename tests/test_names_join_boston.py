@@ -133,7 +133,7 @@ def _csv_names(settings: Settings) -> dict[str, tuple[str, str]]:
     with path.open(encoding=CSV_ENCODING, newline="") as handle:
         reader = csv.reader(handle)
         # The header line is `//`-prefixed and its fields carry a leading space
-        # (`docs/data-access.md:79-80` records the prefix; the spacing is measured here).
+        # (`docs/data-access.md` §2 records the prefix; the spacing is measured here).
         header = [column.strip() for column in next(reader)]
         header[0] = header[0].removeprefix("//").strip()
         columns = {name: header.index(name) for name in ("LahmanID", "FirstName", "LastName")}

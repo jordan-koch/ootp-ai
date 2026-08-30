@@ -23,12 +23,23 @@ Three parts, with different lifespans:
 
 | § | Part | Lifespan |
 |---|---|---|
-| 1 | **Queryable config** | Temporary. Every value is a column on the `leagues` row; the warehouse supersedes this the moment the parser lands |
+| 1 | **Queryable config** | Temporary — **and not yet superseded.** Every value is a column on the `leagues` row of an *export*, which Challenge Mode does not have. See the correction below |
 | 2 | **Unqueryable config** | **Permanent.** Not present in the export — this document is the only copy |
 | 3 | **What it implies** | **Permanent.** Never in the save, in any form ([ADR 0011](decisions/0011-gm-memory-is-tracked.md)) |
 
 The split matters. §1 is scaffolding and should be deleted when it stops being
 needed. §2 and §3 are the reason this file exists.
+
+> **Correction 2026-08-29 — the supersession is partial, and this row used to state it as
+> total.** It read *"the warehouse supersedes this the moment the parser lands."* The
+> parser has landed, eight tables are in the warehouse, and **§1 is not superseded by any
+> of them**: not one carries a rules column, because the bytes holding these values are
+> the unread part of `world.dat` (§6). So §1 is still the only copy, and deleting it today
+> would delete the record rather than a duplicate of it.
+>
+> The distinction is the whole point of the row. A doc that says "the warehouse has this
+> now" is a doc someone stops maintaining and starts querying past — and the query would
+> return nothing, silently, because the columns do not exist to be wrong.
 
 ---
 
@@ -132,9 +143,21 @@ there is nothing to diff against and nothing that supersedes this.
 | Minor-league depth charts | built on **potential** ratings | The farm plays prospects, not filler |
 | Post-season eligibility | 40-man roster | September decisions have October consequences |
 
-`inferred` — "not in the export" is not the same as "not in the save." The
-parser reads `leagues.dat` directly and may recover some of these. Re-check when
-it can.
+`inferred` — "not in the export" is not the same as "not in the save." Some of these are
+likely recoverable from the save itself, and re-checking is worth doing when they are.
+
+> **Correction 2026-08-29 — there is no `leagues.dat`.** This paragraph used to say *"the
+> parser reads `leagues.dat` directly."* No such file exists, and the claim was never
+> checked: `measured`, a Challenge Mode `.lg` directory holds **19 `.dat` files** and a
+> standard-mode one **18**, and none of either set is it
+> ([`data-access.md`](data-access.md) §1). The league configuration lives in
+> **`world.dat`**, which the parser does open — its division hierarchy and its 3,058-entry
+> calendar are walked and landed — but the **~1,200-byte scalar block holding the rules on
+> this page is located and still unread** ([`data-access.md`](data-access.md) §4).
+>
+> The prospect the paragraph described is therefore real and the file it named was not.
+> Recovering these is owned by
+> [`league-dimension`](../requests/feature-requests/league-dimension/).
 
 ---
 
@@ -328,8 +351,17 @@ Everything else is an OOTP default, kept on purpose.
 - **Cross-verification against *our* league.** Everything in §1 is `measured`
   from the creation screens and from a **probe save**, not from `OOTP-AI.lg`
   itself — the managed league is Challenge Mode, so there is no export to read.
-  Until the parser can open `leagues.dat`, every value here is believed rather
-  than confirmed for our league. That diff is the first real job for the parser.
+  Every value here is therefore believed rather than confirmed for our league.
+
+  **Correction 2026-08-29.** This item used to end *"until the parser can open
+  `leagues.dat`, … that diff is the first real job for the parser."* Both halves were
+  wrong. There is no `leagues.dat` (see §2), and the parser's first real job turned out
+  to be the roster the GM reads rather than this diff. **The blocker is genuinely
+  narrower than it was**: `world.dat` is open, two of its regions are walked and landed,
+  and what remains is one ~1,200-byte scalar block rather than an unopened file. It is
+  owned by [`league-dimension`](../requests/feature-requests/league-dimension/), which
+  also records the trap this diff will hit — the export writes `0` for roster limits on
+  all 14 non-MLB leagues, so a green comparison there would mean nothing.
 - **Owner goals.** Not visible until the club exists. Read them carefully: if they
   are purely win-now, the experiment measures survival more than
   organization-building, and that needs noticing at the time rather than in

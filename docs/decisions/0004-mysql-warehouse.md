@@ -104,3 +104,33 @@ The decision comes due when the first dbt model is requested. The live options:
 
 Option 3 or 4 is likely correct on the evidence. Superseding this ADR is
 expected, not a failure — record what actually broke.
+
+### Measured 2026-08-29 — the trigger fired, and dbt was deliberately not pulled
+
+The condition above — *"the decision comes due when the first dbt model is requested"* —
+has been passed in a way that paragraph did not anticipate. **A warehouse landed with no
+dbt model at all** (`first-sight` Phases 8b–11: eight bronze tables in MySQL, append-only
+on `(save_id, sim_date, ingest_seq)`, a per-field differential against the export, and two
+reports served off it). The trigger fired sideways, so it is recorded here rather than
+left for someone to notice.
+
+**What is deferred is the tooling, not the pattern.**
+[ADR 0005](0005-hybrid-data-layer.md) split the data layer by physics — *does this change
+when the league is simulated?* — and that choice is honoured in full. Bronze exists and is
+append-only; nothing has landed on the wrong side of the rule. What has not happened is
+bronze → silver → gold **expressed in dbt**, because no silver model has been needed yet:
+every consumer to date resolves a single snapshot triple and reads bronze directly.
+
+**Why a note and not a superseding ADR.** A postponement is not a reversal. All four
+options above are still live and nothing measured since narrows them, so spending ADR 0024
+on "not yet" would record a decision that was not made — and would read, later, as though
+one had been. The option this repo actually forbids is the third one: diverging from an
+accepted ADR quietly, so the divergence is found by someone who reads the code and stops
+believing the docs.
+
+**The trigger is now sharper than it was.** It is
+[`incremental-loading`](../../requests/feature-requests/incremental-loading/). The moment
+the warehouse holds one league at two sim dates, a cross-snapshot fact exists, ADR 0005
+puts that in silver, and options 1–4 have to be chosen between rather than deferred again.
+That request's Open Questions already name this as its central gate. **Do not pre-pick an
+option here** — the evidence that should decide it is exactly what that work produces.
