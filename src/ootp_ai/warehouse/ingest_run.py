@@ -65,6 +65,8 @@ __all__ = [
     "as_sql_date",
     "claim_ingest_run",
     "ingest_run_values",
+    "landed_max_seq",
+    "latest_landing",
     "next_ingest_seq",
     "nullable_sql_date",
     "read_ingest_run",
@@ -151,6 +153,68 @@ def next_ingest_seq(cursor: Any, save_id: str, sim_date: SaveDate) -> int:
     row = cursor.fetchone()
     used = 0 if row is None else int(row["used"])
     return used + 1
+
+
+def latest_landing(
+    connection: Connection[DictCursor],
+    *,
+    save_id: str,
+) -> dict[str, Any] | None:
+    """The save's most recent landing, JSON columns decoded. `None` if it never landed.
+
+    Keyed on `save_id` **alone**, not on `(save_id, sim_date)`. That is what lets an
+    ingest pre-flight ask *what did we last land for this save?* without first reading
+    the game to learn the date — which would put a game read outside the bracket ADR
+    0001's manifest diff covers. The equivalence that makes it sound is asserted in
+    `tests/test_ingest_command.py`: the sim date lives in `teams.dat`'s header and
+    `teams.dat` is one of the digested files, so unchanged bytes imply an unchanged date.
+
+    "Most recent" is the highest `(sim_date, ingest_seq)`, not the latest `ingested_at`.
+    Wall-clock order can disagree with league order — re-landing an older save after a
+    newer one is a legitimate correction — and it is the league's date this answers about.
+
+    A plain read with **no `FOR UPDATE`**, deliberately. See this module's docstring: the
+    lock does not serialise two allocators, so taking one here would buy nothing and
+    suggest a guarantee that does not exist.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT * FROM {quote_ident(INGEST_RUN_TABLE)} "
+            f"WHERE {quote_ident('save_id')} = %s "
+            f"ORDER BY {quote_ident('sim_date')} DESC, {quote_ident('ingest_seq')} DESC "
+            "LIMIT 1",
+            (save_id,),
+        )
+        row = cursor.fetchone()
+    return None if row is None else _decode_json_columns(row)
+
+
+def landed_max_seq(
+    connection: Connection[DictCursor],
+    *,
+    save_id: str,
+    sim_date: SaveDate,
+) -> int:
+    """The highest `ingest_seq` the warehouse holds for `(save_id, sim_date)`, or 0.
+
+    Zero means *nothing landed at this date*, which is why the caller adds one rather
+    than treating this as a sequence.
+
+    Sits beside `next_ingest_seq` on purpose, and carries **no `FOR UPDATE`** where that
+    one does. The contrast is the point: `next_ingest_seq` is an allocation and must run
+    inside the inserting transaction, while this is a question asked long before any
+    transaction is open — and this module's docstring records the measurement proving
+    that the lock would not serialise anything even if it were taken.
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(
+            f"SELECT COALESCE(MAX({quote_ident('ingest_seq')}), 0) AS used "
+            f"FROM {quote_ident(INGEST_RUN_TABLE)} "
+            f"WHERE {quote_ident('save_id')} = %s AND {quote_ident('sim_date')} = %s",
+            (save_id, as_sql_date(sim_date)),
+        )
+        row = cursor.fetchone()
+    return 0 if row is None else int(row["used"])
 
 
 def ingest_run_values(run: IngestRun, *, ingest_seq: int) -> dict[str, object]:
@@ -257,8 +321,16 @@ def read_ingest_run(
             (save_id, as_sql_date(sim_date), ingest_seq),
         )
         row = cursor.fetchone()
-    if row is None:
-        return None
+    return None if row is None else _decode_json_columns(row)
+
+
+def _decode_json_columns(row: Mapping[str, Any]) -> dict[str, Any]:
+    """One `ingest_run` row with its declared JSON columns turned back into objects.
+
+    Shared by both readers rather than written twice: a caller that got a decoded
+    `source_files` from one and a JSON string from the other would be holding two
+    different types under one column name, and only one of them would iterate.
+    """
     decoded = dict(row)
     for column in _JSON_COLUMNS:
         value = decoded.get(column)

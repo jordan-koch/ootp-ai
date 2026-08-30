@@ -106,6 +106,33 @@ All non-binding. Scoping is free to route this differently.
   snapshot and said what it actually needs; automating the operator's loop; landing the
   managed league at a second date, which happens naturally when the season starts.
 
+> **Amendment 2026-08-30 — the vehicle now exists, and this request drives it.**
+> [`ingest-command`](../_done/ingest-command/) shipped `uv run python -m ootp_ai.ingest land`,
+> which is the invocation the sim-forward procedure is written against. The boundary
+> between the two requests is a **status verb**: `ingest-command` built the act of landing
+> and stops there; everything about *sequencing* landings — simming forward, the two-date
+> proof, answering "what dates does this save hold" — is this request's, unchanged.
+>
+> Four things it pinned that this request should not renegotiate, only consume: the
+> invocation string above; the flags `--save-id`, `--json`, `--new-look` and
+> `--from-snapshot`; the exit codes (0 landed, 1 refused by name on stderr, 2 the command,
+> `.env`, or the warehouse `.env` names is wrong — an unreachable MySQL included); and the
+> `--json` payload, whose key set is owned by `INVOCATION`'s module as `JSON_KEYS`.
+>
+> **The discriminator is `verdict`, and its vocabulary is closed.** A successful landing
+> carries one of `no-prior` · `changed` · `new-look` · `from-snapshot` (the module's
+> `LandingVerdict`); the refusal path emits a `{"verdict": "unchanged", …}` envelope on
+> stdout with the exception name on stderr and exit 1, so a driver never has to parse
+> prose. Alongside it, **`reason`** carries *why* the pre-flight decided the save had
+> moved — e.g. `"players.dat is 32,078,633 bytes against 32,070,091 landed"` — and is
+> `null`, never absent, on the three verdicts where no comparison was made.
+>
+> Re-running against an unchanged save already refuses before anything is copied, so the
+> procedure does **not** need to guard against that itself. One thing it *should* know:
+> the landed sequence is `max(snapshot_dir_seq, warehouse_max_seq + 1)` and is passed
+> explicitly, so a lost race surfaces as `IngestRunExists` rather than as a retry —
+> re-running the command recovers it, because the maximum is re-read.
+
 ## Affected Area & Pointers
 
 **Subsystem:** `src/ootp_ai/` (warehouse loading and a new or extended read path) plus
