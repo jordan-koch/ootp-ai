@@ -1,4 +1,4 @@
-> **Status:** intake · created 2026-08-29 · open · next: scope
+> **Status:** scoped · created 2026-08-29 · open · next: plan
 
 # Feature Request — An ingest command: the pipeline has no way to be run
 
